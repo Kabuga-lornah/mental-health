@@ -24,17 +24,13 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(""); // Clear previous errors
     try {
-      await login(email, password);
-
-     
-      if (role === "therapist") {
-        navigate("/therapist/dashboard");
-      } else {
-        navigate("/home"); 
-      }
+      await login(email, password, role); // Pass role to login function if needed
+      // Redirect based on role
+      navigate(role === "therapist" ? "/therapist/dashboard" : "/homepage");
     } catch (err) {
-      setError(err.error || "Invalid credentials");
+      setError(err.message || "Invalid credentials");
     }
   };
 
