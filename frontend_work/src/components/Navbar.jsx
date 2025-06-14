@@ -27,6 +27,12 @@ export default function Navbar() {
     navigate("/");
   };
 
+  // This Navbar is now specifically for regular users.
+  // The TherapistNavbar will be rendered conditionally in App.js based on user.is_therapist.
+  if (user && user.is_therapist) {
+    return null; // Or render a placeholder if needed, but App.js will handle redirect
+  }
+
   return (
     <AppBar
       position="static"
@@ -89,15 +95,6 @@ export default function Navbar() {
                 <MenuItem component={Link} to="/profile/photo" onClick={handleMenuClose}>
                   Upload/Remove Photo
                 </MenuItem>
-                {user.role !== "therapist" && (
-                  <MenuItem
-                    component={Link}
-                    to="/login?as=therapist"
-                    onClick={handleMenuClose}
-                  >
-                    Login as Therapist
-                  </MenuItem>
-                )}
                 <MenuItem onClick={() => { handleLogout(); handleMenuClose(); }}>
                   Logout
                 </MenuItem>
@@ -105,17 +102,17 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <Button component={Link} to="/login" sx={{ color: "#fefae0" }}>
+              <Button component={Link} to="/login" sx={{ backgroundColor: "#fefae0", color: "#780000", "&:hover": { backgroundColor: "white"}}}>
                 Login
               </Button>
-              <Button
+              {/* <Button
                 component={Link}
                 to="/login?as=therapist"
                 sx={{ color: "#fefae0" }}
               >
                 Therapist Login
-              </Button>
-              <Button
+              </Button> */}
+              {/* <Button
                 component={Link}
                 to="/register"
                 variant="contained"
@@ -126,7 +123,7 @@ export default function Navbar() {
                 }}
               >
                 Register
-              </Button>
+              </Button> */}
             </>
           )}
         </Box>

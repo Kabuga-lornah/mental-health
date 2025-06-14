@@ -1,13 +1,37 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { jwtDecode } from "jwt-decode"; // Corrected import for jwt-decode
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  // Initialize user from localStorage, parsing the JSON string
   const [user, setUser] = useState(JSON.parse(localStorage.getItem("user")) || null);
   const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [refreshToken, setRefreshToken] = useState(localStorage.getItem("refresh_token") || ""); // New state for refresh token
   const [loading, setLoading] = useState(true);
+
+  // Function to refresh the access token
+  const refreshAccessToken = useCallback(async () => {
+    if (!refreshToken) {
+      console.log("No refresh token available. Logging out.");
+      logout(); // If no refresh token, force logout
+      return null;
+    }
+    try {
+      const response = await axios.post("http://localhost:8000/api/token/refresh/", {
+        refresh: refreshToken,
+      });
+      const newAccessToken = response.data.access;
+      setToken(newAccessToken);
+      localStorage.setItem("token", newAccessToken);
+      console.log("Access token refreshed successfully.");
+      return newAccessToken;
+    } catch (err) {
+      console.error("Error refreshing access token:", err.response?.data || err.message);
+      logout(); // If refresh fails, log out the user
+      return null;
+    }
+  }, [refreshToken]); // Dependency on refreshToken
 
   // Set axios default headers when token changes
   useEffect(() => {
@@ -22,28 +46,58 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
-  // Validate token on initial load and when token changes
+  // Validate token on initial load and set up refresh interval
   useEffect(() => {
-    const validateToken = async () => {
-      try {
-        if (token) {
+    const validateAndRefresh = async () => {
+      setLoading(true);
+      if (token) {
+        try {
           const res = await axios.get("http://localhost:8000/api/user/", {
             headers: { Authorization: `Bearer ${token}` }
           });
           setUser(res.data);
-          // Ensure user data is stored in localStorage after successful validation
           localStorage.setItem("user", JSON.stringify(res.data));
+          console.log("Initial token validation successful.");
+        } catch (err) {
+          console.error("Initial token validation failed:", err);
+          // If initial validation fails (e.g., token expired), try to refresh
+          console.log("Attempting to refresh token on initial load...");
+          const newAccessToken = await refreshAccessToken();
+          if (newAccessToken) {
+            // Re-attempt user data fetch with new token
+            try {
+              const res = await axios.get("http://localhost:8000/api/user/", {
+                headers: { Authorization: `Bearer ${newAccessToken}` }
+              });
+              setUser(res.data);
+              localStorage.setItem("user", JSON.stringify(res.data));
+              console.log("User data fetched with refreshed token.");
+            } catch (retryErr) {
+              console.error("Failed to fetch user data after refresh:", retryErr);
+              logout();
+            }
+          } else {
+            logout(); // If refresh also fails, log out
+          }
         }
-      } catch (err) {
-        console.error("Token validation failed:", err);
-        logout();
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
-    validateToken();
-  }, [token]);
 
+    validateAndRefresh();
+
+    // Set up automatic token refresh interval (e.g., every 4 minutes if token expires in 5 minutes)
+    // Adjust interval based on your JWT access token expiry time.
+    const refreshInterval = setInterval(() => {
+      console.log("Attempting automatic token refresh...");
+      refreshAccessToken();
+    }, 4 * 60 * 1000); // Refresh every 4 minutes (240000 ms)
+
+    return () => clearInterval(refreshInterval); // Clean up interval on unmount
+  }, [token, refreshToken, refreshAccessToken]); // Dependencies for useEffect
+
+
+  // Login function
   const login = async (email, password) => {
     try {
       const res = await axios.post("http://localhost:8000/api/login/", {
@@ -52,10 +106,10 @@ export const AuthProvider = ({ children }) => {
       });
 
       setToken(res.data.access);
+      setRefreshToken(res.data.refresh); // Store refresh token
       setUser(res.data.user);
-      // Store user data immediately after login
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      localStorage.setItem("refresh_token", res.data.refresh);
+      localStorage.setItem("refresh_token", res.data.refresh); // Persist refresh token
       return res.data;
     } catch (err) {
       console.error("Login error:", err);
@@ -63,6 +117,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Register function
   const register = async (userData) => {
     try {
       const res = await axios.post("http://localhost:8000/api/register/", {
@@ -76,18 +131,21 @@ export const AuthProvider = ({ children }) => {
       });
 
       setToken(res.data.access);
+      setRefreshToken(res.data.refresh); // Store refresh token
       setUser(res.data.user);
-      // Store user data immediately after registration
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      localStorage.setItem("refresh_token", res.data.refresh);
+      localStorage.setItem("refresh_token", res.data.refresh); // Persist refresh token
       return res.data;
     } catch (err) {
+      console.error("Registration error:", err);
       throw err.response?.data || { error: err.message || "Registration failed" };
     }
   };
 
+  // Logout function
   const logout = () => {
     setToken("");
+    setRefreshToken(""); // Clear refresh token on logout
     setUser(null);
     localStorage.removeItem("token");
     localStorage.removeItem("refresh_token");
@@ -100,7 +158,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
-    logout
+    logout,
+    refreshAccessToken // Expose refresh function if needed elsewhere
   };
 
   return (
