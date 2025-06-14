@@ -21,6 +21,8 @@ import {
   ListItemText,
   IconButton,
   Badge,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
@@ -30,6 +32,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 
 const moods = [
@@ -53,20 +56,27 @@ const motivationalQuotes = [
 ];
 
 export default function Journal() {
-  const [mood, setMood] = useState("");
-  const [entry, setEntry] = useState("");
-  const [tags, setTags] = useState([]);
-  const [tagInput, setTagInput] = useState("");
-  const [attachment, setAttachment] = useState(null);
+  const { user, token, loading: authLoading } = useAuth();
+  const [formData, setFormData] = useState({
+    mood: "",
+    entry: "",
+    tags: [],
+    attachment_name: "",
+    attachment_file: null,
+    date: new Date(),
+  });
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [journalEntries, setJournalEntries] = useState([]);
+  const [showEntries, setShowEntries] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [randomQuote] = useState(
     motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]
   );
-  const [loading, setLoading] = useState(false);
-  const [entries, setEntries] = useState([]);
-  const [showEntries, setShowEntries] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [showCalendar, setShowCalendar] = useState(false);
 
   const isMobile = useMediaQuery("(max-width:600px)");
 
@@ -75,9 +85,6 @@ export default function Journal() {
     window.addEventListener("online", handleStatusChange);
     window.addEventListener("offline", handleStatusChange);
 
-    // Load journal entries from backend
-    fetchJournalEntries();
-
     return () => {
       window.removeEventListener("online", handleStatusChange);
       window.removeEventListener("offline", handleStatusChange);
@@ -85,67 +92,91 @@ export default function Journal() {
   }, []);
 
   const fetchJournalEntries = async () => {
-    try {
+    if (user && !authLoading) {
       setLoading(true);
-      const token = localStorage.getItem("access_token");
-      const response = await axios.get("http://localhost:8000/api/journal/", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setEntries(response.data);
-    } catch (error) {
-      console.error("Error fetching journal entries:", error);
-    } finally {
-      setLoading(false);
+      setError("");
+      try {
+        const response = await axios.get("http://localhost:8000/api/journal/");
+        setJournalEntries(response.data);
+      } catch (err) {
+        console.error("Error fetching journal entries:", err);
+        if (err.response?.status === 401) {
+          setError("You are not authorized to view these entries. Please log in again.");
+        } else {
+          setError(err.message || "Failed to fetch journal entries.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    } else if (!user && !authLoading) {
+      setJournalEntries([]);
     }
   };
 
+  useEffect(() => {
+    fetchJournalEntries();
+  }, [user, authLoading, token]);
+
   const handleTagAdd = () => {
-    if (tagInput.trim() !== "") {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput("");
+    if (formData.tagInput?.trim() !== "") {
+      setFormData({
+        ...formData,
+        tags: [...formData.tags, formData.tagInput.trim()],
+        tagInput: "",
+      });
     }
   };
 
   const handleAttachmentChange = (e) => {
     if (e.target.files.length > 0) {
-      setAttachment(e.target.files[0]);
+      setFormData({
+        ...formData,
+        attachment_file: e.target.files[0],
+        attachment_name: e.target.files[0].name,
+      });
     }
   };
 
-  const handleSubmit = async () => {
-    const journalEntry = {
-      date: selectedDate.toISOString(),
-      mood,
-      entry,
-      tags,
-      attachmentName: attachment?.name || null,
-    };
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const dataToSend = new FormData();
+    dataToSend.append("date", formData.date.toISOString());
+    dataToSend.append("mood", formData.mood);
+    dataToSend.append("entry", formData.entry);
+    dataToSend.append("tags", JSON.stringify(formData.tags));
+    if (formData.attachment_file) {
+      dataToSend.append("attachment_file", formData.attachment_file);
+    }
+    if (formData.attachment_name) {
+      dataToSend.append("attachment_name", formData.attachment_name);
+    }
 
     try {
-      setLoading(true);
-      const token = localStorage.getItem("access_token");
-      await axios.post("http://localhost:8000/api/journal/", journalEntry, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      if (editingEntry) {
+        await axios.put(`http://localhost:8000/api/journal/${editingEntry.id}/`, dataToSend);
+        setFeedbackMessage("Journal entry updated successfully!");
+      } else {
+        await axios.post("http://localhost:8000/api/journal/", dataToSend);
+        setFeedbackMessage("Journal entry saved successfully!");
+      }
+      setOpenSnackbar(true);
+      setFormData({
+        mood: "",
+        entry: "",
+        tags: [],
+        attachment_name: "",
+        attachment_file: null,
+        date: new Date(),
+        tagInput: "",
       });
-
-      await fetchJournalEntries();
-
-      setMood("");
-      setEntry("");
-      setTags([]);
-      setTagInput("");
-      setAttachment(null);
-      setSelectedDate(new Date());
-
-      alert("Journal saved successfully!");
+      setEditingEntry(null);
+      fetchJournalEntries();
     } catch (error) {
       console.error("Error saving journal:", error);
-      alert("Error saving journal. Please try again.");
+      setError(error.response?.data?.error || "Failed to save journal entry.");
     } finally {
       setLoading(false);
     }
@@ -154,6 +185,18 @@ export default function Journal() {
   const formatDate = (dateString) => {
     const options = { year: "numeric", month: "long", day: "numeric" };
     return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && formData.tagInput?.trim()) {
+      e.preventDefault();
+      handleTagAdd();
+    }
   };
 
   return (
@@ -251,7 +294,7 @@ export default function Journal() {
             onClick={() => setShowCalendar(!showCalendar)}
             sx={{ color: "#780000" }}
           >
-            <Badge badgeContent={entries.length} color="primary">
+            <Badge badgeContent={journalEntries.length} color="primary">
               <CalendarTodayIcon />
             </Badge>
           </IconButton>
@@ -266,9 +309,9 @@ export default function Journal() {
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <DatePicker
               label="Select Date"
-              value={selectedDate}
+              value={formData.date}
               onChange={(newDate) => {
-                setSelectedDate(newDate);
+                setFormData({ ...formData, date: newDate });
                 setShowCalendar(false);
               }}
               slotProps={{
@@ -281,146 +324,155 @@ export default function Journal() {
           </LocalizationProvider>
         )}
 
-        <TextField
-          select
-          label="Today's mood"
-          value={mood}
-          onChange={(e) => setMood(e.target.value)}
-          fullWidth
-          margin="normal"
-          sx={{ bgcolor: "#f9f9f9" }}
-        >
-          {moods.map((option) => (
-            <MenuItem key={option.label} value={option.label}>
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Typography sx={{ fontSize: "1.5rem", mr: 1 }}>
-                  {option.emoji}
-                </Typography>
-                <Typography>{option.label}</Typography>
-              </Box>
-            </MenuItem>
-          ))}
-        </TextField>
-
-        <Paper
-          sx={{
-            p: 2,
-            mt: 2,
-            mb: 3,
-            backgroundImage:
-              "linear-gradient(to bottom, #f9f9f9 1px, transparent 1px)",
-            backgroundSize: "100% 28px",
-            backgroundPositionY: "32px",
-            backgroundColor: "#fff9f0",
-            border: "1px solid #e0e0e0",
-            minHeight: 200,
-          }}
-        >
+        <form onSubmit={handleSubmit}>
           <TextField
-            placeholder="Dear Diary..."
-            multiline
-            minRows={6}
+            select
+            label="Today's mood"
+            name="mood"
+            value={formData.mood}
+            onChange={handleChange}
             fullWidth
-            value={entry}
-            onChange={(e) => setEntry(e.target.value)}
+            margin="normal"
+            sx={{ bgcolor: "#f9f9f9" }}
+            required
+          >
+            {moods.map((option) => (
+              <MenuItem key={option.label} value={option.label}>
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <Typography sx={{ fontSize: "1.5rem", mr: 1 }}>
+                    {option.emoji}
+                  </Typography>
+                  <Typography>{option.label}</Typography>
+                </Box>
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Paper
             sx={{
-              "& .MuiInputBase-root": {
-                background: "transparent",
-                lineHeight: "28px",
-                padding: 0,
-              },
-              "& .MuiInputBase-input": {
-                lineHeight: "28px",
-                padding: 0,
-              },
-              "& fieldset": { border: "none" },
+              p: 2,
+              mt: 2,
+              mb: 3,
+              backgroundImage:
+                "linear-gradient(to bottom, #f9f9f9 1px, transparent 1px)",
+              backgroundSize: "100% 28px",
+              backgroundPositionY: "32px",
+              backgroundColor: "#fff9f0",
+              border: "1px solid #e0e0e0",
+              minHeight: 200,
+            }}
+          >
+            <TextField
+              placeholder="Dear Diary..."
+              name="entry"
+              multiline
+              minRows={6}
+              fullWidth
+              value={formData.entry}
+              onChange={handleChange}
+              required
+              sx={{
+                "& .MuiInputBase-root": {
+                  background: "transparent",
+                  lineHeight: "28px",
+                  padding: 0,
+                },
+                "& .MuiInputBase-input": {
+                  lineHeight: "28px",
+                  padding: 0,
+                },
+                "& fieldset": { border: "none" },
+              }}
+            />
+          </Paper>
+
+          <TextField
+            label="Add tags (e.g. work, family, success)"
+            name="tagInput"
+            value={formData.tagInput || ""}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            fullWidth
+            margin="normal"
+            sx={{ bgcolor: "#f9f9f9" }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <Button
+                    onClick={handleTagAdd}
+                    sx={{
+                      color: "#780000",
+                      textTransform: "none",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Add
+                  </Button>
+                </InputAdornment>
+              ),
             }}
           />
-        </Paper>
 
-        <TextField
-          label="Add tags (e.g. work, family, success)"
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleTagAdd();
-            }
-          }}
-          fullWidth
-          margin="normal"
-          sx={{ bgcolor: "#f9f9f9" }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <Button
-                  onClick={handleTagAdd}
-                  sx={{
-                    color: "#780000",
-                    textTransform: "none",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Add
-                </Button>
-              </InputAdornment>
-            ),
-          }}
-        />
+          <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap" }}>
+            {formData.tags.map((tag, index) => (
+              <Chip
+                key={index}
+                label={tag}
+                onDelete={() =>
+                  setFormData({
+                    ...formData,
+                    tags: formData.tags.filter((_, i) => i !== index),
+                  })
+                }
+                sx={{ bgcolor: "#780000", color: "#fff" }}
+              />
+            ))}
+          </Stack>
 
-        <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap" }}>
-          {tags.map((tag, index) => (
-            <Chip
-              key={index}
-              label={tag}
-              onDelete={() => setTags(tags.filter((_, i) => i !== index))}
-              sx={{ bgcolor: "#780000", color: "#fff" }}
-            />
-          ))}
-        </Stack>
+          <Button
+            component="label"
+            variant="outlined"
+            startIcon={<CloudUploadIcon />}
+            sx={{
+              mb: 2,
+              borderColor: "#780000",
+              color: "#780000",
+              ":hover": { borderColor: "#780000", backgroundColor: "#fbe9e7" },
+            }}
+          >
+            Upload File
+            <input type="file" hidden onChange={handleAttachmentChange} />
+          </Button>
 
-        <Button
-          component="label"
-          variant="outlined"
-          startIcon={<CloudUploadIcon />}
-          sx={{
-            mb: 2,
-            borderColor: "#780000",
-            color: "#780000",
-            ":hover": { borderColor: "#780000", backgroundColor: "#fbe9e7" },
-          }}
-        >
-          Upload File
-          <input type="file" hidden onChange={handleAttachmentChange} />
-        </Button>
-
-        {attachment && (
-          <Typography sx={{ fontSize: 14, color: "#444", mb: 2 }}>
-            Attached: {attachment.name}
-          </Typography>
-        )}
-
-        <Button
-          variant="contained"
-          fullWidth
-          sx={{
-            mt: 3,
-            py: 1.5,
-            backgroundColor: "#780000",
-            ":hover": { backgroundColor: "#a30000" },
-            fontWeight: "bold",
-            fontSize: "1rem",
-          }}
-          onClick={handleSubmit}
-          disabled={!entry || !mood || loading}
-        >
-          {loading ? (
-            <CircularProgress size={24} color="inherit" />
-          ) : (
-            "Save My Journal"
+          {formData.attachment_name && (
+            <Typography sx={{ fontSize: 14, color: "#444", mb: 2 }}>
+              Attached: {formData.attachment_name}
+            </Typography>
           )}
-        </Button>
+
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            sx={{
+              mt: 3,
+              py: 1.5,
+              backgroundColor: "#780000",
+              ":hover": { backgroundColor: "#a30000" },
+              fontWeight: "bold",
+              fontSize: "1rem",
+            }}
+            disabled={!formData.entry || !formData.mood || loading}
+          >
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : editingEntry ? (
+              "Update Journal"
+            ) : (
+              "Save My Journal"
+            )}
+          </Button>
+        </form>
 
         {isMobile && (
           <Box sx={{ mt: 4, p: 2, bgcolor: "#f9f4e8", borderRadius: 2 }}>
@@ -465,17 +517,21 @@ export default function Journal() {
           </IconButton>
         </DialogTitle>
         <DialogContent>
-          {loading ? (
+          {error ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          ) : loading ? (
             <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
               <CircularProgress />
             </Box>
-          ) : entries.length === 0 ? (
+          ) : journalEntries.length === 0 ? (
             <Typography sx={{ p: 2, textAlign: "center" }}>
               No journal entries yet.
             </Typography>
           ) : (
             <List>
-              {entries.map((entry) => (
+              {journalEntries.map((entry) => (
                 <ListItem
                   key={entry.id}
                   divider
@@ -485,6 +541,18 @@ export default function Journal() {
                       cursor: "pointer",
                     },
                   }}
+                  onClick={() => {
+                    setEditingEntry(entry);
+                    setFormData({
+                      mood: entry.mood,
+                      entry: entry.entry,
+                      tags: entry.tags || [],
+                      date: new Date(entry.date),
+                      attachment_name: entry.attachment_name || "",
+                      attachment_file: null,
+                    });
+                    setShowEntries(false);
+                  }}
                 >
                   <ListItemText
                     primary={formatDate(entry.date)}
@@ -493,7 +561,7 @@ export default function Journal() {
                         <Typography component="span" sx={{ display: "block" }}>
                           Mood: {entry.mood}
                         </Typography>
-                        {entry.tags.length > 0 && (
+                        {entry.tags?.length > 0 && (
                           <Box sx={{ mt: 1 }}>
                             {entry.tags.map((tag, index) => (
                               <Chip
@@ -522,6 +590,20 @@ export default function Journal() {
           <Button onClick={() => setShowEntries(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={openSnackbar}
+        autoHideDuration={6000}
+        onClose={() => setOpenSnackbar(false)}
+      >
+        <Alert
+          onClose={() => setOpenSnackbar(false)}
+          severity="success"
+          sx={{ width: "100%" }}
+        >
+          {feedbackMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

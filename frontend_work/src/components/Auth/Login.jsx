@@ -84,20 +84,6 @@ export default function Login() {
             required
           />
 
-          <FormControl component="fieldset" sx={{ mb: 3 }}>
-            <FormLabel component="legend">Login As</FormLabel>
-            <RadioGroup
-              row
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              aria-label="role"
-              name="role"
-            >
-              <FormControlLabel value="user" control={<Radio />} label="User" />
-              <FormControlLabel value="therapist" control={<Radio />} label="Therapist" />
-            </RadioGroup>
-          </FormControl>
-
           <Button
             fullWidth
             type="submit"

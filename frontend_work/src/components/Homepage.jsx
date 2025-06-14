@@ -67,7 +67,7 @@ export default function Homepage() {
             desc: "Get real-time guidance, mood insights, and care suggestions from our chatbot.",
             img: feature3Image
           }].map((item, i) => (
-            <Grid item xs={12} md={4} key={i}>
+            <Grid xs={12} md={4} key={i}>
               <Paper elevation={4} sx={{ p: 3, height: "100%", borderRadius: 3 }}>
                 <Box
                   component="img"
@@ -93,7 +93,7 @@ export default function Homepage() {
           </Typography>
           <Grid container spacing={4}>
             {["I found peace after years of anxiety.", "My therapist helped me rediscover myself.", "The AI assistant saved me during a tough night."].map((story, index) => (
-              <Grid item xs={12} md={4} key={index}>
+              <Grid xs={12} md={4} key={index}>
                 <Paper elevation={2} sx={{ p: 4, borderLeft: "5px solid #780000", height: "100%" }}>
                   <Typography variant="body1" sx={{ mb: 2, fontStyle: "italic" }}>
                     "{story}"
