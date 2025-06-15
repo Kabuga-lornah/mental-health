@@ -24,13 +24,16 @@ import {
   FormControl,
   InputLabel,
   TextField,
-  Link as MuiLink // Alias Material-UI Link to avoid conflict with react-router-dom Link
+  Link as MuiLink,
+  AppBar,
+  Toolbar
 } from '@mui/material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function AdminDashboard() {
+  console.log("DEBUG: AdminDashboard - Component is being rendered/mounted."); // ADD THIS LINE at the very top
   const { user, token, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
@@ -45,35 +48,51 @@ export default function AdminDashboard() {
   const [reviewerNotes, setReviewerNotes] = useState('');
 
   const fetchApplications = async () => {
+    console.log("DEBUG: AdminDashboard - fetchApplications called.");
     // Only fetch if user is an admin
     if (!user || !user.is_staff || !user.is_superuser || !token) {
       setLoading(false);
       setError("Access Denied: You must be an administrator to view this page.");
+      console.log("DEBUG: AdminDashboard - fetchApplications: User is NOT an admin or token missing. Skipping fetch.");
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
+      console.log("DEBUG: AdminDashboard - Attempting to fetch applications from API: http://localhost:8000/api/admin/therapist-applications/");
       const response = await axios.get('http://localhost:8000/api/admin/therapist-applications/', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       setApplications(response.data);
+      console.log("DEBUG: AdminDashboard - Applications fetched successfully:", response.data);
     } catch (err) {
-      console.error("Error fetching applications:", err);
-      setError("Failed to load therapist applications. Ensure you are logged in as an admin and the backend is running.");
+      console.error("DEBUG: AdminDashboard - Error fetching applications:", err);
+      // More specific error for 403:
+      if (err.response && err.response.status === 403) {
+          setError("Failed to load therapist applications. You do not have permission to access this. Ensure your account has admin privileges.");
+      } else {
+          setError("Failed to load therapist applications. Ensure you are logged in as an admin and the backend is running.");
+      }
     } finally {
       setLoading(false);
+      console.log("DEBUG: AdminDashboard - Loading set to false after fetch attempt.");
     }
   };
 
   useEffect(() => {
+    console.log("DEBUG: AdminDashboard - useEffect triggered. AuthLoading:", authLoading, "User:", user);
+    if (user) {
+        console.log("DEBUG: AdminDashboard - useEffect User roles:", { is_staff: user.is_staff, is_superuser: user.is_superuser });
+    }
+
     if (!authLoading) { // Only fetch once auth state is determined
+      console.log("DEBUG: AdminDashboard - Auth state determined, calling fetchApplications.");
       fetchApplications();
     }
-  }, [user, token, authLoading]); // Depend on user, token, and authLoading
+  }, [user, token, authLoading]);
 
   const handleSnackbarClose = (event, reason) => {
     if (reason === 'clickaway') {
@@ -115,7 +134,7 @@ export default function AdminDashboard() {
       fetchApplications(); // Refresh the list
       handleCloseReviewModal();
     } catch (err) {
-      console.error("Error updating application status:", err.response?.data || err.message);
+      console.error("DEBUG: AdminDashboard - Error updating application status:", err.response?.data || err.message);
       setSnackbarMessage("Failed to update application status.");
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -126,6 +145,7 @@ export default function AdminDashboard() {
 
   // Show loading while auth state is being determined or data is fetching
   if (authLoading || loading) {
+    console.log("DEBUG: AdminDashboard - Rendering Loading state. AuthLoading:", authLoading, "Local Loading:", loading);
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
         <CircularProgress sx={{ color: '#780000' }} />
@@ -136,6 +156,7 @@ export default function AdminDashboard() {
 
   // If user is not logged in or not an admin
   if (!user || !user.is_staff || !user.is_superuser) {
+    console.log("DEBUG: AdminDashboard - User is NOT an admin, rendering Access Denied.");
     return (
       <Box sx={{ textAlign: 'center', mt: 4, minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
         <Typography variant="h6" color="error" sx={{ mb: 2 }}>
@@ -152,9 +173,32 @@ export default function AdminDashboard() {
   }
 
   // Display admin dashboard content
+  console.log("DEBUG: AdminDashboard - Rendering main content.");
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: 8 }}>
-      <Container maxWidth="lg">
+    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0' }}>
+      {/* Admin Navbar */}
+      <AppBar position="static" sx={{ backgroundColor: '#780000' }}>
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            <Link to="/admin/applications" style={{ textDecoration: 'none', color: 'inherit' }}>
+              MindWell Admin Portal
+            </Link>
+          </Typography>
+          <Box sx={{ display: 'flex' }}>
+            {user ? (
+              <>
+                <Button color="inherit" component={Link} to="/admin/applications">Applications</Button>
+                {/* Add more admin-specific links as needed */}
+                <Button color="inherit" onClick={() => { logout(); navigate('/login'); }}>Logout</Button>
+              </>
+            ) : (
+              <Button color="inherit" component={Link} to="/login">Login</Button>
+            )}
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      <Container maxWidth="lg" sx={{ py: 8 }}>
         <Typography variant="h4" sx={{ color: '#780000', mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
           Admin Dashboard - Therapist Applications
         </Typography>
@@ -223,11 +267,11 @@ export default function AdminDashboard() {
                 <strong>Applicant:</strong> {selectedApplication.applicant_full_name} ({selectedApplication.applicant_email})
               </Typography>
               <Typography variant="body1" sx={{ mb: 1 }}>
-                <strong>License No:</strong> {selectedApplication.license_number} &nbsp;|&nbsp; 
+                <strong>License No:</strong> {selectedApplication.license_number} &nbsp;|&nbsp;
                 <MuiLink href={selectedApplication.license_document} target="_blank" rel="noopener" sx={{ color: '#780000' }}>View License</MuiLink>
               </Typography>
               <Typography variant="body1" sx={{ mb: 1 }}>
-                <strong>ID No:</strong> {selectedApplication.id_number} &nbsp;|&nbsp; 
+                <strong>ID No:</strong> {selectedApplication.id_number} &nbsp;|&nbsp;
                 <MuiLink href={selectedApplication.id_document} target="_blank" rel="noopener" sx={{ color: '#780000' }}>View ID</MuiLink>
               </Typography>
               {selectedApplication.professional_photo && (

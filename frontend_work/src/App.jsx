@@ -7,11 +7,12 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Homepage from "./components/Homepage";
 import Journal from "./components/Journal";
 import Navbar from "./components/Navbar"; // User Navbar
-import TherapistNavbar from "./components/TherapistNavbar"; // Therapist Navbar
-import TherapistDashboard from "./components/TherapistDashboard"; // Changed from pages/TherapistDashboard
-import FindTherapist from "./components/FindTherapist"; // Changed from pages/FindTherapist
-import TherapistApplicationForm from "./components/TherapistApplicationForm"; // Changed from pages/TherapistApplicationForm
-import AdminDashboard from "./components/Admin"; // Changed from pages/Admin
+import TherapistNavbar from "./components/TherapistNavbar_OLD"; // Assuming this is now the correct Therapist Navbar
+import TherapistDashboard from "./components/TherapistDashboard";
+import FindTherapist from "./components/FindTherapist";
+import TherapistApplicationForm from "./components/TherapistApplicationForm";
+import AdminDashboard from "./components/Admin";
+import AdminNavbar from "./components/AdminNavbar"; // IMPORT THE NEW ADMIN NAVBAR
 import Footer from "./components/Footer";
 
 // A component to render the correct Navbar based on user role
@@ -21,12 +22,15 @@ const AppNavbar = () => {
   // Show nothing while authentication state is loading
   if (loading) return null;
 
+  // If user is an admin, render AdminNavbar
+  if (user && user.is_staff && user.is_superuser) {
+    return <AdminNavbar />;
+  }
   // If user is a therapist (verified or not), render TherapistNavbar
   if (user && user.is_therapist) {
     return <TherapistNavbar />;
   }
-  // Otherwise (regular user, admin, or logged out), render the regular Navbar
-  // Admins will also see the regular Navbar unless you create a separate AdminNavbar
+  // Otherwise (regular user, or logged out), render the regular Navbar
   return <Navbar />;
 };
 
@@ -34,11 +38,18 @@ const AppNavbar = () => {
 const AdminProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
+  // console.log("AdminProtectedRoute: Loading:", loading, "User:", user); // Keep for debugging if needed
+  // if (user) {
+  //   console.log("AdminProtectedRoute: User roles - is_staff:", user.is_staff, "is_superuser:", user.is_superuser);
+  // }
+
   if (loading) return null; // Still loading auth state
   if (!user || !user.is_staff || !user.is_superuser) {
+    // console.log("AdminProtectedRoute: User is NOT an admin, redirecting to login."); // Keep for debugging if needed
     // If not logged in, or not staff/superuser, redirect to login
     return <Navigate to="/login" replace />;
   }
+  // console.log("AdminProtectedRoute: User IS an admin, allowing access to children."); // Keep for debugging if needed
   return children;
 };
 

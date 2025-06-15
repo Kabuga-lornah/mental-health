@@ -1,14 +1,19 @@
-from rest_framework import generics, permissions, status, serializers
+# mental_health_app/views.py
+from rest_framework import generics, permissions, status, serializers # Ensure serializers is imported
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
-from django.db.models import Q
-from django.utils import timezone
-from .models import JournalEntry, SessionRequest, TherapistApplication
+from django.db.models import Q # Ensure Q is imported for complex queries
+from django.utils import timezone # Ensure timezone is imported
+from django.shortcuts import get_object_or_404
+from .models import JournalEntry, SessionRequest, TherapistApplication # All used models
+
+# CORRECTED IMPORT STATEMENT:
 from .serializers import (
     UserSerializer, LoginSerializer, JournalEntrySerializer, JournalListSerializer,
     TherapistSerializer, SessionRequestSerializer, SessionRequestUpdateSerializer,
-    TherapistApplicationSerializer, TherapistApplicationAdminSerializer
+    TherapistApplicationSerializer,
+    TherapistApplicationAdminSerializer # <-- THIS IS THE CORRECT NAME matching your serializers.py
 )
 
 User = get_user_model()
@@ -16,6 +21,7 @@ User = get_user_model()
 # Custom permission for admin access
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
+        # This permission check applies to staff and superusers
         return request.user and request.user.is_staff and request.user.is_superuser
 
 class RegisterView(generics.CreateAPIView):
@@ -40,6 +46,8 @@ class RegisterView(generics.CreateAPIView):
                     'is_therapist': user.is_therapist,
                     'is_verified': user.is_verified,
                     'is_available': user.is_available,
+                    'is_staff': user.is_staff,
+                    'is_superuser': user.is_superuser,
                     'hourly_rate': user.hourly_rate,
                     'bio': user.bio,
                     'years_of_experience': user.years_of_experience,
@@ -77,6 +85,8 @@ class LoginView(generics.GenericAPIView):
                     'is_therapist': user.is_therapist,
                     'is_verified': user.is_verified,
                     'is_available': user.is_available,
+                    'is_staff': user.is_staff,
+                    'is_superuser': user.is_superuser,
                     'hourly_rate': user.hourly_rate,
                     'bio': user.bio,
                     'years_of_experience': user.years_of_experience,
@@ -167,16 +177,29 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
         if TherapistApplication.objects.filter(applicant=self.request.user).exists():
             raise serializers.ValidationError({"detail": "You have already submitted a therapist application."})
             
+        if serializer.validated_data.get('applicant') != self.request.user:
+            raise serializers.ValidationError({"applicant": "You can only submit an application for yourself."})
+            
         serializer.save(applicant=self.request.user)
 
-class TherapistApplicationAdminListView(generics.ListAPIView):
+# View for a therapist to retrieve their OWN application
+class MyTherapistApplicationView(generics.RetrieveAPIView):
+    serializer_class = TherapistApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return get_object_or_404(TherapistApplication, applicant=self.request.user)
+
+class AdminTherapistApplicationListView(generics.ListAPIView):
+    # This serializer name now matches what is in serializers.py
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
         return TherapistApplication.objects.all().order_by('-submitted_at')
 
-class TherapistApplicationAdminDetailView(generics.RetrieveUpdateAPIView):
+class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
+    # This serializer name now matches what is in serializers.py
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
     queryset = TherapistApplication.objects.all()

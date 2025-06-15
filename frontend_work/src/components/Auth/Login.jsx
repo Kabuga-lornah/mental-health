@@ -13,33 +13,66 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { login, user } = useAuth(); // Destructure user from useAuth
-  const navigate = useNavigate();
+  const { login, user: authUser } = useAuth(); // Renamed 'user' to 'authUser' for clarity
+  const navigate = useNavigate(); // Keep navigate for other routes if needed
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(""); // Clear previous errors
     try {
-      const response = await login(email, password); // Call login without role
-      // After successful login, the user state in AuthContext will be updated.
-      // We can then use the updated user object to redirect.
-      // This logic relies on the user object being updated by the AuthContext
-      // immediately after a successful login API call.
+      console.log("DEBUG: Login.jsx: Attempting login with email:", email);
+      const response = await login(email, password); // Call login
+
+      console.log("DEBUG: Login.jsx - Response from login function:", response);
+      console.log("DEBUG: Login.jsx - user from response:", response?.user);
+
       if (response && response.user) {
-        navigate(response.user.is_therapist ? "/therapist/dashboard" : "/homepage");
+        console.log("DEBUG: Login.jsx: User object from response: ", response.user);
+        console.log("DEBUG: Login.jsx: is_staff: ", response.user.is_staff, "is_superuser: ", response.user.is_superuser);
+
+        // Admin redirect - TEMPORARILY USE window.location.href FOR DEBUGGING
+        if (response.user.is_staff && response.user.is_superuser) {
+          console.log("DEBUG: Login.jsx - FORCING REDIRECT to admin applications with window.location.href.");
+          // *** THIS IS THE TEMPORARY CHANGE ***
+          window.location.href = "/admin/applications"; // Force a full page reload to the admin route
+          return; // Stop further execution
+        }
+        // Therapist redirect (based on verification)
+        else if (response.user.is_therapist) {
+          console.log("DEBUG: Login.jsx - Redirecting therapist.");
+          navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply");
+        }
+        // Regular user redirect
+        else {
+          console.log("DEBUG: Login.jsx - Redirecting regular user to homepage.");
+          navigate("/homepage");
+        }
       } else {
-        // Fallback in case response.user is not immediately available or structured differently
-        // (though AuthContext should handle setting the user state)
-        console.warn("Login successful but user object not immediately available from response. Redirecting based on AuthContext user state.");
+        console.warn("DEBUG: Login.jsx - Login successful but user object not immediately available from response. Redirecting based on AuthContext user state.");
         // Use the user from AuthContext directly, which should be updated by now
-        if (user && user.is_therapist) {
-          navigate("/therapist/dashboard");
+        if (authUser) {
+          console.log("DEBUG: Login.jsx - Fallback: user from AuthContext: ", authUser);
+          console.log("DEBUG: Login.jsx - Fallback: is_staff: ", authUser.is_staff, "is_superuser: ", authUser.is_superuser);
+          if (authUser.is_staff && authUser.is_superuser) {
+            console.log("DEBUG: Login.jsx - Fallback: FORCING REDIRECT to admin applications (from AuthContext user) with window.location.href.");
+            // *** THIS IS THE TEMPORARY CHANGE FOR FALLBACK ***
+            window.location.href = "/admin/applications"; // Force a full page reload
+            return; // Stop further execution
+          } else if (authUser.is_therapist) {
+            console.log("DEBUG: Login.jsx - Fallback: Redirecting therapist (from AuthContext user).");
+            navigate(authUser.is_verified ? "/therapist/dashboard" : "/therapist-apply");
+          } else {
+            console.log("DEBUG: Login.jsx - Fallback: Redirecting regular user to homepage (from AuthContext user).");
+            navigate("/homepage");
+          }
         } else {
+          console.log("DEBUG: Login.jsx - Fallback: No user in AuthContext. Defaulting to homepage.");
           navigate("/homepage");
         }
       }
     } catch (err) {
       setError(err.error || err.message || "Invalid credentials");
+      console.error("DEBUG: Login.jsx - Login error:", err);
     }
   };
 
@@ -60,7 +93,7 @@ export default function Login() {
           width: "100%",
           maxWidth: "400px",
           backgroundColor: "white",
-          borderRadius: 2, // Added rounded corners
+          borderRadius: 2,
         }}
       >
         <Typography variant="h4" sx={{ color: "#780000", mb: 3, textAlign: "center", fontWeight: "bold" }}>
@@ -82,7 +115,7 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)}
             sx={{ mb: 2 }}
             required
-            variant="outlined" // Use outlined variant
+            variant="outlined"
           />
 
           <TextField
@@ -100,12 +133,12 @@ export default function Login() {
             fullWidth
             type="submit"
             variant="contained"
-            size="large" // Make button larger
+            size="large"
             sx={{
               backgroundColor: "#780000",
               "&:hover": { backgroundColor: "#5a0000" },
-              py: 1.5, // Padding for height
-              borderRadius: 2, // Rounded corners for button
+              py: 1.5,
+              borderRadius: 2,
             }}
           >
             Login

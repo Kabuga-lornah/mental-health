@@ -1,6 +1,7 @@
+# mental_health_app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import JournalEntry, SessionRequest, TherapistApplication
+from .models import JournalEntry, TherapistApplication, SessionRequest
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -18,7 +19,7 @@ class UserSerializer(serializers.ModelSerializer):
         required=True,
         style={'input_type': 'password'}
     )
-    # Include all therapist profile fields
+    # Therapist profile fields
     is_verified = serializers.BooleanField(read_only=True)
     bio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     years_of_experience = serializers.IntegerField(required=False, allow_null=True)
@@ -122,7 +123,7 @@ class LoginSerializer(serializers.Serializer):
                 return attrs
             raise serializers.ValidationError("Unable to log in with provided credentials.")
         raise serializers.ValidationError("Must include 'email' and 'password'.")
-    
+
 class JournalEntrySerializer(serializers.ModelSerializer):
     attachment_file = serializers.FileField(
         required=False,
@@ -239,15 +240,21 @@ class SessionRequestUpdateSerializer(serializers.ModelSerializer):
         return value
 
 class TherapistApplicationSerializer(serializers.ModelSerializer):
+    applicant_email = serializers.ReadOnlyField(source='applicant.email')
+    applicant_full_name = serializers.SerializerMethodField()
+
     class Meta:
         model = TherapistApplication
         fields = [
-            'id', 'applicant', 'license_number', 'license_document',
-            'id_number', 'id_document', 'professional_photo',
-            'motivation_statement', 'status', 'submitted_at',
+            'id', 'applicant', 'applicant_email', 'applicant_full_name',
+            'license_number', 'license_document', 'id_number', 'id_document',
+            'professional_photo', 'motivation_statement', 'status', 'submitted_at',
             'reviewed_at', 'reviewer_notes'
         ]
-        read_only_fields = ['id', 'applicant', 'status', 'submitted_at', 'reviewed_at', 'reviewer_notes']
+        read_only_fields = [
+            'id', 'applicant', 'status', 'submitted_at', 
+            'reviewed_at', 'reviewer_notes', 'applicant_email', 'applicant_full_name'
+        ]
         extra_kwargs = {
             'license_document': {'required': True},
             'id_document': {'required': True},
@@ -256,6 +263,9 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
             'id_number': {'required': True},
             'motivation_statement': {'required': True},
         }
+
+    def get_applicant_full_name(self, obj):
+        return obj.applicant.get_full_name()
 
 class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
     applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
