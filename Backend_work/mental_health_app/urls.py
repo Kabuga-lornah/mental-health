@@ -7,7 +7,8 @@ from .views import (
     SessionRequestUpdateView,
     TherapistApplicationCreateView,
     MyTherapistApplicationView,
-    AdminTherapistApplicationListView, AdminTherapistApplicationDetailView
+    AdminTherapistApplicationListView, AdminTherapistApplicationDetailView,
+    TherapistSessionCreateView # Import the view for creating sessions
 )
 
 urlpatterns = [
@@ -34,8 +35,8 @@ urlpatterns = [
     path('session-requests/', SessionRequestCreateView.as_view(), name='session-request-create'),
     path('therapist/session-requests/', TherapistSessionRequestListView.as_view(), name='therapist-session-requests'),
     
-    # ADD THIS LINE - Alternative URL pattern for therapist sessions
-    path('therapist/sessions/', TherapistSessionRequestListView.as_view(), name='therapist-sessions'),
+    # FIX: Corrected the URL to point to the session creation view
+    path('therapist/sessions/', TherapistSessionCreateView.as_view(), name='therapist-sessions-create'),
     
     path('session-requests/<int:pk>/', SessionRequestUpdateView.as_view(), name='session-request-update'),
 ]

@@ -49,7 +49,7 @@ export default function TherapistDashboard() {
     return <Navigate to="/therapist-apply" replace />;
   }
 
-  const fetchSessionRequests = async () => {
+  const fetchAllSessions = async () => {
     if (!user || !user.is_therapist || !user.is_verified || !token) {
       setLoadingContent(false);
       setSessionRequests([]);
@@ -58,6 +58,7 @@ export default function TherapistDashboard() {
     setLoadingContent(true);
     setError(null);
     try {
+      // FIX: Corrected URL to match backend routes for fetching session requests.
       const response = await axios.get('http://localhost:8000/api/therapist/session-requests/', {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -65,7 +66,8 @@ export default function TherapistDashboard() {
       });
       setSessionRequests(response.data);
     } catch (err) {
-      console.error("Error fetching session requests:", err);
+      // This is the line from the original error log
+      console.error("Error fetching sessions:", err);
       setError("Failed to load session requests.");
     } finally {
       setLoadingContent(false);
@@ -73,7 +75,8 @@ export default function TherapistDashboard() {
   };
 
   const fetchActiveSessions = async () => {
-    // Mock data - replace with actual API call
+    // This is mock data. You would replace this with an API call to fetch active/scheduled sessions.
+    // Example: GET /api/therapist/sessions/?status=scheduled
     setActiveSessions([
       {
         id: 1,
@@ -88,7 +91,8 @@ export default function TherapistDashboard() {
   };
 
   const fetchCompletedSessions = async () => {
-    // Mock data - replace with actual API call
+    // This is mock data. You would replace this with an API call to fetch completed sessions.
+    // Example: GET /api/therapist/sessions/?status=completed
     setCompletedSessions([
       {
         id: 1,
@@ -117,7 +121,7 @@ export default function TherapistDashboard() {
 
   useEffect(() => {
     if (!authLoading && user && user.is_therapist && user.is_verified) {
-      fetchSessionRequests();
+      fetchAllSessions(); // Changed function name to match error log for clarity
       fetchActiveSessions();
       fetchCompletedSessions();
       fetchClientJournalEntries();
@@ -154,7 +158,7 @@ export default function TherapistDashboard() {
       setSnackbarMessage("Session request rejected.");
       setSnackbarSeverity('info');
       setSnackbarOpen(true);
-      fetchSessionRequests();
+      fetchAllSessions();
     } catch (err) {
       console.error("Error rejecting request:", err);
       setSnackbarMessage("Failed to reject request.");
@@ -165,9 +169,9 @@ export default function TherapistDashboard() {
 
   const handleConfirmSession = async () => {
     if (!selectedRequest) return;
-
+  
     try {
-      // Update request status to accepted
+      // Step 1: Update the original request status to 'accepted'
       await axios.patch(`http://localhost:8000/api/session-requests/${selectedRequest.id}/`,
         { status: 'accepted' },
         {
@@ -177,33 +181,34 @@ export default function TherapistDashboard() {
           },
         }
       );
-
-      // Create new session record
+  
+      // Step 2: Create a new session record
+      // FIX: Changed 'client_id' to 'client' and ensured it passes the client's ID.
+      // Also removed fields not in the SessionRequest model like 'location' and 'session_type'.
       const sessionData = {
-        client_id: selectedRequest.client_id,
-        session_date: selectedRequest.requested_date,
-        session_time: selectedRequest.requested_time,
-        session_type: sessionType,
-        location: sessionType === 'physical' ? sessionLocation : null,
-        status: 'scheduled'
+        client: selectedRequest.client, // The backend expects a 'client' field with the user ID.
+        therapist: user.id, // The therapist is the current user.
+        requested_date: selectedRequest.requested_date,
+        requested_time: selectedRequest.requested_time,
+        status: 'accepted' // A new session created by a therapist is implicitly accepted.
       };
-
+  
       await axios.post('http://localhost:8000/api/therapist/sessions/', sessionData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
-
+  
       setSnackbarMessage("Session scheduled successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchSessionRequests();
+      fetchAllSessions();
       fetchActiveSessions();
       handleCloseAcceptModal();
     } catch (err) {
-      console.error("Error creating session:", err);
-      setSnackbarMessage("Failed to schedule session.");
+      console.error("Error creating session:", err.response?.data || err.message);
+      setSnackbarMessage(err.response?.data?.error || "Failed to schedule session.");
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
@@ -245,7 +250,7 @@ export default function TherapistDashboard() {
       fetchActiveSessions();
       fetchCompletedSessions();
       handleCloseSessionNotesModal();
-    } catch (err) {
+    } catch (err)      {
       console.error("Error saving session notes:", err);
       setSnackbarMessage("Failed to save session notes.");
       setSnackbarSeverity('error');
