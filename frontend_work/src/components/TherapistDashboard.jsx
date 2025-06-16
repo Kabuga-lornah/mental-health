@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Container, Paper, Grid, Button, CircularProgress, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { 
+  Box, Typography, Container, Paper, Grid, Button, CircularProgress, 
+  Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, 
+  Select, MenuItem, FormControl, InputLabel, TextField, Chip, 
+  RadioGroup, FormControlLabel, Radio, FormLabel, Divider,
+  Card, CardContent, CardActions, IconButton, Collapse
+} from '@mui/material';
+import { 
+  VideoCall, LocationOn, ExpandMore, ExpandLess, 
+  Notes, Recommend, CheckCircle, Schedule 
+} from '@mui/icons-material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
@@ -9,16 +19,32 @@ export default function TherapistDashboard() {
   const [loadingContent, setLoadingContent] = useState(true);
   const [error, setError] = useState(null);
   const [sessionRequests, setSessionRequests] = useState([]);
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [completedSessions, setCompletedSessions] = useState([]);
   const [journalEntries, setJournalEntries] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-  const [openStatusModal, setOpenStatusModal] = useState(false);
+  
+  // Modal states
+  const [openAcceptModal, setOpenAcceptModal] = useState(false);
+  const [openSessionNotesModal, setOpenSessionNotesModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [newStatus, setNewStatus] = useState('');
+  const [selectedSession, setSelectedSession] = useState(null);
+  
+  // Session management states
+  const [sessionType, setSessionType] = useState('online');
+  const [sessionLocation, setSessionLocation] = useState('');
+  const [sessionNotes, setSessionNotes] = useState('');
+  const [keyTakeaways, setKeyTakeaways] = useState('');
+  const [recommendations, setRecommendations] = useState('');
+  const [followUpRequired, setFollowUpRequired] = useState(false);
+  const [nextSessionDate, setNextSessionDate] = useState('');
+  
+  // UI states
+  const [expandedSessions, setExpandedSessions] = useState({});
 
   // Initial check and redirect for unverified therapists
-  // This acts as a double-check to the ProtectedRoute
   if (!authLoading && user && user.is_therapist && !user.is_verified) {
     return <Navigate to="/therapist-apply" replace />;
   }
@@ -46,21 +72,57 @@ export default function TherapistDashboard() {
     }
   };
 
-  const fetchClientJournalEntries = async () => {
+  const fetchActiveSessions = async () => {
+    // Mock data - replace with actual API call
+    setActiveSessions([
+      {
+        id: 1,
+        client_name: "John Doe",
+        client_email: "john@example.com",
+        session_date: "2025-06-20",
+        session_time: "14:00",
+        session_type: "online",
+        status: "scheduled"
+      }
+    ]);
+  };
 
+  const fetchCompletedSessions = async () => {
+    // Mock data - replace with actual API call
+    setCompletedSessions([
+      {
+        id: 1,
+        client_name: "Jane Smith",
+        client_email: "jane@example.com",
+        session_date: "2025-06-15",
+        session_time: "10:00",
+        session_type: "physical",
+        status: "completed",
+        notes: "Client showed significant improvement in managing anxiety.",
+        key_takeaways: "Breathing exercises are working well. Client is more confident.",
+        recommendations: "Continue daily meditation, consider group therapy sessions.",
+        follow_up_required: true,
+        next_session_date: "2025-06-29"
+      }
+    ]);
+  };
+
+  const fetchClientJournalEntries = async () => {
     setJournalEntries([
-        { client_name: "John Doe", latest_entry: "Feeling much better after our last session. Journaling helps clear my thoughts.", date: "2025-07-14" },
-        { client_name: "Jane Smith", latest_entry: "Struggling with anxiety today. Used the AI assistant for coping strategies.", date: "2025-07-13" },
-        { client_name: "Peter Jones", latest_entry: "Reflecting on my progress. It's been a tough but rewarding journey.", date: "2025-07-12" },
+      { client_name: "John Doe", latest_entry: "Feeling much better after our last session. Journaling helps clear my thoughts.", date: "2025-07-14" },
+      { client_name: "Jane Smith", latest_entry: "Struggling with anxiety today. Used the AI assistant for coping strategies.", date: "2025-07-13" },
+      { client_name: "Peter Jones", latest_entry: "Reflecting on my progress. It's been a tough but rewarding journey.", date: "2025-07-12" },
     ]);
   };
 
   useEffect(() => {
     if (!authLoading && user && user.is_therapist && user.is_verified) {
-        fetchSessionRequests();
-        fetchClientJournalEntries();
+      fetchSessionRequests();
+      fetchActiveSessions();
+      fetchCompletedSessions();
+      fetchClientJournalEntries();
     } else if (!authLoading && !user) {
-        setLoadingContent(false);
+      setLoadingContent(false);
     }
   }, [user, token, authLoading]);
 
@@ -71,24 +133,17 @@ export default function TherapistDashboard() {
     setSnackbarOpen(false);
   };
 
-  const handleUpdateStatusClick = (request) => {
+  const handleAcceptRequest = (request) => {
     setSelectedRequest(request);
-    setNewStatus(request.status);
-    setOpenStatusModal(true);
+    setSessionType('online');
+    setSessionLocation('');
+    setOpenAcceptModal(true);
   };
 
-  const handleCloseStatusModal = () => {
-    setOpenStatusModal(false);
-    setSelectedRequest(null);
-    setNewStatus('');
-  };
-
-  const handleSaveStatus = async () => {
-    if (!selectedRequest || !newStatus) return;
-
+  const handleRejectRequest = async (requestId) => {
     try {
-      await axios.patch(`http://localhost:8000/api/session-requests/${selectedRequest.id}/`,
-        { status: newStatus },
+      await axios.patch(`http://localhost:8000/api/session-requests/${requestId}/`,
+        { status: 'rejected' },
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -96,17 +151,130 @@ export default function TherapistDashboard() {
           },
         }
       );
-      setSnackbarMessage("Session request status updated successfully!");
-      setSnackbarSeverity('success');
+      setSnackbarMessage("Session request rejected.");
+      setSnackbarSeverity('info');
       setSnackbarOpen(true);
       fetchSessionRequests();
-      handleCloseStatusModal();
     } catch (err) {
-      console.error("Error updating status:", err.response?.data || err.message);
-      setSnackbarMessage("Failed to update status. " + (err.response?.data?.status?.[0] || ""));
+      console.error("Error rejecting request:", err);
+      setSnackbarMessage("Failed to reject request.");
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
+  };
+
+  const handleConfirmSession = async () => {
+    if (!selectedRequest) return;
+
+    try {
+      // Update request status to accepted
+      await axios.patch(`http://localhost:8000/api/session-requests/${selectedRequest.id}/`,
+        { status: 'accepted' },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      // Create new session record
+      const sessionData = {
+        client_id: selectedRequest.client_id,
+        session_date: selectedRequest.requested_date,
+        session_time: selectedRequest.requested_time,
+        session_type: sessionType,
+        location: sessionType === 'physical' ? sessionLocation : null,
+        status: 'scheduled'
+      };
+
+      await axios.post('http://localhost:8000/api/therapist/sessions/', sessionData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      setSnackbarMessage("Session scheduled successfully!");
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      fetchSessionRequests();
+      fetchActiveSessions();
+      handleCloseAcceptModal();
+    } catch (err) {
+      console.error("Error creating session:", err);
+      setSnackbarMessage("Failed to schedule session.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleOpenSessionNotes = (session) => {
+    setSelectedSession(session);
+    setSessionNotes(session.notes || '');
+    setKeyTakeaways(session.key_takeaways || '');
+    setRecommendations(session.recommendations || '');
+    setFollowUpRequired(session.follow_up_required || false);
+    setNextSessionDate(session.next_session_date || '');
+    setOpenSessionNotesModal(true);
+  };
+
+  const handleSaveSessionNotes = async () => {
+    if (!selectedSession) return;
+
+    try {
+      const sessionData = {
+        notes: sessionNotes,
+        key_takeaways: keyTakeaways,
+        recommendations: recommendations,
+        follow_up_required: followUpRequired,
+        next_session_date: followUpRequired ? nextSessionDate : null,
+        status: 'completed'
+      };
+
+      await axios.patch(`http://localhost:8000/api/therapist/sessions/${selectedSession.id}/`, sessionData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      setSnackbarMessage("Session notes saved successfully!");
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      fetchActiveSessions();
+      fetchCompletedSessions();
+      handleCloseSessionNotesModal();
+    } catch (err) {
+      console.error("Error saving session notes:", err);
+      setSnackbarMessage("Failed to save session notes.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleCloseAcceptModal = () => {
+    setOpenAcceptModal(false);
+    setSelectedRequest(null);
+    setSessionType('online');
+    setSessionLocation('');
+  };
+
+  const handleCloseSessionNotesModal = () => {
+    setOpenSessionNotesModal(false);
+    setSelectedSession(null);
+    setSessionNotes('');
+    setKeyTakeaways('');
+    setRecommendations('');
+    setFollowUpRequired(false);
+    setNextSessionDate('');
+  };
+
+  const toggleSessionExpansion = (sessionId) => {
+    setExpandedSessions(prev => ({
+      ...prev,
+      [sessionId]: !prev[sessionId]
+    }));
   };
 
   if (authLoading) {
@@ -117,7 +285,6 @@ export default function TherapistDashboard() {
       </Box>
     );
   }
-
 
   if (!user || !user.is_therapist) {
     return (
@@ -135,12 +302,9 @@ export default function TherapistDashboard() {
     );
   }
 
- 
   if (!user.is_verified) {
-  
-    return null; 
+    return null;
   }
-
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0' }}>
@@ -149,7 +313,7 @@ export default function TherapistDashboard() {
           Therapist Dashboard
         </Typography>
 
-        {loadingContent ? ( // Use loadingContent here for data fetching
+        {loadingContent ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
             <CircularProgress sx={{ color: '#780000' }} />
             <Typography sx={{ ml: 2, color: '#780000' }}>Loading your dashboard data...</Typography>
@@ -158,45 +322,215 @@ export default function TherapistDashboard() {
           <Typography color="error" sx={{ textAlign: 'center', mt: 4 }}>{error}</Typography>
         ) : (
           <Grid container spacing={4}>
+            {/* Session Requests */}
             <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
                 <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
-                  Upcoming Session Requests
+                  Pending Session Requests
                 </Typography>
-                <Box sx={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  {sessionRequests.length === 0 ? (
-                    <Typography>No new session requests.</Typography>
+                <Box sx={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {sessionRequests.filter(req => req.status === 'pending').length === 0 ? (
+                    <Typography>No pending session requests.</Typography>
                   ) : (
-                    sessionRequests.map((request) => (
-                      <Box key={request.id} sx={{ mb: 2, pb: 1.5, borderBottom: '1px solid #eee' }}>
-                        <Typography>
-                          <strong>Client:</strong> {request.client_name} ({request.client_email})<br />
-                          <strong>Date:</strong> {request.requested_date || 'N/A'}<br />
-                          <strong>Time:</strong> {request.requested_time || 'N/A'}<br />
-                          <strong>Status:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 'bold', color: request.status === 'pending' ? 'orange' : request.status === 'accepted' ? 'green' : 'red' }}>
-                            {request.status}
-                          </span><br />
-                          <Typography variant="caption" color="text.secondary">Message: {request.message || 'No message.'}</Typography>
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          sx={{ mt: 1, borderColor: '#780000', color: '#780000', '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
-                          onClick={() => handleUpdateStatusClick(request)}
-                        >
-                          Update Status
-                        </Button>
-                      </Box>
+                    sessionRequests.filter(req => req.status === 'pending').map((request) => (
+                      <Card key={request.id} sx={{ mb: 2, border: '1px solid #eee' }}>
+                        <CardContent>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#780000' }}>
+                            {request.client_name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {request.client_email}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            <strong>Date:</strong> {request.requested_date}<br />
+                            <strong>Time:</strong> {request.requested_time}
+                          </Typography>
+                          {request.message && (
+                            <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                              "{request.message}"
+                            </Typography>
+                          )}
+                        </CardContent>
+                        <CardActions sx={{ justifyContent: 'space-between' }}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
+                            onClick={() => handleAcceptRequest(request)}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="error"
+                            onClick={() => handleRejectRequest(request.id)}
+                          >
+                            Reject
+                          </Button>
+                        </CardActions>
+                      </Card>
                     ))
                   )}
                 </Box>
               </Paper>
             </Grid>
 
+            {/* Active Sessions */}
             <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
                 <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
-                  Client Journal Entries (Placeholder)
+                  Scheduled Sessions
+                </Typography>
+                <Box sx={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {activeSessions.length === 0 ? (
+                    <Typography>No scheduled sessions.</Typography>
+                  ) : (
+                    activeSessions.map((session) => (
+                      <Card key={session.id} sx={{ mb: 2, border: '1px solid #eee' }}>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#780000', flexGrow: 1 }}>
+                              {session.client_name}
+                            </Typography>
+                            <Chip
+                              icon={session.session_type === 'online' ? <VideoCall /> : <LocationOn />}
+                              label={session.session_type}
+                              size="small"
+                              color={session.session_type === 'online' ? 'primary' : 'secondary'}
+                            />
+                          </Box>
+                          <Typography variant="body2">
+                            <strong>Date:</strong> {session.session_date}<br />
+                            <strong>Time:</strong> {session.session_time}
+                          </Typography>
+                        </CardContent>
+                        <CardActions>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<Notes />}
+                            sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
+                            onClick={() => handleOpenSessionNotes(session)}
+                          >
+                            Add Session Notes
+                          </Button>
+                        </CardActions>
+                      </Card>
+                    ))
+                  )}
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Completed Sessions */}
+            <Grid item xs={12}>
+              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
+                <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
+                  Recent Completed Sessions
+                </Typography>
+                <Box sx={{ maxHeight: '500px', overflowY: 'auto' }}>
+                  {completedSessions.length === 0 ? (
+                    <Typography>No completed sessions.</Typography>
+                  ) : (
+                    completedSessions.map((session) => (
+                      <Card key={session.id} sx={{ mb: 2, border: '1px solid #eee' }}>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#780000', flexGrow: 1 }}>
+                              {session.client_name}
+                            </Typography>
+                            <Chip
+                              icon={<CheckCircle />}
+                              label="Completed"
+                              size="small"
+                              color="success"
+                            />
+                            <IconButton
+                              onClick={() => toggleSessionExpansion(session.id)}
+                              size="small"
+                              sx={{ ml: 1 }}
+                            >
+                              {expandedSessions[session.id] ? <ExpandLess /> : <ExpandMore />}
+                            </IconButton>
+                          </Box>
+                          <Typography variant="body2">
+                            <strong>Date:</strong> {session.session_date} | <strong>Time:</strong> {session.session_time}
+                          </Typography>
+                          
+                          <Collapse in={expandedSessions[session.id]}>
+                            <Box sx={{ mt: 2 }}>
+                              <Divider sx={{ my: 2 }} />
+                              
+                              {session.notes && (
+                                <Box sx={{ mb: 2 }}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#780000' }}>
+                                    Session Notes:
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ mt: 1 }}>
+                                    {session.notes}
+                                  </Typography>
+                                </Box>
+                              )}
+                              
+                              {session.key_takeaways && (
+                                <Box sx={{ mb: 2 }}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#780000' }}>
+                                    Key Takeaways:
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ mt: 1 }}>
+                                    {session.key_takeaways}
+                                  </Typography>
+                                </Box>
+                              )}
+                              
+                              {session.recommendations && (
+                                <Box sx={{ mb: 2 }}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#780000' }}>
+                                    Recommendations:
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ mt: 1 }}>
+                                    {session.recommendations}
+                                  </Typography>
+                                </Box>
+                              )}
+                              
+                              {session.follow_up_required && (
+                                <Box sx={{ mb: 2 }}>
+                                  <Chip
+                                    icon={<Schedule />}
+                                    label={`Follow-up: ${session.next_session_date}`}
+                                    color="warning"
+                                    size="small"
+                                  />
+                                </Box>
+                              )}
+                            </Box>
+                          </Collapse>
+                        </CardContent>
+                        <CardActions>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<Notes />}
+                            sx={{ borderColor: '#780000', color: '#780000' }}
+                            onClick={() => handleOpenSessionNotes(session)}
+                          >
+                            Edit Notes
+                          </Button>
+                        </CardActions>
+                      </Card>
+                    ))
+                  )}
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Client Journal Entries */}
+            <Grid item xs={12}>
+              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
+                <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
+                  Recent Client Journal Entries
                 </Typography>
                 <Box sx={{ maxHeight: '300px', overflowY: 'auto' }}>
                   {journalEntries.length === 0 ? (
@@ -204,41 +538,13 @@ export default function TherapistDashboard() {
                   ) : (
                     journalEntries.map((entry, index) => (
                       <Box key={index} sx={{ mb: 2, pb: 1.5, borderBottom: '1px solid #eee' }}>
-                          <Typography>
-                              <strong>Client Name:</strong> {entry.client_name}<br />
-                              <strong>Latest Entry:</strong> "{entry.latest_entry}" ({entry.date})
-                          </Typography>
+                        <Typography>
+                          <strong>Client Name:</strong> {entry.client_name}<br />
+                          <strong>Latest Entry:</strong> "{entry.latest_entry}" ({entry.date})
+                        </Typography>
                       </Box>
                     ))
                   )}
-                </Box>
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
-                <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
-                  Quick Actions
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <Button
-                    variant="contained"
-                    sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' }, borderRadius: 2, px: 3, py: 1.5 }}
-                  >
-                    View All Clients
-                  </Button>
-                  <Button
-                    variant="contained"
-                    sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' }, borderRadius: 2, px: 3, py: 1.5 }}
-                  >
-                    Schedule New Appointment
-                  </Button>
-                  <Button
-                    variant="contained"
-                    sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' }, borderRadius: 2, px: 3, py: 1.5 }}
-                  >
-                    Review Journal Entries
-                  </Button>
                 </Box>
               </Paper>
             </Grid>
@@ -246,40 +552,152 @@ export default function TherapistDashboard() {
         )}
       </Container>
 
+      {/* Accept Session Modal */}
+      <Dialog open={openAcceptModal} onClose={handleCloseAcceptModal} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>
+          Schedule Session
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 3 }}>
+            <strong>Client:</strong> {selectedRequest?.client_name}<br />
+            <strong>Requested Date:</strong> {selectedRequest?.requested_date}<br />
+            <strong>Requested Time:</strong> {selectedRequest?.requested_time}
+          </Typography>
+          
+          <FormControl component="fieldset" sx={{ mb: 3 }}>
+            <FormLabel component="legend" sx={{ color: '#780000', fontWeight: 'bold' }}>
+              Session Type
+            </FormLabel>
+            <RadioGroup
+              value={sessionType}
+              onChange={(e) => setSessionType(e.target.value)}
+              row
+            >
+              <FormControlLabel value="online" control={<Radio />} label="Online Session" />
+              <FormControlLabel value="physical" control={<Radio />} label="In-Person Session" />
+            </RadioGroup>
+          </FormControl>
+
+          {sessionType === 'physical' && (
+            <TextField
+              fullWidth
+              label="Location/Address"
+              value={sessionLocation}
+              onChange={(e) => setSessionLocation(e.target.value)}
+              multiline
+              rows={2}
+              variant="outlined"
+              sx={{ mb: 2 }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseAcceptModal} sx={{ color: '#780000' }}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmSession} 
+            variant="contained" 
+            sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
+          >
+            Schedule Session
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Session Notes Modal */}
+      <Dialog open={openSessionNotesModal} onClose={handleCloseSessionNotesModal} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>
+          Session Notes & Recommendations
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 3, color: 'text.secondary' }}>
+            <strong>Client:</strong> {selectedSession?.client_name}<br />
+            <strong>Session Date:</strong> {selectedSession?.session_date} at {selectedSession?.session_time}
+          </Typography>
+
+          <TextField
+            fullWidth
+            label="Session Notes"
+            value={sessionNotes}
+            onChange={(e) => setSessionNotes(e.target.value)}
+            multiline
+            rows={4}
+            variant="outlined"
+            sx={{ mb: 3 }}
+            placeholder="Detailed notes about the session, client's mood, progress, concerns discussed..."
+          />
+
+          <TextField
+            fullWidth
+            label="Key Takeaways"
+            value={keyTakeaways}
+            onChange={(e) => setKeyTakeaways(e.target.value)}
+            multiline
+            rows={3}
+            variant="outlined"
+            sx={{ mb: 3 }}
+            placeholder="Main insights, breakthroughs, or important observations from this session..."
+          />
+
+          <TextField
+            fullWidth
+            label="Recommendations for Client"
+            value={recommendations}
+            onChange={(e) => setRecommendations(e.target.value)}
+            multiline
+            rows={4}
+            variant="outlined"
+            sx={{ mb: 3 }}
+            placeholder="Specific recommendations, exercises, resources, or actions for the client to follow..."
+          />
+
+          <FormControlLabel
+            control={
+              <input
+                type="checkbox"
+                checked={followUpRequired}
+                onChange={(e) => setFollowUpRequired(e.target.checked)}
+              />
+            }
+            label="Follow-up session required"
+            sx={{ mb: 2 }}
+          />
+
+          {followUpRequired && (
+            <TextField
+              fullWidth
+              label="Next Session Date"
+              type="date"
+              value={nextSessionDate}
+              onChange={(e) => setNextSessionDate(e.target.value)}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              sx={{ mb: 2 }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseSessionNotesModal} sx={{ color: '#780000' }}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveSessionNotes} 
+            variant="contained" 
+            startIcon={<Recommend />}
+            sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
+          >
+            Save Notes & Recommendations
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
         <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>
-
-      <Dialog open={openStatusModal} onClose={handleCloseStatusModal}>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Update Request Status</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ mb: 2 }}>
-            <strong>Client:</strong> {selectedRequest?.client_name}<br />
-            <strong>Requested Date:</strong> {selectedRequest?.requested_date}<br />
-            <strong>Requested Time:</strong> {selectedRequest?.requested_time}
-          </Typography>
-          <FormControl fullWidth variant="outlined">
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-              label="Status"
-            >
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="accepted">Accepted</MenuItem>
-              <MenuItem value="rejected">Rejected</MenuItem>
-              <MenuItem value="completed">Completed</MenuItem>
-              <MenuItem value="cancelled">Cancelled</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseStatusModal} sx={{ color: '#780000' }}>Cancel</Button>
-          <Button onClick={handleSaveStatus} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>Save</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

@@ -1,19 +1,18 @@
 # mental_health_app/views.py
-from rest_framework import generics, permissions, status, serializers # Ensure serializers is imported
+from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
-from django.db.models import Q # Ensure Q is imported for complex queries
-from django.utils import timezone # Ensure timezone is imported
+from django.db.models import Q
+from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from .models import JournalEntry, SessionRequest, TherapistApplication # All used models
+from .models import JournalEntry, SessionRequest, TherapistApplication
 
-# CORRECTED IMPORT STATEMENT:
 from .serializers import (
     UserSerializer, LoginSerializer, JournalEntrySerializer, JournalListSerializer,
     TherapistSerializer, SessionRequestSerializer, SessionRequestUpdateSerializer,
     TherapistApplicationSerializer,
-    TherapistApplicationAdminSerializer # <-- THIS IS THE CORRECT NAME matching your serializers.py
+    TherapistApplicationAdminSerializer
 )
 
 User = get_user_model()
@@ -183,9 +182,6 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
             user.is_therapist = True
             user.save()
 
-
-# In mental_health_app/views.py
-
 class MyTherapistApplicationView(generics.RetrieveAPIView):
     serializer_class = TherapistApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -193,6 +189,7 @@ class MyTherapistApplicationView(generics.RetrieveAPIView):
     def get_object(self):
         # This line looks for an application linked to the currently logged-in user.
         return get_object_or_404(TherapistApplication, applicant=self.request.user)
+
 class AdminTherapistApplicationListView(generics.ListAPIView):
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
@@ -205,9 +202,6 @@ class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAdminUser]
     queryset = TherapistApplication.objects.all()
 
-    # =========================================================================
-    # === CORRECTED CODE BLOCK STARTS HERE ===
-    # =========================================================================
     def perform_update(self, serializer):
         """
         This method is simplified because all the complex logic for updating
@@ -218,9 +212,6 @@ class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
         serializer, making the view cleaner and easier to maintain.
         """
         serializer.save()
-    # =========================================================================
-    # === CORRECTED CODE BLOCK ENDS HERE ===
-    # =========================================================================
 
 class TherapistListView(generics.ListAPIView):
     serializer_class = TherapistSerializer
@@ -258,6 +249,39 @@ class SessionRequestCreateView(generics.CreateAPIView):
             )
 
         serializer.save(client=self.request.user, therapist=therapist)
+
+class TherapistSessionCreateView(generics.CreateAPIView):
+    serializer_class = SessionRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        # Only verified therapists can create sessions
+        if not (self.request.user.is_therapist and self.request.user.is_verified):
+            raise serializers.ValidationError(
+                {"detail": "Only verified therapists can create sessions."}
+            )
+        
+        # Create the session with the therapist as the creator
+        # You might need to adjust this logic based on your frontend data
+        client_id = self.request.data.get('client')
+        try:
+            client = User.objects.get(id=client_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                {"client": "Invalid client ID or client does not exist."}
+            )
+
+        if self.request.user == client:
+            raise serializers.ValidationError(
+                {"client": "You cannot create a session with yourself."}
+            )
+
+        # Create with status 'accepted' since therapist is creating it
+        serializer.save(
+            client=client, 
+            therapist=self.request.user,
+            status='accepted'  # Since therapist is creating, it's automatically accepted
+        )
 
 class TherapistSessionRequestListView(generics.ListAPIView):
     serializer_class = SessionRequestSerializer
@@ -306,7 +330,7 @@ class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
         # This is important for status updates from both sides
         return SessionRequest.objects.filter(
             Q(client=self.request.user) | Q(therapist=self.request.user)
-        )
+        )  # Added the missing closing parenthesis here
     
     def perform_update(self, serializer):
         # Let the serializer handle validation of status transitions

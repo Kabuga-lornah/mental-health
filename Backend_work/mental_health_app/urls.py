@@ -12,9 +12,8 @@ from .views import (
 
 urlpatterns = [
     # AUTHENTICATION & USER MANAGEMENT
-    # Paths corrected: removed the duplicate 'api/' prefix
     path('register/', RegisterView.as_view(), name='register'),
-    path('login/', LoginView.as_view(), name='login'), # <--- CORRECTED LINE
+    path('login/', LoginView.as_view(), name='login'),
     path('user/', UserView.as_view(), name='user'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
@@ -27,14 +26,16 @@ urlpatterns = [
     path('therapist-applications/me/', MyTherapistApplicationView.as_view(), name='my-therapist-application'),
 
     # ADMIN THERAPIST APPLICATION ENDPOINTS (only for is_staff, is_superuser)
-    # Paths corrected: removed the duplicate 'api/' prefix
     path('admin/therapist-applications/', AdminTherapistApplicationListView.as_view(), name='admin-therapist-applications-list'),
     path('admin/therapist-applications/<int:pk>/', AdminTherapistApplicationDetailView.as_view(), name='admin-therapist-applications-detail'),
 
     # THERAPIST & SESSION MANAGEMENT ENDPOINTS
-    # Paths corrected: removed the duplicate 'api/' prefix
     path('therapists/', TherapistListView.as_view(), name='therapist-list'),
     path('session-requests/', SessionRequestCreateView.as_view(), name='session-request-create'),
     path('therapist/session-requests/', TherapistSessionRequestListView.as_view(), name='therapist-session-requests'),
+    
+    # ADD THIS LINE - Alternative URL pattern for therapist sessions
+    path('therapist/sessions/', TherapistSessionRequestListView.as_view(), name='therapist-sessions'),
+    
     path('session-requests/<int:pk>/', SessionRequestUpdateView.as_view(), name='session-request-update'),
 ]
