@@ -99,13 +99,9 @@ export const AuthProvider = ({ children }) => {
 
     validateAndRefresh();
 
-    // Set up automatic token refresh interval (every 4 minutes)
-    const refreshInterval = setInterval(() => {
-      console.log("AuthContext - Automatic token refresh triggered.");
-      refreshAccessToken();
-    }, 4 * 60 * 1000);
-
-    return () => clearInterval(refreshInterval);
+    // The automatic refresh interval has been removed as requested.
+    // Token validation will now happen primarily on initial load.
+    // Consider implementing a mechanism to refresh the token when an API call returns a 401 Unauthorized error.
   }, [token, refreshToken, refreshAccessToken]);
 
   // Login function
