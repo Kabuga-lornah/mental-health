@@ -17,10 +17,12 @@ export default function Register() {
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
+    // Correctly handle the value from the RadioGroup
+    const processedValue = name === 'registerAsTherapist' ? value === 'therapist' : value;
     setFormData({
       ...formData,
-      [name]: type === "radio" ? (value === "therapist") : value,
+      [name]: processedValue,
     });
   };
 
@@ -32,12 +34,9 @@ export default function Register() {
       // New users will always start with is_verified=False by default in backend models
       await register({ ...formData, isTherapist: formData.registerAsTherapist });
       
-      // If the user registered with intent to be a therapist, redirect to application form
-      if (formData.registerAsTherapist) {
-        navigate('/therapist-apply'); // New route for therapist application form
-      } else {
-        navigate('/login'); // Regular users go to login page
-      }
+      // FIXED: Always redirect to login page regardless of user type
+      // The user will need to login first, then they'll be redirected appropriately based on their role
+      navigate('/login');
       
     } catch (err) {
       setError(err.error || "Registration failed");

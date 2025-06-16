@@ -169,25 +169,30 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        if not self.request.user.is_therapist:
-            raise serializers.ValidationError({"detail": "Only users intending to be therapists can submit applications."})
-        
+        # Allow any authenticated user to apply. The check for an existing application prevents duplicates.
         if TherapistApplication.objects.filter(applicant=self.request.user).exists():
             raise serializers.ValidationError({"detail": "You have already submitted a therapist application."})
-            
-        # The line below was removed as it's redundant. The serializer.save() call handles assigning the applicant.
-        # if serializer.validated_data.get('applicant') != self.request.user:
-        #     raise serializers.ValidationError({"applicant": "You can only submit an application for yourself."})
-            
-        serializer.save(applicant=self.request.user)
+
+        # Save the application, which will be linked to the current user.
+        application = serializer.save(applicant=self.request.user)
+        
+        # After successful submission, ensure the user's `is_therapist` flag is set to True,
+        # as they have now officially entered the therapist application process.
+        user = self.request.user
+        if not user.is_therapist:
+            user.is_therapist = True
+            user.save()
+
+
+# In mental_health_app/views.py
 
 class MyTherapistApplicationView(generics.RetrieveAPIView):
     serializer_class = TherapistApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
+        # This line looks for an application linked to the currently logged-in user.
         return get_object_or_404(TherapistApplication, applicant=self.request.user)
-
 class AdminTherapistApplicationListView(generics.ListAPIView):
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
@@ -322,4 +327,3 @@ class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
             raise permissions.PermissionDenied(
                 "You can only cancel pending requests that you have created."
             )
-

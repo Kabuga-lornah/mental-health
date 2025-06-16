@@ -91,11 +91,40 @@ export default function TherapistApplicationForm() {
     setError('');
     setSubmitting(true);
 
+    // Validation
+    if (!formData.license_number.trim()) {
+      setError("License number is required.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!formData.id_number.trim()) {
+      setError("ID number is required.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!formData.motivation_statement.trim()) {
+      setError("Motivation statement is required.");
+      setSubmitting(false);
+      return;
+    }
+
     if (!files.license_document || !files.id_document || !files.professional_photo) {
       setError("Please upload all required documents.");
       setSubmitting(false);
       return;
     }
+
+    // Debug logging
+    console.log("DEBUG: Form data being submitted:", formData);
+    console.log("DEBUG: Files being uploaded:", {
+      license_document: files.license_document?.name,
+      id_document: files.id_document?.name,
+      professional_photo: files.professional_photo?.name
+    });
+    console.log("DEBUG: User token exists:", !!token);
+    console.log("DEBUG: User object:", user);
 
     const submissionFormData = new FormData();
     submissionFormData.append('license_number', formData.license_number);
@@ -105,10 +134,13 @@ export default function TherapistApplicationForm() {
     submissionFormData.append('id_document', files.id_document);
     submissionFormData.append('professional_photo', files.professional_photo);
     
+    // Debug: Log FormData contents
+    console.log("DEBUG: FormData contents:");
+    for (let [key, value] of submissionFormData.entries()) {
+      console.log(`${key}:`, value);
+    }
+
     try {
-      // =========================================================================
-      // === CORRECTED CODE BLOCK STARTS HERE ===
-      // =========================================================================
       const response = await axios.post('http://localhost:8000/api/therapist-applications/submit/', submissionFormData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -116,31 +148,52 @@ export default function TherapistApplicationForm() {
         },
       });
 
-      // FIX: Update the state with the newly submitted application data.
-      // This will cause the component to re-render and show the status view.
+      console.log("DEBUG: Application submitted successfully:", response.data);
       setExistingApplication(response.data);
-
       setSnackbar({ open: true, message: 'Application submitted successfully! You will be notified once it is reviewed.', severity: 'success' });
-      
-      // The redirect is no longer needed as the component will now show the status view automatically.
-      // setTimeout(() => navigate('/dashboard'), 3000);
-      // =========================================================================
-      // === CORRECTED CODE BLOCK ENDS HERE ===
-      // =========================================================================
 
     } catch (err) {
-        console.error("Error submitting application:", err.response?.data || err.message);
+        console.error("DEBUG: Full error object:", err);
+        console.error("DEBUG: Error response:", err.response);
+        console.error("DEBUG: Error response data:", err.response?.data);
+        console.error("DEBUG: Error response status:", err.response?.status);
+        console.error("DEBUG: Error response headers:", err.response?.headers);
+        
         let errorMessage = "An unexpected error occurred. Please try again.";
+        
         if (err.response && err.response.data) {
             const errors = err.response.data;
-            const errorKey = Object.keys(errors)[0];
-            if (errorKey && Array.isArray(errors[errorKey])) {
-                const fieldName = errorKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                errorMessage = `${fieldName}: ${errors[errorKey][0]}`;
+            console.log("DEBUG: Detailed error breakdown:", errors);
+            
+            // Handle different error formats
+            if (typeof errors === 'string') {
+                errorMessage = errors;
             } else if (errors.detail) {
                 errorMessage = errors.detail;
+            } else if (errors.non_field_errors) {
+                errorMessage = Array.isArray(errors.non_field_errors) 
+                    ? errors.non_field_errors.join(', ') 
+                    : errors.non_field_errors;
+            } else {
+                // Handle field-specific errors
+                const errorMessages = [];
+                for (const [field, fieldErrors] of Object.entries(errors)) {
+                    const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const fieldErrorText = Array.isArray(fieldErrors) ? fieldErrors.join(', ') : fieldErrors;
+                    errorMessages.push(`${fieldName}: ${fieldErrorText}`);
+                }
+                if (errorMessages.length > 0) {
+                    errorMessage = errorMessages.join('\n');
+                }
             }
+        } else if (err.response?.status === 401) {
+            errorMessage = "Authentication failed. Please log in again.";
+        } else if (err.response?.status === 403) {
+            errorMessage = "You don't have permission to submit an application.";
+        } else if (err.message) {
+            errorMessage = err.message;
         }
+        
         setError(errorMessage);
     } finally {
       setSubmitting(false);
@@ -189,7 +242,11 @@ export default function TherapistApplicationForm() {
           Please provide your credentials for verification.
         </Typography>
 
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }}>
+            {error}
+          </Alert>
+        )}
 
         <Box component="form" onSubmit={handleSubmit} noValidate>
           <Grid container spacing={3}>
@@ -233,7 +290,7 @@ export default function TherapistApplicationForm() {
               <FormControl fullWidth error={!files.license_document && submitting}>
                 <Button variant="outlined" component="label" sx={{ py: 2 }}>
                   Upload License
-                  <Input type="file" name="license_document" onChange={handleFileChange} />
+                  <Input type="file" name="license_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
                 </Button>
                 {files.license_document ? <FormHelperText>{files.license_document.name}</FormHelperText> : <FormHelperText>PDF, JPG, PNG</FormHelperText>}
               </FormControl>
@@ -242,7 +299,7 @@ export default function TherapistApplicationForm() {
               <FormControl fullWidth error={!files.id_document && submitting}>
                 <Button variant="outlined" component="label" sx={{ py: 2 }}>
                   Upload ID Document
-                  <Input type="file" name="id_document" onChange={handleFileChange} />
+                  <Input type="file" name="id_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
                 </Button>
                 {files.id_document ? <FormHelperText>{files.id_document.name}</FormHelperText> : <FormHelperText>PDF, JPG, PNG</FormHelperText>}
                 </FormControl>
