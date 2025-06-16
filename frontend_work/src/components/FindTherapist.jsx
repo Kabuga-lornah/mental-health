@@ -14,10 +14,12 @@ import {
   TextField,
   MenuItem,
   Snackbar,
-  Alert
+  Alert,
+  Chip,
+  Stack
 } from '@mui/material';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext'; // Assuming AuthContext provides user and token
+import { useAuth } from '../context/AuthContext'; 
 
 export default function FindTherapist() {
   const { user, token } = useAuth();
@@ -72,22 +74,16 @@ export default function FindTherapist() {
 
   const handleSubmitSessionRequest = async () => {
     try {
-      if (!user) {
-        throw new Error("You must be logged in to request a session.");
-      }
-      if (!selectedTherapist) {
-        throw new Error("No therapist selected.");
-      }
-      if (!requestedDate || !requestedTime) {
-        throw new Error("Please select a preferred date and time for the session.");
-      }
+      if (!user) throw new Error("You must be logged in to request a session.");
+      if (!selectedTherapist) throw new Error("No therapist selected.");
+      if (!requestedDate || !requestedTime) throw new Error("Please select a preferred date and time.");
 
       const payload = {
         therapist: selectedTherapist.id,
         message: requestMessage,
         requested_date: requestedDate,
         requested_time: requestedTime,
-        status: 'pending' // Initial status
+        status: 'pending'
       };
 
       await axios.post('http://localhost:8000/api/session-requests/', payload, {
@@ -96,13 +92,12 @@ export default function FindTherapist() {
           'Content-Type': 'application/json',
         },
       });
-      // --- FIX: Use full_name for the snackbar message ---
+      
       setSnackbarMessage(`Session request sent to ${selectedTherapist.full_name}!`);
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
       handleCloseRequestModal();
-    } catch (err)
-        {
+    } catch (err) {
       console.error("Error sending session request:", err.response?.data || err.message);
       setSnackbarMessage(err.response?.data?.therapist?.[0] || err.message || "Failed to send session request.");
       setSnackbarSeverity('error');
@@ -143,7 +138,7 @@ export default function FindTherapist() {
 
         {therapists.length === 0 ? (
           <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 4 }}>
-            No therapists currently signed in or available and verified. Please check back later!
+            No therapists currently available. Please check back later!
           </Typography>
         ) : (
           <Grid container spacing={4}>
@@ -152,13 +147,11 @@ export default function FindTherapist() {
                 <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <img
-                      // --- FIX: Use full_name for the placeholder initial ---
                       src={therapist.profile_picture || `https://placehold.co/60x60/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
                       alt={therapist.full_name}
                       style={{ borderRadius: '50%', width: 60, height: 60, objectFit: 'cover', marginRight: 15 }}
                     />
                     <Box>
-                      {/* --- FIX: Display full_name directly --- */}
                       <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold' }}>
                         {therapist.full_name}
                       </Typography>
@@ -171,20 +164,30 @@ export default function FindTherapist() {
                     <strong>Availability:</strong> {therapist.is_available ? 'Available' : 'Not Available'}
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 1 }}>
-                    <strong>Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 'Free'}
+                    <strong>Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 'N/A'}
                   </Typography>
-                  {therapist.specializations && (
-                    <Typography variant="body2" sx={{ mb: 1, fontStyle: 'italic' }}>
-                      <strong>Specializations:</strong> {therapist.specializations}
-                    </Typography>
-                  )}
                   {therapist.years_of_experience && (
                     <Typography variant="body2" sx={{ mb: 1 }}>
                       <strong>Experience:</strong> {therapist.years_of_experience} years
                     </Typography>
                   )}
+                  
+                  {/* Display Specializations as Chips */}
+                  {therapist.specializations && (
+                    <Box sx={{ my: 2 }}>
+                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                        Specializations:
+                      </Typography>
+                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                        {therapist.specializations.split(',').map((spec, index) => (
+                          <Chip key={index} label={spec.trim()} size="small" sx={{ backgroundColor: '#DCC8C8', color: '#333' }} />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+
                   {therapist.bio && (
-                    <Typography variant="body2" sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 2, flexGrow: 1 }}>
                       {therapist.bio.length > 100 ? `${therapist.bio.substring(0, 100)}...` : therapist.bio}
                     </Typography>
                   )}
@@ -195,11 +198,11 @@ export default function FindTherapist() {
                     sx={{
                       backgroundColor: '#780000',
                       '&:hover': { backgroundColor: '#5a0000' },
-                      mt: 'auto', // Push button to bottom
+                      mt: 'auto',
                       borderRadius: 2,
                     }}
                     onClick={() => handleRequestSessionClick(therapist)}
-                    disabled={!therapist.is_available || (user && user.is_therapist)} // Disable if not available or if current user is a therapist
+                    disabled={!therapist.is_available || (user && user.is_therapist)}
                   >
                     {user && user.is_therapist ? "Therapists Cannot Request" : "Request Session"}
                   </Button>
@@ -212,7 +215,6 @@ export default function FindTherapist() {
 
       {/* Session Request Modal */}
       <Dialog open={openRequestModal} onClose={handleCloseRequestModal}>
-        {/* --- FIX: Use full_name for the modal title --- */}
         <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Request Session with {selectedTherapist?.full_name}</DialogTitle>
         <DialogContent>
           <TextField

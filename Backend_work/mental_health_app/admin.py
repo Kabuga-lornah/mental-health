@@ -45,7 +45,7 @@ class TherapistApplicationAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {'fields': ('applicant', 'motivation_statement', 'status', 'reviewer_notes')}),
-        ('Credentials & Documents', {'fields': ('license_number', 'license_document', 'id_number', 'id_document', 'professional_photo')}),
+        ('Credentials & Documents', {'fields': ('license_number', 'license_document', 'id_number', 'id_document', 'professional_photo', 'specializations')}),
         ('Timestamps', {'fields': ('submitted_at', 'reviewed_at')}),
     )
 
@@ -59,26 +59,34 @@ class TherapistApplicationAdmin(admin.ModelAdmin):
         return obj.applicant.get_full_name()
     applicant_full_name.short_description = 'Applicant Name'
 
-    # Override save_model to trigger logic in serializer's update method if needed
-    # This ensures that when an admin changes the status to 'approved', the user's is_verified is also updated.
+    # Override save_model to trigger logic when an admin approves or rejects an application.
     def save_model(self, request, obj, form, change):
         if change: # Only on change/update, not initial creation via admin
             # Call super to save the application object first
             super().save_model(request, obj, form, change)
             
-            # Re-fetch user to ensure we have the latest state, then update is_verified
+            # Re-fetch user to ensure we have the latest state
             user_applicant = User.objects.get(pk=obj.applicant.pk)
+            
             if obj.status == 'approved' and not user_applicant.is_verified:
                 user_applicant.is_verified = True
-                user_applicant.is_available = True  # Set availability to true
-                user_applicant.bio = obj.motivation_statement # Using motivation as initial bio
+                user_applicant.is_available = True
+                user_applicant.bio = obj.motivation_statement
+                
+                # Copy specializations from the application to the user profile
+                user_applicant.specializations = obj.specializations
+
+                # Set the professional photo as the profile picture
+                if obj.professional_photo:
+                    user_applicant.profile_picture = obj.professional_photo
+                
                 user_applicant.save()
             elif obj.status != 'approved' and user_applicant.is_verified:
                 # If status changes from approved to rejected/pending, unverify the user
                 user_applicant.is_verified = False
-                user_applicant.is_available = False # Set availability to false
+                user_applicant.is_available = False
                 user_applicant.save()
-        else: # For new application creation through admin (less common for this flow)
+        else: # For new application creation through admin
             super().save_model(request, obj, form, change)
 
 

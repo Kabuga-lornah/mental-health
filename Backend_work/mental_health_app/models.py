@@ -142,6 +142,8 @@ class TherapistApplication(models.Model):
     # Personal statement/motivation
     motivation_statement = models.TextField()
 
+    specializations = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of specializations")
+
     # Status of the application
     APPLICATION_STATUS_CHOICES = [
         ('pending', 'Pending Review'),

@@ -33,7 +33,6 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function AdminDashboard() {
-  console.log("DEBUG: AdminDashboard - Component is being rendered/mounted."); // ADD THIS LINE at the very top
   const { user, token, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
@@ -48,48 +47,36 @@ export default function AdminDashboard() {
   const [reviewerNotes, setReviewerNotes] = useState('');
 
   const fetchApplications = async () => {
-    console.log("DEBUG: AdminDashboard - fetchApplications called.");
-    // Only fetch if user is an admin
+    // Only proceed if there's an authenticated admin user
     if (!user || !user.is_staff || !user.is_superuser || !token) {
       setLoading(false);
       setError("Access Denied: You must be an administrator to view this page.");
-      console.log("DEBUG: AdminDashboard - fetchApplications: User is NOT an admin or token missing. Skipping fetch.");
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      console.log("DEBUG: AdminDashboard - Attempting to fetch applications from API: http://localhost:8000/api/admin/therapist-applications/");
       const response = await axios.get('http://localhost:8000/api/admin/therapist-applications/', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       setApplications(response.data);
-      console.log("DEBUG: AdminDashboard - Applications fetched successfully:", response.data);
     } catch (err) {
-      console.error("DEBUG: AdminDashboard - Error fetching applications:", err);
-      // More specific error for 403:
       if (err.response && err.response.status === 403) {
-          setError("Failed to load therapist applications. You do not have permission to access this. Ensure your account has admin privileges.");
+        setError("Failed to load applications. You do not have permission to access this resource.");
       } else {
-          setError("Failed to load therapist applications. Ensure you are logged in as an admin and the backend is running.");
+        setError("Failed to load therapist applications. Please ensure the backend server is running.");
       }
     } finally {
       setLoading(false);
-      console.log("DEBUG: AdminDashboard - Loading set to false after fetch attempt.");
     }
   };
 
   useEffect(() => {
-    console.log("DEBUG: AdminDashboard - useEffect triggered. AuthLoading:", authLoading, "User:", user);
-    if (user) {
-        console.log("DEBUG: AdminDashboard - useEffect User roles:", { is_staff: user.is_staff, is_superuser: user.is_superuser });
-    }
-
-    if (!authLoading) { // Only fetch once auth state is determined
-      console.log("DEBUG: AdminDashboard - Auth state determined, calling fetchApplications.");
+    // Fetch data only after the authentication status has been determined
+    if (!authLoading) {
       fetchApplications();
     }
   }, [user, token, authLoading]);
@@ -103,8 +90,8 @@ export default function AdminDashboard() {
 
   const handleOpenReviewModal = (application) => {
     setSelectedApplication(application);
-    setNewStatus(application.status); // Set current status
-    setReviewerNotes(application.reviewer_notes || ''); // Set current notes
+    setNewStatus(application.status);
+    setReviewerNotes(application.reviewer_notes || '');
     setOpenReviewModal(true);
   };
 
@@ -131,21 +118,18 @@ export default function AdminDashboard() {
       setSnackbarMessage("Application status updated successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchApplications(); // Refresh the list
+      fetchApplications(); // Refresh the list after update
       handleCloseReviewModal();
     } catch (err) {
-      console.error("DEBUG: AdminDashboard - Error updating application status:", err.response?.data || err.message);
+      console.error("Error updating application status:", err.response?.data || err.message);
       setSnackbarMessage("Failed to update application status.");
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
   };
-
-  // --- Conditional Rendering for Admin Dashboard ---
-
-  // Show loading while auth state is being determined or data is fetching
+  
+  // Show loading spinner while checking auth or fetching data
   if (authLoading || loading) {
-    console.log("DEBUG: AdminDashboard - Rendering Loading state. AuthLoading:", authLoading, "Local Loading:", loading);
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
         <CircularProgress sx={{ color: '#780000' }} />
@@ -154,9 +138,8 @@ export default function AdminDashboard() {
     );
   }
 
-  // If user is not logged in or not an admin
+  // Show access denied message if user is not an admin
   if (!user || !user.is_staff || !user.is_superuser) {
-    console.log("DEBUG: AdminDashboard - User is NOT an admin, rendering Access Denied.");
     return (
       <Box sx={{ textAlign: 'center', mt: 4, minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
         <Typography variant="h6" color="error" sx={{ mb: 2 }}>
@@ -172,11 +155,8 @@ export default function AdminDashboard() {
     );
   }
 
-  // Display admin dashboard content
-  console.log("DEBUG: AdminDashboard - Rendering main content.");
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0' }}>
-      
       <Container maxWidth="lg" sx={{ py: 8 }}>
         <Typography variant="h4" sx={{ color: '#780000', mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
           Admin Dashboard - Therapist Applications
@@ -255,15 +235,21 @@ export default function AdminDashboard() {
               </Typography>
               {selectedApplication.professional_photo && (
                 <Box sx={{ my: 2, textAlign: 'center' }}>
-                    <img src={selectedApplication.professional_photo} alt="Professional" style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }} />
-                    <Typography variant="caption" display="block" sx={{ mt: 1 }}>Professional Photo</Typography>
+                  <img src={selectedApplication.professional_photo} alt="Professional" style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }} />
+                  <Typography variant="caption" display="block" sx={{ mt: 1 }}>Professional Photo</Typography>
                 </Box>
               )}
               <Typography variant="body1" sx={{ mt: 2, fontWeight: 'bold' }}>Motivation Statement:</Typography>
+              <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#f9f9f9', whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body2">{selectedApplication.motivation_statement}</Typography>
+              </Paper>
+              
+              {/* Display Specializations */}
+              <Typography variant="body1" sx={{ mt: 2, fontWeight: 'bold' }}>Specializations:</Typography>
               <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#f9f9f9' }}>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                  {selectedApplication.motivation_statement}
-                </Typography>
+                  <Typography variant="body2">
+                  {selectedApplication.specializations || "Not specified"}
+                  </Typography>
               </Paper>
             </Box>
           )}

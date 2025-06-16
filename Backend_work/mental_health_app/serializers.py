@@ -9,7 +9,15 @@ import json
 
 User = get_user_model()
 
+# =========================================================================
+# === User Serializers ===
+# =========================================================================
+
 class UserSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating and updating user accounts. Handles password
+    validation and hashing.
+    """
     password = serializers.CharField(
         write_only=True,
         required=True,
@@ -50,11 +58,16 @@ class UserSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, attrs):
+        """
+        Custom validation to check for matching passwords and unique email.
+        """
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+        
         email = attrs.get('email')
         if self.instance is None and User.objects.filter(email=email).exists():
             raise serializers.ValidationError({"email": "This email is already in use."})
+            
         if attrs.get('is_therapist'):
             if attrs.get('is_available') is None:
                 raise serializers.ValidationError(
@@ -66,45 +79,39 @@ class UserSerializer(serializers.ModelSerializer):
                 )
         return attrs
 
-    # =========================================================================
-    # === CORRECTED CODE BLOCK STARTS HERE ===
-    # =========================================================================
     def create(self, validated_data):
         """
-        Creates and returns a new User instance, given the validated data.
+        Creates and returns a new User instance using the custom user manager.
         """
-        # Remove password2 as it's only used for confirmation
         validated_data.pop('password2', None)
-        
-        # The CustomUserManager's `create_user` method expects 'email' and 'password' 
-        # as separate arguments. We pop them from the validated data.
         email = validated_data.pop('email')
         password = validated_data.pop('password')
         
-        # The rest of the dictionary now contains only the 'extra_fields'.
         try:
-            # Create the user by passing the main arguments and the extra fields.
             user = User.objects.create_user(email=email, password=password, **validated_data)
             return user
         except DjangoValidationError as e:
-            # Catch potential validation errors from the model and raise them
-            # as a serializer validation error.
             raise serializers.ValidationError(e.message_dict)
-    # =========================================================================
-    # === CORRECTED CODE BLOCK ENDS HERE ===
-    # =========================================================================
 
     def update(self, instance, validated_data):
+        """
+        Updates a User instance, handling password changes correctly.
+        """
         password = validated_data.pop('password', None)
         if password:
             instance.set_password(password)
         validated_data.pop('password2', None)
+        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+            
         instance.save()
         return instance
 
 class LoginSerializer(serializers.Serializer):
+    """
+    Serializer for user login, validating credentials.
+    """
     email = serializers.EmailField(required=True)
     password = serializers.CharField(
         write_only=True,
@@ -123,7 +130,32 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Unable to log in with provided credentials.")
         raise serializers.ValidationError("Must include 'email' and 'password'.")
 
+class TherapistSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for public therapist profiles.
+    """
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'full_name', 'email', 'phone',
+            'is_available', 'hourly_rate', 'profile_picture',
+            'bio', 'years_of_experience', 'specializations'
+        ]
+        read_only_fields = fields
+
+    def get_full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+
+# =========================================================================
+# === Journal Entry Serializers ===
+# =========================================================================
+
 class JournalEntrySerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating and viewing detailed journal entries.
+    """
     attachment_file = serializers.FileField(
         required=False,
         allow_null=True,
@@ -145,6 +177,9 @@ class JournalEntrySerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def to_internal_value(self, data):
+        """
+        Handles converting stringified JSON for tags back to a list.
+        """
         tags = data.get('tags')
         if tags and isinstance(tags, str):
             try:
@@ -158,45 +193,23 @@ class JournalEntrySerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
 class JournalListSerializer(serializers.ModelSerializer):
+    """
+    A lightweight serializer for listing journal entries.
+    """
     class Meta:
         model = JournalEntry
         fields = ['id', 'date', 'mood', 'tags', 'attachment_name']
         read_only_fields = fields
 
-class TherapistSerializer(serializers.ModelSerializer):
-    full_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = [
-            'id', 'full_name', 'email', 'phone',
-            'is_available', 'hourly_rate', 'profile_picture',
-            'bio', 'years_of_experience', 'specializations'
-        ]
-        read_only_fields = fields
-
-    def get_full_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
 
 class SessionRequestSerializer(serializers.ModelSerializer):
-    client_name = serializers.CharField(
-        source='client.get_full_name',
-        read_only=True
-    )
-    therapist_name = serializers.CharField(
-        source='therapist.get_full_name',
-        read_only=True
-    )
-    client_email = serializers.EmailField(
-        source='client.email',
-        read_only=True
-    )
-    session_duration = serializers.IntegerField(
-        min_value=30,
-        max_value=240,
-        default=60
-    )
-    
+    """
+    Serializer for clients creating and viewing session requests.
+    """
+    client_name = serializers.CharField(source='client.get_full_name', read_only=True)
+    therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
+    client_email = serializers.EmailField(source='client.email', read_only=True)
+    session_duration = serializers.IntegerField(min_value=30, max_value=240, default=60)
     client = serializers.PrimaryKeyRelatedField(read_only=True)
     
     class Meta:
@@ -223,6 +236,9 @@ class SessionRequestSerializer(serializers.ModelSerializer):
         return SessionRequest.objects.create(**validated_data)
 
 class SessionRequestUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating the status of a session request.
+    """
     class Meta:
         model = SessionRequest
         fields = ['id', 'status', 'session_notes', 'is_paid']
@@ -237,13 +253,18 @@ class SessionRequestUpdateSerializer(serializers.ModelSerializer):
             'cancelled': []
         }
         current_status = self.instance.status
-        if value not in valid_transitions[current_status]:
+        if value not in valid_transitions.get(current_status, []):
             raise serializers.ValidationError(
                 f"Cannot transition from {current_status} to {value}"
             )
         return value
 
+
+
 class TherapistApplicationSerializer(serializers.ModelSerializer):
+    """
+    Serializer for users to submit an application to become a therapist.
+    """
     applicant_email = serializers.ReadOnlyField(source='applicant.email')
     applicant_full_name = serializers.SerializerMethodField()
 
@@ -253,7 +274,7 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
             'id', 'applicant', 'applicant_email', 'applicant_full_name',
             'license_number', 'license_document', 'id_number', 'id_document',
             'professional_photo', 'motivation_statement', 'status', 'submitted_at',
-            'reviewed_at', 'reviewer_notes'
+            'reviewed_at', 'reviewer_notes', 'specializations'
         ]
         read_only_fields = [
             'id', 'applicant', 'status', 'submitted_at',
@@ -266,12 +287,17 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
             'license_number': {'required': True},
             'id_number': {'required': True},
             'motivation_statement': {'required': True},
+            'specializations': {'required': True}, # Now required for submission
         }
 
     def get_applicant_full_name(self, obj):
         return obj.applicant.get_full_name()
 
 class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
+    """
+    Serializer for admins to review and update therapist applications.
+    This serializer handles the logic of verifying the user upon approval.
+    """
     applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
     applicant_full_name = serializers.CharField(source='applicant.get_full_name', read_only=True)
 
@@ -281,25 +307,41 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
             'id', 'applicant', 'applicant_email', 'applicant_full_name',
             'license_number', 'license_document', 'id_number', 'id_document',
             'professional_photo', 'motivation_statement', 'status', 'submitted_at',
-            'reviewed_at', 'reviewer_notes'
+            'reviewed_at', 'reviewer_notes', 'specializations'
         ]
-        read_only_fields = ['id', 'applicant', 'submitted_at', 'applicant_email', 'applicant_full_name']
+        read_only_fields = [
+            'id', 'applicant', 'submitted_at', 'applicant_email', 
+            'applicant_full_name', 'license_number', 'license_document', 
+            'id_number', 'id_document', 'professional_photo', 
+            'motivation_statement', 'specializations'
+        ]
 
     def update(self, instance, validated_data):
+        """
+        Handles application status changes and updates the applicant's user profile.
+        """
         instance.status = validated_data.get('status', instance.status)
         instance.reviewer_notes = validated_data.get('reviewer_notes', instance.reviewer_notes)
         instance.reviewed_at = timezone.now()
+        
         applicant = instance.applicant
+        
+        # Logic for when an application is approved
         if instance.status == 'approved':
             applicant.is_verified = True
             applicant.is_available = True
-            if not applicant.bio:
+            if not applicant.bio: # Only set bio if it's not already set
                 applicant.bio = instance.motivation_statement
+            
+            # Transfer specializations from application to user profile
+            applicant.specializations = instance.specializations
+            
             applicant.save()
-        else:
+        else: # Logic for rejection, cancellation, etc.
             if applicant.is_verified:
                 applicant.is_verified = False
                 applicant.is_available = False
                 applicant.save()
+                
         instance.save()
         return instance
