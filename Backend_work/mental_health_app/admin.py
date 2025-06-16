@@ -70,14 +70,13 @@ class TherapistApplicationAdmin(admin.ModelAdmin):
             user_applicant = User.objects.get(pk=obj.applicant.pk)
             if obj.status == 'approved' and not user_applicant.is_verified:
                 user_applicant.is_verified = True
-                # If you want to copy bio/etc. from application to user directly from admin:
+                user_applicant.is_available = True  # Set availability to true
                 user_applicant.bio = obj.motivation_statement # Using motivation as initial bio
-                # You might need to update other fields like years_of_experience, specializations here
-                # if they are part of the application form and you want them automatically copied.
                 user_applicant.save()
             elif obj.status != 'approved' and user_applicant.is_verified:
                 # If status changes from approved to rejected/pending, unverify the user
                 user_applicant.is_verified = False
+                user_applicant.is_available = False # Set availability to false
                 user_applicant.save()
         else: # For new application creation through admin (less common for this flow)
             super().save_model(request, obj, form, change)

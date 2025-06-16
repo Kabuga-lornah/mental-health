@@ -96,11 +96,13 @@ export default function FindTherapist() {
           'Content-Type': 'application/json',
         },
       });
-      setSnackbarMessage(`Session request sent to ${selectedTherapist.first_name} ${selectedTherapist.last_name}!`);
+      // --- FIX: Use full_name for the snackbar message ---
+      setSnackbarMessage(`Session request sent to ${selectedTherapist.full_name}!`);
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
       handleCloseRequestModal();
-    } catch (err) {
+    } catch (err)
+        {
       console.error("Error sending session request:", err.response?.data || err.message);
       setSnackbarMessage(err.response?.data?.therapist?.[0] || err.message || "Failed to send session request.");
       setSnackbarSeverity('error');
@@ -150,13 +152,15 @@ export default function FindTherapist() {
                 <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <img
-                      src={therapist.profile_picture || `https://placehold.co/60x60/780000/fefae0?text=${therapist.first_name.charAt(0)}`}
-                      alt={`${therapist.first_name} ${therapist.last_name}`}
+                      // --- FIX: Use full_name for the placeholder initial ---
+                      src={therapist.profile_picture || `https://placehold.co/60x60/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
+                      alt={therapist.full_name}
                       style={{ borderRadius: '50%', width: 60, height: 60, objectFit: 'cover', marginRight: 15 }}
                     />
                     <Box>
+                      {/* --- FIX: Display full_name directly --- */}
                       <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold' }}>
-                        {therapist.first_name} {therapist.last_name}
+                        {therapist.full_name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         {therapist.email}
@@ -208,7 +212,8 @@ export default function FindTherapist() {
 
       {/* Session Request Modal */}
       <Dialog open={openRequestModal} onClose={handleCloseRequestModal}>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Request Session with {selectedTherapist?.first_name}</DialogTitle>
+        {/* --- FIX: Use full_name for the modal title --- */}
+        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Request Session with {selectedTherapist?.full_name}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus

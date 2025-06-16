@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/AuthContext"; // Corrected import path
 import { useNavigate, Link } from "react-router-dom";
 import {
   Box,
@@ -14,7 +14,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const { login, user: authUser } = useAuth(); // Renamed 'user' to 'authUser' for clarity
-  const navigate = useNavigate(); // Keep navigate for other routes if needed
+  const navigate = useNavigate(); // Hook for navigation
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,45 +30,52 @@ export default function Login() {
         console.log("DEBUG: Login.jsx: User object from response: ", response.user);
         console.log("DEBUG: Login.jsx: is_staff: ", response.user.is_staff, "is_superuser: ", response.user.is_superuser);
 
-        // Admin redirect - TEMPORARILY USE window.location.href FOR DEBUGGING
+        // Admin redirect - Added delay to ensure AuthContext state is updated
         if (response.user.is_staff && response.user.is_superuser) {
-          console.log("DEBUG: Login.jsx - FORCING REDIRECT to admin applications with window.location.href.");
-          // *** THIS IS THE TEMPORARY CHANGE ***
-          window.location.href = "/admin/applications"; // Force a full page reload to the admin route
+          console.log("DEBUG: Login.jsx - Redirecting to admin applications with navigate.");
+          // Add a small delay to ensure AuthContext state is updated
+          setTimeout(() => {
+            navigate("/admin/applications");
+          }, 300); // Increased delay to ensure AuthContext updates properly
           return; // Stop further execution
         }
         // Therapist redirect (based on verification)
         else if (response.user.is_therapist) {
           console.log("DEBUG: Login.jsx - Redirecting therapist.");
-          navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply");
+          setTimeout(() => {
+            navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply");
+          }, 300);
         }
         // Regular user redirect
         else {
           console.log("DEBUG: Login.jsx - Redirecting regular user to homepage.");
-          navigate("/homepage");
+          setTimeout(() => {
+            navigate("/homepage");
+          }, 300);
         }
       } else {
         console.warn("DEBUG: Login.jsx - Login successful but user object not immediately available from response. Redirecting based on AuthContext user state.");
         // Use the user from AuthContext directly, which should be updated by now
-        if (authUser) {
-          console.log("DEBUG: Login.jsx - Fallback: user from AuthContext: ", authUser);
-          console.log("DEBUG: Login.jsx - Fallback: is_staff: ", authUser.is_staff, "is_superuser: ", authUser.is_superuser);
-          if (authUser.is_staff && authUser.is_superuser) {
-            console.log("DEBUG: Login.jsx - Fallback: FORCING REDIRECT to admin applications (from AuthContext user) with window.location.href.");
-            // *** THIS IS THE TEMPORARY CHANGE FOR FALLBACK ***
-            window.location.href = "/admin/applications"; // Force a full page reload
-            return; // Stop further execution
-          } else if (authUser.is_therapist) {
-            console.log("DEBUG: Login.jsx - Fallback: Redirecting therapist (from AuthContext user).");
-            navigate(authUser.is_verified ? "/therapist/dashboard" : "/therapist-apply");
+        setTimeout(() => {
+          if (authUser) {
+            console.log("DEBUG: Login.jsx - Fallback: user from AuthContext: ", authUser);
+            console.log("DEBUG: Login.jsx - Fallback: is_staff: ", authUser.is_staff, "is_superuser: ", authUser.is_superuser);
+            if (authUser.is_staff && authUser.is_superuser) {
+              console.log("DEBUG: Login.jsx - Fallback: Redirecting to admin applications (from AuthContext user) with navigate.");
+              navigate("/admin/applications");
+              return; // Stop further execution
+            } else if (authUser.is_therapist) {
+              console.log("DEBUG: Login.jsx - Fallback: Redirecting therapist (from AuthContext user).");
+              navigate(authUser.is_verified ? "/therapist/dashboard" : "/therapist-apply");
+            } else {
+              console.log("DEBUG: Login.jsx - Fallback: Redirecting regular user to homepage (from AuthContext user).");
+              navigate("/homepage");
+            }
           } else {
-            console.log("DEBUG: Login.jsx - Fallback: Redirecting regular user to homepage (from AuthContext user).");
+            console.log("DEBUG: Login.jsx - Fallback: No user in AuthContext. Defaulting to homepage.");
             navigate("/homepage");
           }
-        } else {
-          console.log("DEBUG: Login.jsx - Fallback: No user in AuthContext. Defaulting to homepage.");
-          navigate("/homepage");
-        }
+        }, 500);
       }
     } catch (err) {
       setError(err.error || err.message || "Invalid credentials");

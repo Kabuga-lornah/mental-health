@@ -47,8 +47,7 @@ export default function TherapistDashboard() {
   };
 
   const fetchClientJournalEntries = async () => {
-    // Placeholder for fetching actual client journal entries
-    // In a real app, you'd fetch this from your backend, filtered by therapist's clients
+
     setJournalEntries([
         { client_name: "John Doe", latest_entry: "Feeling much better after our last session. Journaling helps clear my thoughts.", date: "2025-07-14" },
         { client_name: "Jane Smith", latest_entry: "Struggling with anxiety today. Used the AI assistant for coping strategies.", date: "2025-07-13" },
@@ -119,7 +118,7 @@ export default function TherapistDashboard() {
     );
   }
 
-  // This check is mainly for redundancy, ProtectedRoute should handle it.
+
   if (!user || !user.is_therapist) {
     return (
       <Box sx={{ textAlign: 'center', mt: 4, minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
@@ -136,13 +135,10 @@ export default function TherapistDashboard() {
     );
   }
 
-  // If therapist is NOT verified, they should have been redirected by ProtectedRoute or the check above.
-  // This block should ideally not be reached by an unverified therapist due to earlier redirects.
-  // Keeping it as a final safeguard if for some reason the component is rendered.
+ 
   if (!user.is_verified) {
-    // This case should be handled by the Navigate at the very top of the component.
-    // If we reach here, it implies an issue in routing/lifecycle, but return null or a basic message.
-    return null; // Or a very basic message like "Redirecting..."
+  
+    return null; 
   }
 
 

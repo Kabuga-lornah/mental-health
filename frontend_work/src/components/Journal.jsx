@@ -92,11 +92,15 @@ export default function Journal() {
   }, []);
 
   const fetchJournalEntries = async () => {
-    if (user && !authLoading) {
+    if (user && !authLoading && token) {
       setLoading(true);
       setError("");
       try {
-        const response = await axios.get("http://localhost:8000/api/journal/");
+        const response = await axios.get("http://localhost:8000/api/journal/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         setJournalEntries(response.data);
       } catch (err) {
         console.error("Error fetching journal entries:", err);
@@ -155,11 +159,16 @@ export default function Journal() {
     }
 
     try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
       if (editingEntry) {
-        await axios.put(`http://localhost:8000/api/journal/${editingEntry.id}/`, dataToSend);
+        await axios.put(`http://localhost:8000/api/journal/${editingEntry.id}/`, dataToSend, config);
         setFeedbackMessage("Journal entry updated successfully!");
       } else {
-        await axios.post("http://localhost:8000/api/journal/", dataToSend);
+        await axios.post("http://localhost:8000/api/journal/", dataToSend, config);
         setFeedbackMessage("Journal entry saved successfully!");
       }
       setOpenSnackbar(true);
@@ -511,7 +520,7 @@ export default function Journal() {
             alignItems: "center",
           }}
         >
-          <Typography variant="h6">My Journal Entries</Typography>
+          My Journal Entries
           <IconButton onClick={() => setShowEntries(false)}>
             <CloseIcon />
           </IconButton>

@@ -176,28 +176,7 @@ export default function AdminDashboard() {
   console.log("DEBUG: AdminDashboard - Rendering main content.");
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0' }}>
-      {/* Admin Navbar */}
-      <AppBar position="static" sx={{ backgroundColor: '#780000' }}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            <Link to="/admin/applications" style={{ textDecoration: 'none', color: 'inherit' }}>
-              MindWell Admin Portal
-            </Link>
-          </Typography>
-          <Box sx={{ display: 'flex' }}>
-            {user ? (
-              <>
-                <Button color="inherit" component={Link} to="/admin/applications">Applications</Button>
-                {/* Add more admin-specific links as needed */}
-                <Button color="inherit" onClick={() => { logout(); navigate('/login'); }}>Logout</Button>
-              </>
-            ) : (
-              <Button color="inherit" component={Link} to="/login">Login</Button>
-            )}
-          </Box>
-        </Toolbar>
-      </AppBar>
-
+      
       <Container maxWidth="lg" sx={{ py: 8 }}>
         <Typography variant="h4" sx={{ color: '#780000', mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
           Admin Dashboard - Therapist Applications

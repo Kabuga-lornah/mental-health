@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 from .models import JournalEntry, TherapistApplication, SessionRequest
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils import timezone
+import json
 
 User = get_user_model()
 
@@ -19,16 +21,15 @@ class UserSerializer(serializers.ModelSerializer):
         required=True,
         style={'input_type': 'password'}
     )
-    # Therapist profile fields
     is_verified = serializers.BooleanField(read_only=True)
     bio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     years_of_experience = serializers.IntegerField(required=False, allow_null=True)
     specializations = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     is_available = serializers.BooleanField(required=False, default=False)
     hourly_rate = serializers.DecimalField(
-        max_digits=6, 
-        decimal_places=2, 
-        required=False, 
+        max_digits=6,
+        decimal_places=2,
+        required=False,
         allow_null=True
     )
     profile_picture = serializers.ImageField(required=False, allow_null=True)
@@ -51,12 +52,9 @@ class UserSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
-        
         email = attrs.get('email')
         if self.instance is None and User.objects.filter(email=email).exists():
             raise serializers.ValidationError({"email": "This email is already in use."})
-        
-        # Validation for therapist-specific fields
         if attrs.get('is_therapist'):
             if attrs.get('is_available') is None:
                 raise serializers.ValidationError(
@@ -66,39 +64,41 @@ class UserSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"hourly_rate": "Hourly rate must be a number."}
                 )
-
         return attrs
 
+    # =========================================================================
+    # === CORRECTED CODE BLOCK STARTS HERE ===
+    # =========================================================================
     def create(self, validated_data):
-        validated_data.pop('password2')
-        validated_data['is_verified'] = False  # New users are not verified by default
+        """
+        Creates and returns a new User instance, given the validated data.
+        """
+        # Remove password2 as it's only used for confirmation
+        validated_data.pop('password2', None)
         
+        # The CustomUserManager's `create_user` method expects 'email' and 'password' 
+        # as separate arguments. We pop them from the validated data.
+        email = validated_data.pop('email')
+        password = validated_data.pop('password')
+        
+        # The rest of the dictionary now contains only the 'extra_fields'.
         try:
-            user = User.objects.create_user(
-                email=validated_data['email'],
-                password=validated_data['password'],
-                first_name=validated_data['first_name'],
-                last_name=validated_data['last_name'],
-                phone=validated_data.get('phone', ''),
-                is_therapist=validated_data.get('is_therapist', False),
-                is_available=validated_data.get('is_available', False),
-                hourly_rate=validated_data.get('hourly_rate', None),
-                profile_picture=validated_data.get('profile_picture', None),
-                bio=validated_data.get('bio', ''),
-                years_of_experience=validated_data.get('years_of_experience', None),
-                specializations=validated_data.get('specializations', ''),
-                is_verified=False
-            )
+            # Create the user by passing the main arguments and the extra fields.
+            user = User.objects.create_user(email=email, password=password, **validated_data)
             return user
         except DjangoValidationError as e:
+            # Catch potential validation errors from the model and raise them
+            # as a serializer validation error.
             raise serializers.ValidationError(e.message_dict)
+    # =========================================================================
+    # === CORRECTED CODE BLOCK ENDS HERE ===
+    # =========================================================================
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
         if password:
             instance.set_password(password)
         validated_data.pop('password2', None)
-
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -115,7 +115,6 @@ class LoginSerializer(serializers.Serializer):
     def validate(self, attrs):
         email = attrs.get('email')
         password = attrs.get('password')
-
         if email and password:
             user = User.objects.filter(email=email).first()
             if user and user.check_password(password):
@@ -134,19 +133,29 @@ class JournalEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = JournalEntry
         fields = [
-            'id', 'date', 'mood', 'entry', 'tags', 
+            'id', 'date', 'mood', 'entry', 'tags',
             'attachment_name', 'attachment_file', 'user'
         ]
         read_only_fields = ['id', 'date', 'user']
-        extra_kwargs = {
-            'user': {'write_only': True}
-        }
 
     def create(self, validated_data):
         attachment_file = validated_data.pop('attachment_file', None)
         if attachment_file:
             validated_data['attachment_name'] = attachment_file.name
         return super().create(validated_data)
+
+    def to_internal_value(self, data):
+        tags = data.get('tags')
+        if tags and isinstance(tags, str):
+            try:
+                mutable_data = data.copy()
+                mutable_data['tags'] = json.loads(tags)
+                return super().to_internal_value(mutable_data)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError({
+                    'tags': 'Invalid JSON format for tags.'
+                })
+        return super().to_internal_value(data)
 
 class JournalListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -155,7 +164,6 @@ class JournalListSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class TherapistSerializer(serializers.ModelSerializer):
-    """Serializer for listing verified therapists"""
     full_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -172,15 +180,15 @@ class TherapistSerializer(serializers.ModelSerializer):
 
 class SessionRequestSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
-        source='client.get_full_name', 
+        source='client.get_full_name',
         read_only=True
     )
     therapist_name = serializers.CharField(
-        source='therapist.get_full_name', 
+        source='therapist.get_full_name',
         read_only=True
     )
     client_email = serializers.EmailField(
-        source='client.email', 
+        source='client.email',
         read_only=True
     )
     session_duration = serializers.IntegerField(
@@ -188,7 +196,9 @@ class SessionRequestSerializer(serializers.ModelSerializer):
         max_value=240,
         default=60
     )
-
+    
+    client = serializers.PrimaryKeyRelatedField(read_only=True)
+    
     class Meta:
         model = SessionRequest
         fields = [
@@ -198,13 +208,9 @@ class SessionRequestSerializer(serializers.ModelSerializer):
             'session_duration', 'session_notes', 'is_paid'
         ]
         read_only_fields = [
-            'id', 'status', 'created_at', 'updated_at', 
-            'client_name', 'therapist_name', 'client_email'
+            'id', 'created_at', 'updated_at', 'client_name', 
+            'therapist_name', 'client_email'
         ]
-        extra_kwargs = {
-            'client': {'write_only': True},
-            'therapist': {'write_only': True},
-        }
 
     def validate(self, attrs):
         if attrs.get('therapist') and not attrs['therapist'].is_therapist:
@@ -217,7 +223,6 @@ class SessionRequestSerializer(serializers.ModelSerializer):
         return SessionRequest.objects.create(**validated_data)
 
 class SessionRequestUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating session requests"""
     class Meta:
         model = SessionRequest
         fields = ['id', 'status', 'session_notes', 'is_paid']
@@ -231,7 +236,6 @@ class SessionRequestUpdateSerializer(serializers.ModelSerializer):
             'completed': [],
             'cancelled': []
         }
-
         current_status = self.instance.status
         if value not in valid_transitions[current_status]:
             raise serializers.ValidationError(
@@ -252,7 +256,7 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
             'reviewed_at', 'reviewer_notes'
         ]
         read_only_fields = [
-            'id', 'applicant', 'status', 'submitted_at', 
+            'id', 'applicant', 'status', 'submitted_at',
             'reviewed_at', 'reviewer_notes', 'applicant_email', 'applicant_full_name'
         ]
         extra_kwargs = {
@@ -284,15 +288,18 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         instance.status = validated_data.get('status', instance.status)
         instance.reviewer_notes = validated_data.get('reviewer_notes', instance.reviewer_notes)
-        instance.reviewed_at = validated_data.get('reviewed_at', instance.reviewed_at)
-
-        if instance.status == 'approved' and not instance.applicant.is_verified:
-            instance.applicant.is_verified = True
-            instance.applicant.bio = instance.motivation_statement
-            instance.applicant.save()
-        elif instance.status != 'approved' and instance.applicant.is_verified:
-            instance.applicant.is_verified = False
-            instance.applicant.save()
-
+        instance.reviewed_at = timezone.now()
+        applicant = instance.applicant
+        if instance.status == 'approved':
+            applicant.is_verified = True
+            applicant.is_available = True
+            if not applicant.bio:
+                applicant.bio = instance.motivation_statement
+            applicant.save()
+        else:
+            if applicant.is_verified:
+                applicant.is_verified = False
+                applicant.is_available = False
+                applicant.save()
         instance.save()
         return instance

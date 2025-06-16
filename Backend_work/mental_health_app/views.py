@@ -125,13 +125,11 @@ class JournalEntryView(generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = JournalEntry.objects.filter(user=self.request.user)
         
-        # Filter by date range if provided
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         if start_date and end_date:
             queryset = queryset.filter(date__range=[start_date, end_date])
         
-        # Filter by mood if provided
         mood = self.request.query_params.get('mood')
         if mood:
             queryset = queryset.filter(mood__iexact=mood)
@@ -177,12 +175,12 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
         if TherapistApplication.objects.filter(applicant=self.request.user).exists():
             raise serializers.ValidationError({"detail": "You have already submitted a therapist application."})
             
-        if serializer.validated_data.get('applicant') != self.request.user:
-            raise serializers.ValidationError({"applicant": "You can only submit an application for yourself."})
+        # The line below was removed as it's redundant. The serializer.save() call handles assigning the applicant.
+        # if serializer.validated_data.get('applicant') != self.request.user:
+        #     raise serializers.ValidationError({"applicant": "You can only submit an application for yourself."})
             
         serializer.save(applicant=self.request.user)
 
-# View for a therapist to retrieve their OWN application
 class MyTherapistApplicationView(generics.RetrieveAPIView):
     serializer_class = TherapistApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -191,7 +189,6 @@ class MyTherapistApplicationView(generics.RetrieveAPIView):
         return get_object_or_404(TherapistApplication, applicant=self.request.user)
 
 class AdminTherapistApplicationListView(generics.ListAPIView):
-    # This serializer name now matches what is in serializers.py
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
 
@@ -199,25 +196,26 @@ class AdminTherapistApplicationListView(generics.ListAPIView):
         return TherapistApplication.objects.all().order_by('-submitted_at')
 
 class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
-    # This serializer name now matches what is in serializers.py
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
     queryset = TherapistApplication.objects.all()
 
+    # =========================================================================
+    # === CORRECTED CODE BLOCK STARTS HERE ===
+    # =========================================================================
     def perform_update(self, serializer):
-        application = serializer.save(reviewed_at=timezone.now())
-
-        if application.status == 'approved':
-            user = application.applicant
-            user.is_verified = True
-            if not user.bio:
-                user.bio = application.motivation_statement
-            user.save()
-        elif application.status == 'rejected' or application.status == 'pending':
-            user = application.applicant
-            if user.is_verified:
-                user.is_verified = False
-                user.save()
+        """
+        This method is simplified because all the complex logic for updating
+        the application and the user's status has been moved to the
+        TherapistApplicationAdminSerializer's `update` method.
+        
+        This follows best practices by keeping business logic within the
+        serializer, making the view cleaner and easier to maintain.
+        """
+        serializer.save()
+    # =========================================================================
+    # === CORRECTED CODE BLOCK ENDS HERE ===
+    # =========================================================================
 
 class TherapistListView(generics.ListAPIView):
     serializer_class = TherapistSerializer
@@ -299,27 +297,29 @@ class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_therapist:
-            return SessionRequest.objects.filter(therapist=self.request.user)
-        return SessionRequest.objects.filter(client=self.request.user)
-
+        # Allow both clients and therapists to access requests they are part of
+        # This is important for status updates from both sides
+        return SessionRequest.objects.filter(
+            Q(client=self.request.user) | Q(therapist=self.request.user)
+        )
+    
     def perform_update(self, serializer):
-        instance = serializer.instance
-        new_status = serializer.validated_data.get('status')
+        # Let the serializer handle validation of status transitions
+        instance = serializer.save()
         
-        if new_status == 'cancelled' and instance.client == self.request.user:
-            serializer.save(status='cancelled')
-        elif self.request.user.is_therapist:
-            serializer.save()
+        # Additional logic could be added here, e.g., sending notifications
+        # For now, just saving is sufficient.
+        
+    def perform_destroy(self, instance):
+        # Only allow the client who created the request to cancel it,
+        # and only if it's still pending.
+        if instance.status == 'pending' and instance.client == self.request.user:
+            # Instead of deleting, it's often better to change status to 'cancelled'
+            instance.status = 'cancelled'
+            instance.save()
+            # instance.delete() # If you truly want to remove it from the database
         else:
             raise permissions.PermissionDenied(
-                "You don't have permission to perform this action."
+                "You can only cancel pending requests that you have created."
             )
 
-    def perform_destroy(self, instance):
-        if instance.status == 'pending' and instance.client == self.request.user:
-            instance.delete()
-        else:
-            raise permissions.PermissionDenied(
-                "You can only delete pending requests that you created."
-            )

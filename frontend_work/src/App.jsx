@@ -38,18 +38,24 @@ const AppNavbar = () => {
 const AdminProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
-  // console.log("AdminProtectedRoute: Loading:", loading, "User:", user); // Keep for debugging if needed
-  // if (user) {
-  //   console.log("AdminProtectedRoute: User roles - is_staff:", user.is_staff, "is_superuser:", user.is_superuser);
-  // }
+  // Debug logs enabled to troubleshoot navigation issues
+  console.log("AdminProtectedRoute: Loading:", loading, "User:", user);
+  if (user) {
+    console.log("AdminProtectedRoute: User roles - is_staff:", user.is_staff, "is_superuser:", user.is_superuser);
+  }
 
-  if (loading) return null; // Still loading auth state
+  if (loading) {
+    console.log("AdminProtectedRoute: Still loading auth state, showing nothing");
+    return null; // Still loading auth state
+  }
+  
   if (!user || !user.is_staff || !user.is_superuser) {
-    // console.log("AdminProtectedRoute: User is NOT an admin, redirecting to login."); // Keep for debugging if needed
+    console.log("AdminProtectedRoute: User is NOT an admin, redirecting to login.");
     // If not logged in, or not staff/superuser, redirect to login
     return <Navigate to="/login" replace />;
   }
-  // console.log("AdminProtectedRoute: User IS an admin, allowing access to children."); // Keep for debugging if needed
+  
+  console.log("AdminProtectedRoute: User IS an admin, allowing access to children.");
   return children;
 };
 

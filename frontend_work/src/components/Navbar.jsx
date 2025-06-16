@@ -27,10 +27,8 @@ export default function Navbar() {
     navigate("/");
   };
 
-  // This Navbar is now specifically for regular users.
-  // The TherapistNavbar will be rendered conditionally in App.js based on user.is_therapist.
   if (user && user.is_therapist) {
-    return null; // Or render a placeholder if needed, but App.js will handle redirect
+    return null; 
   }
 
   return (
@@ -43,7 +41,6 @@ export default function Navbar() {
       }}
     >
       <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-        {/* Logo */}
         <Typography
           variant="h5"
           component={Link}
@@ -58,7 +55,6 @@ export default function Navbar() {
           MindWell
         </Typography>
 
-        {/* Right Side */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           {user ? (
             <>
@@ -66,12 +62,16 @@ export default function Navbar() {
                 Home
               </Button>
 
-              {/* Start Journaling Button */}
+              {/* START: Added Button */}
+              <Button component={Link} to="/find-therapist" sx={{ color: "#fefae0" }}>
+                Find a Therapist
+              </Button>
+              {/* END: Added Button */}
+
               <Button component={Link} to="/journal" sx={{ color: "#fefae0" }}>
                 Start Journaling
               </Button>
 
-              {/* Avatar Menu */}
               <IconButton onClick={handleMenuOpen} size="small">
                 <Avatar src={user.photo} sx={{ bgcolor: "#fefae0", color: "#780000" }}>
                   {!user.photo && user.first_name?.charAt(0)}
@@ -105,25 +105,6 @@ export default function Navbar() {
               <Button component={Link} to="/login" sx={{ backgroundColor: "#fefae0", color: "#780000", "&:hover": { backgroundColor: "white"}}}>
                 Login
               </Button>
-              {/* <Button
-                component={Link}
-                to="/login?as=therapist"
-                sx={{ color: "#fefae0" }}
-              >
-                Therapist Login
-              </Button> */}
-              {/* <Button
-                component={Link}
-                to="/register"
-                variant="contained"
-                sx={{
-                  backgroundColor: "#fefae0",
-                  color: "#780000",
-                  "&:hover": { backgroundColor: "white" },
-                }}
-              >
-                Register
-              </Button> */}
             </>
           )}
         </Box>
