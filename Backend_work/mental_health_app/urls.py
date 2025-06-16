@@ -1,5 +1,5 @@
 # mental_health_app/urls.py
-from django.urls import path, include
+from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, LoginView, UserView, JournalEntryView, JournalEntryDetailView,
@@ -8,7 +8,11 @@ from .views import (
     TherapistApplicationCreateView,
     MyTherapistApplicationView,
     AdminTherapistApplicationListView, AdminTherapistApplicationDetailView,
-    TherapistSessionCreateView # Import the view for creating sessions
+    
+    # Import the new session management views
+    TherapistSessionListView,
+    SessionCreateFromRequestView,
+    SessionDetailUpdateView
 )
 
 urlpatterns = [
@@ -22,21 +26,27 @@ urlpatterns = [
     path('journal/', JournalEntryView.as_view(), name='journal-list'),
     path('journal/<int:pk>/', JournalEntryDetailView.as_view(), name='journal-detail'),
 
-    # THERAPIST APPLICATION ENDPOINTS (for regular users applying)
+    # THERAPIST APPLICATION ENDPOINTS
     path('therapist-applications/submit/', TherapistApplicationCreateView.as_view(), name='therapist-application-submit'),
     path('therapist-applications/me/', MyTherapistApplicationView.as_view(), name='my-therapist-application'),
 
-    # ADMIN THERAPIST APPLICATION ENDPOINTS (only for is_staff, is_superuser)
+    # ADMIN THERAPIST APPLICATION ENDPOINTS
     path('admin/therapist-applications/', AdminTherapistApplicationListView.as_view(), name='admin-therapist-applications-list'),
     path('admin/therapist-applications/<int:pk>/', AdminTherapistApplicationDetailView.as_view(), name='admin-therapist-applications-detail'),
 
-    # THERAPIST & SESSION MANAGEMENT ENDPOINTS
+    # SESSION REQUESTS (from clients to therapists)
     path('therapists/', TherapistListView.as_view(), name='therapist-list'),
     path('session-requests/', SessionRequestCreateView.as_view(), name='session-request-create'),
     path('therapist/session-requests/', TherapistSessionRequestListView.as_view(), name='therapist-session-requests'),
-    
-    # FIX: Corrected the URL to point to the session creation view
-    path('therapist/sessions/', TherapistSessionCreateView.as_view(), name='therapist-sessions-create'),
-    
     path('session-requests/<int:pk>/', SessionRequestUpdateView.as_view(), name='session-request-update'),
+
+    # --- FIX: Corrected Session Management URLs ---
+    # GET /api/therapist/sessions/ -> Lists all sessions for the therapist
+    path('therapist/sessions/', TherapistSessionListView.as_view(), name='therapist-session-list'),
+    
+    # POST /api/therapist/sessions/create/ -> Creates a new session from a request
+    path('therapist/sessions/create/', SessionCreateFromRequestView.as_view(), name='session-create-from-request'),
+    
+    # PATCH /api/therapist/sessions/<id>/ -> Updates a session (add notes, complete)
+    path('therapist/sessions/<int:pk>/', SessionDetailUpdateView.as_view(), name='session-detail-update'),
 ]

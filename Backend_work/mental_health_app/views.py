@@ -1,4 +1,3 @@
-# mental_health_app/views.py
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -6,13 +5,14 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from .models import JournalEntry, SessionRequest, TherapistApplication
+from django.core.exceptions import PermissionDenied
+from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session
 
 from .serializers import (
     UserSerializer, LoginSerializer, JournalEntrySerializer, JournalListSerializer,
     TherapistSerializer, SessionRequestSerializer, SessionRequestUpdateSerializer,
-    TherapistApplicationSerializer,
-    TherapistApplicationAdminSerializer
+    TherapistApplicationSerializer, TherapistApplicationAdminSerializer,
+    SessionSerializer, RegisterSerializer
 )
 
 User = get_user_model()
@@ -20,11 +20,10 @@ User = get_user_model()
 # Custom permission for admin access
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
-        # This permission check applies to staff and superusers
         return request.user and request.user.is_staff and request.user.is_superuser
 
 class RegisterView(generics.CreateAPIView):
-    serializer_class = UserSerializer
+    serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -168,15 +167,11 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Allow any authenticated user to apply. The check for an existing application prevents duplicates.
         if TherapistApplication.objects.filter(applicant=self.request.user).exists():
             raise serializers.ValidationError({"detail": "You have already submitted a therapist application."})
 
-        # Save the application, which will be linked to the current user.
         application = serializer.save(applicant=self.request.user)
         
-        # After successful submission, ensure the user's `is_therapist` flag is set to True,
-        # as they have now officially entered the therapist application process.
         user = self.request.user
         if not user.is_therapist:
             user.is_therapist = True
@@ -187,7 +182,6 @@ class MyTherapistApplicationView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        # This line looks for an application linked to the currently logged-in user.
         return get_object_or_404(TherapistApplication, applicant=self.request.user)
 
 class AdminTherapistApplicationListView(generics.ListAPIView):
@@ -203,14 +197,6 @@ class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
     queryset = TherapistApplication.objects.all()
 
     def perform_update(self, serializer):
-        """
-        This method is simplified because all the complex logic for updating
-        the application and the user's status has been moved to the
-        TherapistApplicationAdminSerializer's `update` method.
-        
-        This follows best practices by keeping business logic within the
-        serializer, making the view cleaner and easier to maintain.
-        """
         serializer.save()
 
 class TherapistListView(generics.ListAPIView):
@@ -255,14 +241,11 @@ class TherapistSessionCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Only verified therapists can create sessions
         if not (self.request.user.is_therapist and self.request.user.is_verified):
             raise serializers.ValidationError(
                 {"detail": "Only verified therapists can create sessions."}
             )
         
-        # Create the session with the therapist as the creator
-        # You might need to adjust this logic based on your frontend data
         client_id = self.request.data.get('client')
         try:
             client = User.objects.get(id=client_id)
@@ -276,11 +259,10 @@ class TherapistSessionCreateView(generics.CreateAPIView):
                 {"client": "You cannot create a session with yourself."}
             )
 
-        # Create with status 'accepted' since therapist is creating it
         serializer.save(
             client=client, 
             therapist=self.request.user,
-            status='accepted'  # Since therapist is creating, it's automatically accepted
+            status='accepted'
         )
 
 class TherapistSessionRequestListView(generics.ListAPIView):
@@ -326,28 +308,70 @@ class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Allow both clients and therapists to access requests they are part of
-        # This is important for status updates from both sides
         return SessionRequest.objects.filter(
             Q(client=self.request.user) | Q(therapist=self.request.user)
-        )  # Added the missing closing parenthesis here
+        )
     
     def perform_update(self, serializer):
-        # Let the serializer handle validation of status transitions
         instance = serializer.save()
         
-        # Additional logic could be added here, e.g., sending notifications
-        # For now, just saving is sufficient.
-        
     def perform_destroy(self, instance):
-        # Only allow the client who created the request to cancel it,
-        # and only if it's still pending.
         if instance.status == 'pending' and instance.client == self.request.user:
-            # Instead of deleting, it's often better to change status to 'cancelled'
             instance.status = 'cancelled'
             instance.save()
-            # instance.delete() # If you truly want to remove it from the database
         else:
             raise permissions.PermissionDenied(
                 "You can only cancel pending requests that you have created."
             )
+
+# Session Views
+class TherapistSessionListView(generics.ListAPIView):
+    serializer_class = SessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Session.objects.filter(therapist=self.request.user).order_by('-session_date', '-session_time')
+
+class SessionCreateFromRequestView(generics.CreateAPIView):
+    serializer_class = SessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        request_id = request.data.get('session_request')
+        session_request = get_object_or_404(SessionRequest, id=request_id)
+
+        if request.user != session_request.therapist:
+            return Response({'error': 'You are not authorized to accept this request.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if hasattr(session_request, 'session'):
+             return Response({'error': 'A session has already been created for this request.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        session_request.status = 'accepted'
+        session_request.save()
+        
+        session_data = {
+            'session_request': session_request.id,
+            'client': session_request.client.id,
+            'therapist': session_request.therapist.id,
+            'session_date': session_request.requested_date,
+            'session_time': session_request.requested_time,
+            'session_type': request.data.get('session_type', 'online'),
+            'location': request.data.get('location', None)
+        }
+        
+        serializer = self.get_serializer(data=session_data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+class SessionDetailUpdateView(generics.UpdateAPIView):
+    serializer_class = SessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Session.objects.all()
+
+    def get_object(self):
+        obj = super().get_object()
+        if self.request.user != obj.therapist:
+            raise PermissionDenied("You do not have permission to edit this session.")
+        return obj

@@ -1,7 +1,7 @@
 # mental_health_app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import JournalEntry, TherapistApplication, SessionRequest
+from .models import JournalEntry, TherapistApplication, SessionRequest, Session # Make sure to import Session
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
@@ -61,7 +61,7 @@ class UserSerializer(serializers.ModelSerializer):
         """
         Custom validation to check for matching passwords and unique email.
         """
-        if attrs['password'] != attrs['password2']:
+        if attrs.get('password') and attrs.get('password2') and attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
         
         email = attrs.get('email')
@@ -107,6 +107,14 @@ class UserSerializer(serializers.ModelSerializer):
             
         instance.save()
         return instance
+
+class RegisterSerializer(UserSerializer):
+    """
+    Serializer specifically for user registration, inherits all user creation
+    logic from the main UserSerializer.
+    """
+    class Meta(UserSerializer.Meta):
+        pass
 
 class LoginSerializer(serializers.Serializer):
     """
@@ -259,7 +267,25 @@ class SessionRequestUpdateSerializer(serializers.ModelSerializer):
             )
         return value
 
+# NEW: Serializer for the Session model
+class SessionSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.get_full_name', read_only=True)
+    client_email = serializers.EmailField(source='client.email', read_only=True)
+    therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
 
+    class Meta:
+        model = Session
+        fields = [
+            'id', 'session_request', 'client', 'therapist', 'client_name', 'client_email',
+            'therapist_name', 'session_date', 'session_time', 'session_type', 'location',
+            'status', 'notes', 'key_takeaways', 'recommendations', 'follow_up_required',
+            'next_session_date', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['client_name', 'client_email', 'therapist_name', 'created_at', 'updated_at']
+
+# =========================================================================
+# === Therapist Application Serializers ===
+# =========================================================================
 
 class TherapistApplicationSerializer(serializers.ModelSerializer):
     """

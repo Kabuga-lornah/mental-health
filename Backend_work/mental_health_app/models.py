@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
-from django.conf import settings  # Import settings to reference AUTH_USER_MODEL
+from django.conf import settings
+from django.utils import timezone
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -59,6 +60,47 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self):
         return self.first_name
+
+class TherapistApplication(models.Model):
+    applicant = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='therapist_application'
+    )
+    
+    # Credentials and documents
+    license_number = models.CharField(max_length=100, unique=True)
+    license_document = models.FileField(upload_to='therapist_docs/licenses/')
+    id_number = models.CharField(max_length=100, unique=True)
+    id_document = models.FileField(upload_to='therapist_docs/ids/')
+    professional_photo = models.ImageField(upload_to='therapist_docs/photos/')
+    
+    # Personal statement/motivation
+    motivation_statement = models.TextField()
+
+    specializations = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of specializations")
+
+    # Status of the application
+    APPLICATION_STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    status = models.CharField(
+        max_length=10,
+        choices=APPLICATION_STATUS_CHOICES,
+        default='pending'
+    )
+    
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+    reviewer_notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        verbose_name_plural = 'Therapist Applications'
+
+    def __str__(self):
+        return f"Application by {self.applicant.email} - Status: {self.status}"
 
 class JournalEntry(models.Model):
     user = models.ForeignKey(
@@ -125,43 +167,33 @@ class SessionRequest(models.Model):
     def __str__(self):
         return f"Request from {self.client.email} to {self.therapist.email} - Status: {self.status}"
 
-class TherapistApplication(models.Model):
-    applicant = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='therapist_application'
-    )
-    
-    # Credentials and documents
-    license_number = models.CharField(max_length=100, unique=True)
-    license_document = models.FileField(upload_to='therapist_docs/licenses/')
-    id_number = models.CharField(max_length=100, unique=True)
-    id_document = models.FileField(upload_to='therapist_docs/ids/')
-    professional_photo = models.ImageField(upload_to='therapist_docs/photos/')
-    
-    # Personal statement/motivation
-    motivation_statement = models.TextField()
-
-    specializations = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of specializations")
-
-    # Status of the application
-    APPLICATION_STATUS_CHOICES = [
-        ('pending', 'Pending Review'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
+class Session(models.Model):
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
     ]
-    status = models.CharField(
-        max_length=10,
-        choices=APPLICATION_STATUS_CHOICES,
-        default='pending'
-    )
-    
-    submitted_at = models.DateTimeField(auto_now_add=True)
-    reviewed_at = models.DateTimeField(blank=True, null=True)
-    reviewer_notes = models.TextField(blank=True, null=True)
 
-    class Meta:
-        verbose_name_plural = 'Therapist Applications'
+    session_request = models.OneToOneField(SessionRequest, on_delete=models.CASCADE, related_name='session')
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='client_sessions')
+    therapist = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='therapist_sessions')
+    
+    session_date = models.DateField()
+    session_time = models.TimeField()
+    session_type = models.CharField(max_length=50, default='online') # e.g., 'online', 'physical'
+    location = models.CharField(max_length=255, blank=True, null=True)
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    
+    # Fields for therapist notes after the session
+    notes = models.TextField(blank=True, null=True)
+    key_takeaways = models.TextField(blank=True, null=True)
+    recommendations = models.TextField(blank=True, null=True)
+    follow_up_required = models.BooleanField(default=False)
+    next_session_date = models.DateField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Application by {self.applicant.email} - Status: {self.status}"
+        return f"Session for {self.client.username} with {self.therapist.username} on {self.session_date}"
