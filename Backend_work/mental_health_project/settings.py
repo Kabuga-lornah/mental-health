@@ -12,6 +12,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
+import cloudinary 
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,6 +41,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'cloudinary',
+    'cloudinary_storage',
     'mental_health_app',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -177,9 +182,9 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
-    'AUTH_HEADER_TYPES': ('Bearer',),  
+    'AUTH_HEADER_TYPES': ('Bearer',),    
     'USER_ID_FIELD': 'email',         
-    'USER_ID_CLAIM': 'email',        
+    'USER_ID_CLAIM': 'email',         
     }
 
 CSRF_TRUSTED_ORIGINS = [
@@ -188,3 +193,21 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 AUTH_USER_MODEL = 'mental_health_app.User'
+
+## Cloudinary Configuration
+
+CLOUDINARY_CLOUD_NAME='dgdf0svqx',
+CLOUDINARY_API_KEY= '643477632634929',
+CLOUDINARY_API_SECRET='GOCYIijtAEFjRTVZj5bJy4dzqE0'
+
+# CLOUDINARY_STORAGE = {
+#     'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+#     'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+#     'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+# }
+
+# Default File Storage for Media (user uploads, e.g., images for user profiles)
+# This tells Django to use Cloudinary for all file uploads by default.
+MEDIA_URL = '/media/'
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
