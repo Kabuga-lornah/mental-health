@@ -7,12 +7,6 @@ import {
   Grid,
   Button,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
   Snackbar,
   Alert,
   Chip,
@@ -20,21 +14,15 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext'; 
+import { useNavigate } from 'react-router-dom';
 
 export default function FindTherapist() {
   const { user, token } = useAuth();
+  const navigate = useNavigate();
   const [therapists, setTherapists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [openRequestModal, setOpenRequestModal] = useState(false);
-  const [selectedTherapist, setSelectedTherapist] = useState(null);
-  const [requestMessage, setRequestMessage] = useState('');
-  const [requestedDate, setRequestedDate] = useState('');
-  const [requestedTime, setRequestedTime] = useState('');
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-
+  
   useEffect(() => {
     const fetchTherapists = async () => {
       setLoading(true);
@@ -59,57 +47,8 @@ export default function FindTherapist() {
     }
   }, [user, token]);
 
-  const handleRequestSessionClick = (therapist) => {
-    setSelectedTherapist(therapist);
-    setOpenRequestModal(true);
-  };
-
-  const handleCloseRequestModal = () => {
-    setOpenRequestModal(false);
-    setSelectedTherapist(null);
-    setRequestMessage('');
-    setRequestedDate('');
-    setRequestedTime('');
-  };
-
-  const handleSubmitSessionRequest = async () => {
-    try {
-      if (!user) throw new Error("You must be logged in to request a session.");
-      if (!selectedTherapist) throw new Error("No therapist selected.");
-      if (!requestedDate || !requestedTime) throw new Error("Please select a preferred date and time.");
-
-      const payload = {
-        therapist: selectedTherapist.id,
-        message: requestMessage,
-        requested_date: requestedDate,
-        requested_time: requestedTime,
-        status: 'pending'
-      };
-
-      await axios.post('http://localhost:8000/api/session-requests/', payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      setSnackbarMessage(`Session request sent to ${selectedTherapist.full_name}!`);
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-      handleCloseRequestModal();
-    } catch (err) {
-      console.error("Error sending session request:", err.response?.data || err.message);
-      setSnackbarMessage(err.response?.data?.therapist?.[0] || err.message || "Failed to send session request.");
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-    }
-  };
-
-  const handleSnackbarClose = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
-    setSnackbarOpen(false);
+  const handleTherapistCardClick = (therapistId) => {
+    navigate(`/therapists/${therapistId}`);
   };
 
   if (loading) {
@@ -144,7 +83,22 @@ export default function FindTherapist() {
           <Grid container spacing={4}>
             {therapists.map((therapist) => (
               <Grid item xs={12} sm={6} md={4} key={therapist.id}>
-                <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <Paper 
+                  elevation={3} 
+                  sx={{ 
+                    p: 3, 
+                    backgroundColor: 'white', 
+                    borderRadius: 2, 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    height: '100%',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      boxShadow: '0px 6px 12px rgba(0, 0, 0, 0.15)',
+                    }
+                  }}
+                  onClick={() => handleTherapistCardClick(therapist.id)}
+                >
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <img
                       src={therapist.profile_picture || `https://placehold.co/60x60/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
@@ -156,114 +110,18 @@ export default function FindTherapist() {
                         {therapist.full_name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {therapist.email}
+                        {therapist.hourly_rate && parseFloat(therapist.hourly_rate) > 0 ? 
+                          `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 
+                          'Free Consultation'}
                       </Typography>
                     </Box>
                   </Box>
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    <strong>Availability:</strong> {therapist.is_available ? 'Available' : 'Not Available'}
-                  </Typography>
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    <strong>Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 'N/A'}
-                  </Typography>
-                  {therapist.years_of_experience && (
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Experience:</strong> {therapist.years_of_experience} years
-                    </Typography>
-                  )}
-                  
-                  {/* Display Specializations as Chips */}
-                  {therapist.specializations && (
-                    <Box sx={{ my: 2 }}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
-                        Specializations:
-                      </Typography>
-                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                        {therapist.specializations.split(',').map((spec, index) => (
-                          <Chip key={index} label={spec.trim()} size="small" sx={{ backgroundColor: '#DCC8C8', color: '#333' }} />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {therapist.bio && (
-                    <Typography variant="body2" sx={{ mb: 2, flexGrow: 1 }}>
-                      {therapist.bio.length > 100 ? `${therapist.bio.substring(0, 100)}...` : therapist.bio}
-                    </Typography>
-                  )}
-
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    sx={{
-                      backgroundColor: '#780000',
-                      '&:hover': { backgroundColor: '#5a0000' },
-                      mt: 'auto',
-                      borderRadius: 2,
-                    }}
-                    onClick={() => handleRequestSessionClick(therapist)}
-                    disabled={!therapist.is_available || (user && user.is_therapist)}
-                  >
-                    {user && user.is_therapist ? "Therapists Cannot Request" : "Request Session"}
-                  </Button>
                 </Paper>
               </Grid>
             ))}
           </Grid>
         )}
       </Container>
-
-      {/* Session Request Modal */}
-      <Dialog open={openRequestModal} onClose={handleCloseRequestModal}>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Request Session with {selectedTherapist?.full_name}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Preferred Date"
-            type="date"
-            fullWidth
-            variant="outlined"
-            InputLabelProps={{ shrink: true }}
-            value={requestedDate}
-            onChange={(e) => setRequestedDate(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Preferred Time"
-            type="time"
-            fullWidth
-            variant="outlined"
-            InputLabelProps={{ shrink: true }}
-            value={requestedTime}
-            onChange={(e) => setRequestedTime(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Message (Optional)"
-            type="text"
-            fullWidth
-            multiline
-            rows={4}
-            variant="outlined"
-            value={requestMessage}
-            onChange={(e) => setRequestMessage(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseRequestModal} sx={{ color: '#780000' }}>Cancel</Button>
-          <Button onClick={handleSubmitSessionRequest} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>Send Request</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Snackbar for feedback */}
-      <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

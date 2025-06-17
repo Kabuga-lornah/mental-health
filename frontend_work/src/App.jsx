@@ -14,6 +14,7 @@ import TherapistApplicationForm from "./components/TherapistApplicationForm";
 import AdminDashboard from "./components/Admin";
 import AdminNavbar from "./components/AdminNavbar"; // IMPORT THE NEW ADMIN NAVBAR
 import Footer from "./components/Footer";
+import TherapistDetail from "./components/TherapistDetail"; // NEW: Import TherapistDetail component
 
 // A component to render the correct Navbar based on user role
 const AppNavbar = () => {
@@ -38,24 +39,15 @@ const AppNavbar = () => {
 const AdminProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
-  // Debug logs enabled to troubleshoot navigation issues
-  console.log("AdminProtectedRoute: Loading:", loading, "User:", user);
-  if (user) {
-    console.log("AdminProtectedRoute: User roles - is_staff:", user.is_staff, "is_superuser:", user.is_superuser);
-  }
-
   if (loading) {
-    console.log("AdminProtectedRoute: Still loading auth state, showing nothing");
     return null; // Still loading auth state
   }
   
   if (!user || !user.is_staff || !user.is_superuser) {
-    console.log("AdminProtectedRoute: User is NOT an admin, redirecting to login.");
     // If not logged in, or not staff/superuser, redirect to login
     return <Navigate to="/login" replace />;
   }
   
-  console.log("AdminProtectedRoute: User IS an admin, allowing access to children.");
   return children;
 };
 
@@ -77,6 +69,8 @@ function App() {
           <Route path="/journal" element={<ProtectedRoute><Journal /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/find-therapist" element={<ProtectedRoute><FindTherapist /></ProtectedRoute>} />
+          <Route path="/therapists/:id" element={<ProtectedRoute><TherapistDetail /></ProtectedRoute>} /> {/* NEW ROUTE */}
+
 
           {/* Therapist-related Routes */}
           {/* Therapist application form - accessible to logged-in users who intend to be therapists */}
@@ -98,7 +92,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-          {/* Add more therapist specific routes here, e.g., /therapist/clients, /therapist/appointments */}
 
           {/* Admin Protected Route */}
           <Route

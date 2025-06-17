@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, LoginView, UserView, JournalEntryView, JournalEntryDetailView,
     TherapistListView, SessionRequestCreateView, TherapistSessionRequestListView,
-    SessionRequestUpdateView,
+    SessionRequestUpdateView, ClientSessionRequestListView, 
     TherapistApplicationCreateView,
     MyTherapistApplicationView,
     AdminTherapistApplicationListView, AdminTherapistApplicationDetailView,
@@ -12,7 +12,9 @@ from .views import (
     # Import the new session management views
     TherapistSessionListView,
     SessionCreateFromRequestView,
-    SessionDetailUpdateView
+    SessionDetailUpdateView,
+    ClientSessionListView,
+    TherapistDetailView, # NEW: Import TherapistDetailView
 )
 
 urlpatterns = [
@@ -36,11 +38,12 @@ urlpatterns = [
 
     # SESSION REQUESTS (from clients to therapists)
     path('therapists/', TherapistListView.as_view(), name='therapist-list'),
+    path('therapists/<int:pk>/', TherapistDetailView.as_view(), name='therapist-detail'), # NEW: Therapist Detail View
     path('session-requests/', SessionRequestCreateView.as_view(), name='session-request-create'),
     path('therapist/session-requests/', TherapistSessionRequestListView.as_view(), name='therapist-session-requests'),
+    path('client/session-requests/', ClientSessionRequestListView.as_view(), name='client-session-requests'),
     path('session-requests/<int:pk>/', SessionRequestUpdateView.as_view(), name='session-request-update'),
 
-    # --- FIX: Corrected Session Management URLs ---
     # GET /api/therapist/sessions/ -> Lists all sessions for the therapist
     path('therapist/sessions/', TherapistSessionListView.as_view(), name='therapist-session-list'),
     
@@ -49,4 +52,7 @@ urlpatterns = [
     
     # PATCH /api/therapist/sessions/<id>/ -> Updates a session (add notes, complete)
     path('therapist/sessions/<int:pk>/', SessionDetailUpdateView.as_view(), name='session-detail-update'),
+
+    # NEW: GET /api/client/sessions/ -> Lists all sessions for the client
+    path('client/sessions/', ClientSessionListView.as_view(), name='client-session-list'),
 ]

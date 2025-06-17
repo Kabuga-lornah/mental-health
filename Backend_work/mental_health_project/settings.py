@@ -14,7 +14,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import cloudinary 
-
+import dj_database_url 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'cloudinary',
-    'cloudinary_storage',
+    'cloudinary_storage', # Make sure this is listed after 'cloudinary'
     'mental_health_app',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -112,26 +112,26 @@ WSGI_APPLICATION = 'mental_health_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mental_health',
-        'USER': 'mental_health_user',
-        'PASSWORD': '123456',
-        'HOST': 'localhost',
-        'PORT': '5432',
-        'OPTIONS': {
-            'client_encoding': 'UTF8', 
-        },
+# Use PostgreSQL in production and SQLite for local development as fallback
+if 'DATABASE_URL' in os.environ:
+    DATABASES = {
+        'default': dj_database_url.config(conn_max_age=600)
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'mental_health',
+            'USER': 'mental_health_user',
+            'PASSWORD': '123456',
+            'HOST': 'localhost',
+            'PORT': '5432',
+            'OPTIONS': {
+                'client_encoding': 'UTF8', 
+            },
+        }
+    }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -163,7 +163,7 @@ USE_I18N = True
 
 USE_TZ = True
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOW_ALL_ORIGINS = DEBUG # This allows all origins in DEBUG mode for convenience
 
 
 
@@ -195,19 +195,19 @@ CSRF_TRUSTED_ORIGINS = [
 AUTH_USER_MODEL = 'mental_health_app.User'
 
 ## Cloudinary Configuration
-
-CLOUDINARY_CLOUD_NAME='dgdf0svqx',
-CLOUDINARY_API_KEY= '643477632634929',
-CLOUDINARY_API_SECRET='GOCYIijtAEFjRTVZj5bJy4dzqE0'
-
-# CLOUDINARY_STORAGE = {
-#     'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
-#     'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
-#     'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
-# }
+# Ensure CLOUDINARY_URL is set in environment variables in production,
+# or uncomment and set them directly here for development
+cloudinary.config( 
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME', 'dgdf0svqx'),
+    api_key = os.environ.get('CLOUDINARY_API_KEY', '643477632634929'),
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET', 'GOCYIijtAEFjRTVZj5bJy4dzqE0')
+)
 
 # Default File Storage for Media (user uploads, e.g., images for user profiles)
 # This tells Django to use Cloudinary for all file uploads by default.
 MEDIA_URL = '/media/'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticCloudinaryStorage' # If you also want to serve static files from Cloudinary
 
+# Define MEDIA_ROOT if you also want local storage during development (optional)
+# MEDIA_ROOT = BASE_DIR / 'media'

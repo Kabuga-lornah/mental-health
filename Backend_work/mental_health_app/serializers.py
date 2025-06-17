@@ -42,13 +42,25 @@ class UserSerializer(serializers.ModelSerializer):
     )
     profile_picture = serializers.ImageField(required=False, allow_null=True)
 
+    # NEW: Fields for therapist profile details
+    license_credentials = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    approach_modalities = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    languages_spoken = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    client_focus = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    insurance_accepted = serializers.BooleanField(required=False, default=False)
+    video_introduction_url = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+
+
     class Meta:
         model = User
         fields = [
             'id', 'email', 'password', 'password2',
             'first_name', 'last_name', 'phone', 'is_therapist',
             'is_verified', 'bio', 'years_of_experience', 'specializations',
-            'is_available', 'hourly_rate', 'profile_picture'
+            'is_available', 'hourly_rate', 'profile_picture',
+            # NEW fields
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted', 'video_introduction_url'
         ]
         extra_kwargs = {
             'email': {'required': True},
@@ -143,18 +155,31 @@ class TherapistSerializer(serializers.ModelSerializer):
     Read-only serializer for public therapist profiles.
     """
     full_name = serializers.SerializerMethodField()
+    # Ensure profile_picture returns a full URL
+    profile_picture = serializers.SerializerMethodField() 
 
     class Meta:
         model = User
         fields = [
             'id', 'full_name', 'email', 'phone',
             'is_available', 'hourly_rate', 'profile_picture',
-            'bio', 'years_of_experience', 'specializations'
+            'bio', 'years_of_experience', 'specializations',
+            # NEW fields for display
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted', 'video_introduction_url'
         ]
         read_only_fields = fields
 
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
+
+    def get_profile_picture(self, obj):
+        if obj.profile_picture:
+            request = self.context.get('request')
+            if request is not None:
+                return request.build_absolute_uri(obj.profile_picture.url)
+            return obj.profile_picture.url
+        return None # Return None if no picture
 
 # =========================================================================
 # === Journal Entry Serializers ===
@@ -249,7 +274,7 @@ class SessionRequestUpdateSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = SessionRequest
-        fields = ['id', 'status', 'session_notes', 'is_paid']
+        fields = ['id', 'status', 'session_notes', 'is_paid', 'requested_date', 'requested_time', 'message']  # Added fields from first code
         read_only_fields = ['id']
 
     def validate_status(self, value):
@@ -300,7 +325,10 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
             'id', 'applicant', 'applicant_email', 'applicant_full_name',
             'license_number', 'license_document', 'id_number', 'id_document',
             'professional_photo', 'motivation_statement', 'status', 'submitted_at',
-            'reviewed_at', 'reviewer_notes', 'specializations'
+            'reviewed_at', 'reviewer_notes', 'specializations',
+            # NEW fields for application
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted'
         ]
         read_only_fields = [
             'id', 'applicant', 'status', 'submitted_at',
@@ -333,13 +361,19 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
             'id', 'applicant', 'applicant_email', 'applicant_full_name',
             'license_number', 'license_document', 'id_number', 'id_document',
             'professional_photo', 'motivation_statement', 'status', 'submitted_at',
-            'reviewed_at', 'reviewer_notes', 'specializations'
+            'reviewed_at', 'reviewer_notes', 'specializations',
+            # NEW fields for admin review
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted'
         ]
         read_only_fields = [
             'id', 'applicant', 'submitted_at', 'applicant_email', 
             'applicant_full_name', 'license_number', 'license_document', 
             'id_number', 'id_document', 'professional_photo', 
-            'motivation_statement', 'specializations'
+            'motivation_statement', 'specializations',
+            # Keep new fields read-only for admin review, they can only change status/notes
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted'
         ]
 
     def update(self, instance, validated_data):
@@ -362,11 +396,21 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
             # Transfer specializations from application to user profile
             applicant.specializations = instance.specializations
             
+            # NEW: Transfer additional therapist details from application to user profile
+            applicant.license_credentials = instance.license_credentials
+            applicant.approach_modalities = instance.approach_modalities
+            applicant.languages_spoken = instance.languages_spoken
+            applicant.client_focus = instance.client_focus
+            applicant.insurance_accepted = instance.insurance_accepted
+            # No video_introduction_url from application; it's a separate profile setting
+            
             applicant.save()
         else: # Logic for rejection, cancellation, etc.
             if applicant.is_verified:
                 applicant.is_verified = False
                 applicant.is_available = False
+                # Optionally clear other therapist-specific fields if an approved therapist is rejected
+                # For now, keeping them as they are just hidden by is_verified=False
                 applicant.save()
                 
         instance.save()

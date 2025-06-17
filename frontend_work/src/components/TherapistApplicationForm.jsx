@@ -24,6 +24,9 @@ import {
   Checkbox,
   ListItemText,
   OutlinedInput,
+  FormControlLabel,
+  RadioGroup, // Added for radio buttons
+  Radio,      // Added for radio buttons
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
@@ -59,12 +62,25 @@ export default function TherapistApplicationForm() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
-  // State for form fields
+  // State for form fields, including new ones
   const [formData, setFormData] = useState({
     license_number: '',
     id_number: '',
     motivation_statement: '',
     specializations: [],
+    license_credentials: '',
+    approach_modalities: '',
+    languages_spoken: '',
+    client_focus: '',
+    insurance_accepted: false,
+    
+    // NEW pricing and session fields
+    session_type_choice: 'paid', // 'free' or 'paid'
+    hourly_rate: '',
+    rate_per_week: '',
+    rate_per_month: '',
+    free_sessions_offered: 0,
+    mpesa_phone_number: '', // For Mpesa prompting
   });
 
   const [files, setFiles] = useState({
@@ -106,8 +122,11 @@ export default function TherapistApplicationForm() {
   }, [token]);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const { name, value, type, checked } = e.target;
+    setFormData({ 
+      ...formData, 
+      [name]: type === 'checkbox' ? checked : value 
+    });
   };
   
   const handleSpecializationChange = (event) => {
@@ -131,8 +150,12 @@ export default function TherapistApplicationForm() {
     setSubmitting(true);
 
     // Validation checks
-    if (!formData.license_number.trim() || !formData.id_number.trim() || !formData.motivation_statement.trim()) {
-      setError("Please fill in all required text fields.");
+    if (!formData.license_number.trim() || !formData.id_number.trim() || 
+        !formData.motivation_statement.trim() || !formData.license_credentials.trim() ||
+        !formData.approach_modalities.trim() || !formData.languages_spoken.trim() ||
+        !formData.client_focus.trim()
+    ) {
+      setError("Please fill in all required text fields for professional details.");
       setSubmitting(false);
       return;
     }
@@ -144,9 +167,34 @@ export default function TherapistApplicationForm() {
     }
 
     if (!files.license_document || !files.id_document || !files.professional_photo) {
-      setError("Please upload all required documents.");
+      setError("Please upload all required documents (License, ID, Photo).");
       setSubmitting(false);
       return;
+    }
+
+    // Pricing validation
+    if (formData.session_type_choice === 'paid') {
+      if (!formData.hourly_rate || isNaN(parseFloat(formData.hourly_rate)) || parseFloat(formData.hourly_rate) <= 0) {
+        setError("Please provide a valid hourly rate for paid sessions.");
+        setSubmitting(false);
+        return;
+      }
+      if (formData.rate_per_week && isNaN(parseFloat(formData.rate_per_week))) {
+        setError("Weekly rate must be a valid number.");
+        setSubmitting(false);
+        return;
+      }
+      if (formData.rate_per_month && isNaN(parseFloat(formData.rate_per_month))) {
+        setError("Monthly rate must be a valid number.");
+        setSubmitting(false);
+        return;
+      }
+    } else { // Free sessions
+      if (isNaN(parseInt(formData.free_sessions_offered))) {
+        setError("Number of free sessions must be a valid number.");
+        setSubmitting(false);
+        return;
+      }
     }
 
     // Create FormData object
@@ -158,6 +206,27 @@ export default function TherapistApplicationForm() {
     submissionFormData.append('license_document', files.license_document);
     submissionFormData.append('id_document', files.id_document);
     submissionFormData.append('professional_photo', files.professional_photo);
+    
+    // Append existing new fields
+    submissionFormData.append('license_credentials', formData.license_credentials);
+    submissionFormData.append('approach_modalities', formData.approach_modalities);
+    submissionFormData.append('languages_spoken', formData.languages_spoken);
+    submissionFormData.append('client_focus', formData.client_focus);
+    submissionFormData.append('insurance_accepted', formData.insurance_accepted);
+
+    // NEW: Append pricing and session fields
+    submissionFormData.append('is_free_consultation', formData.session_type_choice === 'free'); // Boolean based on choice
+    if (formData.session_type_choice === 'paid') {
+      submissionFormData.append('hourly_rate', parseFloat(formData.hourly_rate));
+      if (formData.rate_per_week) submissionFormData.append('rate_per_week', parseFloat(formData.rate_per_week));
+      if (formData.rate_per_month) submissionFormData.append('rate_per_month', parseFloat(formData.rate_per_month));
+    } else {
+      submissionFormData.append('free_sessions_offered', parseInt(formData.free_sessions_offered));
+    }
+    if (formData.mpesa_phone_number.trim()) {
+      submissionFormData.append('mpesa_phone_number', formData.mpesa_phone_number.trim());
+    }
+
 
     try {
       const response = await axios.post('http://localhost:8000/api/therapist-applications/submit/', submissionFormData, {
@@ -295,7 +364,11 @@ export default function TherapistApplicationForm() {
           )}
 
           <Box component="form" onSubmit={handleSubmit} noValidate>
-            <Grid container spacing={3}>
+            {/* Section 1: Basic Professional Details */}
+            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
+              Professional Information
+            </Typography>
+            <Grid container spacing={3} mb={4}>
               <Grid item xs={12} sm={6}>
                 <TextField 
                   required 
@@ -305,11 +378,8 @@ export default function TherapistApplicationForm() {
                   value={formData.license_number} 
                   onChange={handleInputChange}
                   sx={{
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: borderColor },
-                      '&:hover fieldset': { borderColor: primaryColor },
-                    },
-                    '& .MuiInputLabel-root': { color: lightTextColor },
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
                   }}
                 />
               </Grid>
@@ -322,11 +392,24 @@ export default function TherapistApplicationForm() {
                   value={formData.id_number} 
                   onChange={handleInputChange}
                   sx={{
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: borderColor },
-                      '&:hover fieldset': { borderColor: primaryColor },
-                    },
-                    '& .MuiInputLabel-root': { color: lightTextColor },
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="License & Credentials" 
+                  name="license_credentials" 
+                  value={formData.license_credentials} 
+                  onChange={handleInputChange}
+                  helperText="E.g., LMFT, LCSW, PhD"
+                  sx={{
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                    '& .MuiFormHelperText-root': { color: lightTextColor },
                   }}
                 />
               </Grid>
@@ -342,17 +425,19 @@ export default function TherapistApplicationForm() {
                   onChange={handleInputChange} 
                   helperText="Briefly describe why you want to be a therapist on our platform."
                   sx={{
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: borderColor },
-                      '&:hover fieldset': { borderColor: primaryColor },
-                    },
-                    '& .MuiInputLabel-root': { color: lightTextColor },
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
                     '& .MuiFormHelperText-root': { color: lightTextColor },
                   }}
                 />
               </Grid>
+            </Grid>
               
-              {/* Specializations Multi-Select Dropdown */}
+            {/* Section 2: Specializations and Approach */}
+            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
+              Specializations & Approach
+            </Typography>
+            <Grid container spacing={3} mb={4}>
               <Grid item xs={12}>
                 <FormControl fullWidth>
                   <InputLabel sx={{ color: lightTextColor }}>Specializations</InputLabel>
@@ -366,6 +451,7 @@ export default function TherapistApplicationForm() {
                     sx={{
                       '& .MuiOutlinedInput-notchedOutline': { borderColor: borderColor },
                       '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: primaryColor },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: primaryColor },
                     }}
                   >
                     {specializationsList.map((name) => (
@@ -383,8 +469,193 @@ export default function TherapistApplicationForm() {
                   </FormHelperText>
                 </FormControl>
               </Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="Approach/Therapeutic Modalities" 
+                  name="approach_modalities" 
+                  multiline 
+                  rows={3}
+                  value={formData.approach_modalities} 
+                  onChange={handleInputChange}
+                  helperText="E.g., CBT, EMDR, Psychodynamic. Describe your core therapeutic approaches."
+                  sx={{
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                    '& .MuiFormHelperText-root': { color: lightTextColor },
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="Languages Spoken" 
+                  name="languages_spoken" 
+                  value={formData.languages_spoken} 
+                  onChange={handleInputChange}
+                  helperText="Comma-separated, e.g., English, Spanish, French"
+                  sx={{
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                    '& .MuiFormHelperText-root': { color: lightTextColor },
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="Client Focus" 
+                  name="client_focus" 
+                  value={formData.client_focus} 
+                  onChange={handleInputChange}
+                  helperText="E.g., Adults, Teens, LGBTQ+, Couples"
+                  sx={{
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                    '& .MuiFormHelperText-root': { color: lightTextColor },
+                  }}
+                />
+              </Grid>
+            </Grid>
 
-              {/* File Upload Buttons */}
+            {/* Section 3: Pricing and Payment */}
+            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
+              Pricing & Session Details
+            </Typography>
+            <Grid container spacing={3} mb={4}>
+              <Grid item xs={12}>
+                <FormControl component="fieldset" fullWidth>
+                  <Typography variant="body1" sx={{ color: textColor, mb: 1, fontWeight: 'medium' }}>
+                    Session Fee Structure:
+                  </Typography>
+                  <RadioGroup
+                    row
+                    name="session_type_choice"
+                    value={formData.session_type_choice}
+                    onChange={handleInputChange}
+                  >
+                    <FormControlLabel 
+                      value="paid" 
+                      control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
+                      label={<Typography sx={{ color: textColor }}>Paid Sessions</Typography>} 
+                    />
+                    <FormControlLabel 
+                      value="free" 
+                      control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
+                      label={<Typography sx={{ color: textColor }}>Offer Free Consultation</Typography>} 
+                    />
+                  </RadioGroup>
+                </FormControl>
+              </Grid>
+
+              {formData.session_type_choice === 'paid' ? (
+                <>
+                  <Grid item xs={12} sm={4}>
+                    <TextField 
+                      required 
+                      fullWidth 
+                      label="Hourly Rate (Ksh)" 
+                      name="hourly_rate" 
+                      type="number"
+                      value={formData.hourly_rate} 
+                      onChange={handleInputChange}
+                      inputProps={{ min: 0 }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField 
+                      fullWidth 
+                      label="Weekly Rate (Ksh, Optional)" 
+                      name="rate_per_week" 
+                      type="number"
+                      value={formData.rate_per_week} 
+                      onChange={handleInputChange}
+                      inputProps={{ min: 0 }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField 
+                      fullWidth 
+                      label="Monthly Rate (Ksh, Optional)" 
+                      name="rate_per_month" 
+                      type="number"
+                      value={formData.rate_per_month} 
+                      onChange={handleInputChange}
+                      inputProps={{ min: 0 }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                      }}
+                    />
+                  </Grid>
+                </>
+              ) : (
+                <Grid item xs={12} sm={6}>
+                  <TextField 
+                    fullWidth 
+                    label="Number of Free Sessions Offered" 
+                    name="free_sessions_offered" 
+                    type="number"
+                    value={formData.free_sessions_offered} 
+                    onChange={handleInputChange}
+                    inputProps={{ min: 0 }}
+                    helperText="e.g., '1' for one free introductory session."
+                    sx={{
+                      '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                      '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                      '& .MuiFormHelperText-root': { color: lightTextColor },
+                    }}
+                  />
+                </Grid>
+              )}
+              
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={formData.insurance_accepted}
+                      onChange={handleInputChange}
+                      name="insurance_accepted"
+                      sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
+                    />
+                  }
+                  label={<Typography sx={{ color: textColor }}>Do you accept insurance?</Typography>}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField 
+                  fullWidth 
+                  label="Mpesa Phone Number (for payments)" 
+                  name="mpesa_phone_number" 
+                  value={formData.mpesa_phone_number} 
+                  onChange={handleInputChange}
+                  helperText="Enter the phone number associated with your Mpesa account for client payments."
+                  sx={{
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                    '& .MuiFormHelperText-root': { color: lightTextColor },
+                  }}
+                />
+              </Grid>
+            </Grid>
+
+            {/* Section 4: Document Uploads */}
+            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
+              Document Uploads
+            </Typography>
+            <Grid container spacing={3} mb={4}>
               <Grid item xs={12} sm={4}>
                 <FormControl fullWidth error={!files.license_document && submitting}>
                   <Button 

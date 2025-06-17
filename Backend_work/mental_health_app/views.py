@@ -50,7 +50,14 @@ class RegisterView(generics.CreateAPIView):
                     'bio': user.bio,
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
-                    'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None
+                    'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                    # NEW fields added to user data in response
+                    'license_credentials': user.license_credentials,
+                    'approach_modalities': user.approach_modalities,
+                    'languages_spoken': user.languages_spoken,
+                    'client_focus': user.client_focus,
+                    'insurance_accepted': user.insurance_accepted,
+                    'video_introduction_url': user.video_introduction_url
                 }
             }, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -89,7 +96,14 @@ class LoginView(generics.GenericAPIView):
                     'bio': user.bio,
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
-                    'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None
+                    'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                    # NEW fields added to user data in response
+                    'license_credentials': user.license_credentials,
+                    'approach_modalities': user.approach_modalities,
+                    'languages_spoken': user.languages_spoken,
+                    'client_focus': user.client_focus,
+                    'insurance_accepted': user.insurance_accepted,
+                    'video_introduction_url': user.video_introduction_url
                 }
             })
         except Exception as e:
@@ -170,12 +184,15 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
         if TherapistApplication.objects.filter(applicant=self.request.user).exists():
             raise serializers.ValidationError({"detail": "You have already submitted a therapist application."})
 
-        application = serializer.save(applicant=self.request.user)
-        
+        # Ensure applicant's is_therapist status is set to True upon application submission
         user = self.request.user
         if not user.is_therapist:
             user.is_therapist = True
             user.save()
+
+        # Save the application, including the new fields
+        application = serializer.save(applicant=self.request.user)
+        
 
 class MyTherapistApplicationView(generics.RetrieveAPIView):
     serializer_class = TherapistApplicationSerializer
@@ -214,7 +231,20 @@ class TherapistListView(generics.ListAPIView):
                 Q(email__icontains=search_query)
             )
         
+        # Add request context to serializer for profile_picture absolute URL
         return queryset.order_by('last_name', 'first_name')
+    
+    def get_serializer_context(self):
+        return {'request': self.request}
+
+# NEW: Therapist Detail View
+class TherapistDetailView(generics.RetrieveAPIView):
+    serializer_class = TherapistSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = User.objects.filter(is_therapist=True, is_verified=True) # Only show verified therapists
+
+    def get_serializer_context(self):
+        return {'request': self.request}
 
 class SessionRequestCreateView(generics.CreateAPIView):
     serializer_class = SessionRequestSerializer
@@ -375,3 +405,18 @@ class SessionDetailUpdateView(generics.UpdateAPIView):
         if self.request.user != obj.therapist:
             raise PermissionDenied("You do not have permission to edit this session.")
         return obj
+
+# NEW: Client Session List View
+class ClientSessionListView(generics.ListAPIView):
+    serializer_class = SessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Only return sessions where the current user is the client
+        queryset = Session.objects.filter(client=self.request.user)
+        
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+            
+        return queryset.order_by('-session_date', '-session_time')

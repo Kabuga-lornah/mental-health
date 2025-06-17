@@ -41,6 +41,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     specializations = models.CharField(max_length=255, blank=True, null=True)  # e.g., "Anxiety, Depression, Trauma"
     is_available = models.BooleanField(default=False)  # Indicates if therapist is actively taking new clients/sessions
     hourly_rate = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)  # Price per hour for sessions
+
+    # NEW: Additional therapist profile fields for display
+    license_credentials = models.CharField(max_length=100, blank=True, null=True, help_text="e.g., LMFT, LCSW, PhD")
+    approach_modalities = models.TextField(blank=True, null=True, help_text="e.g., CBT, EMDR, Psychodynamic")
+    languages_spoken = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of languages")
+    client_focus = models.TextField(blank=True, null=True, help_text="e.g., Adults, Teens, LGBTQ+, Couples")
+    insurance_accepted = models.BooleanField(default=False)
+    # payment_info = models.TextField(blank=True, null=True, help_text="Details about payment methods, e.g., 'Private pay, Aetna'") # Hourly rate covers some of this
+    video_introduction_url = models.URLField(max_length=500, blank=True, null=True, help_text="Link to a brief video introduction")
     
     # Required fields
     is_active = models.BooleanField(default=True)
@@ -79,6 +88,15 @@ class TherapistApplication(models.Model):
     motivation_statement = models.TextField()
 
     specializations = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of specializations")
+
+    # NEW: Fields for additional therapist profile information, captured during application
+    # These will be transferred to the User profile upon approval
+    license_credentials = models.CharField(max_length=100, blank=True, null=True)
+    approach_modalities = models.TextField(blank=True, null=True)
+    languages_spoken = models.CharField(max_length=255, blank=True, null=True)
+    client_focus = models.TextField(blank=True, null=True)
+    insurance_accepted = models.BooleanField(default=False)
+    # payment_info_application = models.TextField(blank=True, null=True) # If more detailed than hourly rate
 
     # Status of the application
     APPLICATION_STATUS_CHOICES = [

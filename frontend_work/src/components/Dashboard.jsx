@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { 
+import {
   Button, Typography, Box, CircularProgress, Paper, Grid,
-  Snackbar, Alert, List, ListItem, ListItemText, Chip 
+  Snackbar, Alert, List, ListItem, ListItemText, Chip,
+  Collapse, IconButton
 } from "@mui/material";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { AccessTime, Event, CheckCircleOutline } from "@mui/icons-material";
+import { AccessTime, Event, CheckCircleOutline, ExpandMore, ExpandLess, Recommend } from "@mui/icons-material"; // Removed Notes icon as notes won't be displayed
 
 export default function Dashboard() {
-  const { user, logout, token } = useAuth();
+  const { user, token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [scheduledSessions, setScheduledSessions] = useState([]);
   const [completedSessions, setCompletedSessions] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [expandedNotes, setExpandedNotes] = useState({});
 
   useEffect(() => {
     const fetchUserSessions = async () => {
@@ -27,29 +30,34 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       try {
-        // Fetch scheduled sessions
-        // Changed endpoint to client/session-requests/
-        const scheduledResponse = await axios.get(
-          "http://localhost:8000/api/client/session-requests/?status=accepted", 
+        // Fetch PENDING session requests (from the client's perspective)
+        const pendingResponse = await axios.get(
+          "http://localhost:8000/api/client/session-requests/?status=pending",
           {
             headers: {
               Authorization: `Bearer ${token}`,
             },
           }
         );
-        setScheduledSessions(scheduledResponse.data);
+        setPendingRequests(pendingResponse.data);
 
-        // Fetch completed sessions
-        // Changed endpoint to client/session-requests/
-        const completedResponse = await axios.get(
-          "http://localhost:8000/api/client/session-requests/?status=completed", 
+        // Fetch SCHEDULED sessions (actual Session objects from the new endpoint)
+        const activeSessionsResponse = await axios.get(
+          "http://localhost:8000/api/client/sessions/?status=scheduled",
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
           }
         );
-        setCompletedSessions(completedResponse.data);
+        setScheduledSessions(activeSessionsResponse.data);
+
+        // Fetch COMPLETED sessions (actual Session objects from the new endpoint)
+        const completedSessionsResponse = await axios.get(
+          "http://localhost:8000/api/client/sessions/?status=completed",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        setCompletedSessions(completedSessionsResponse.data);
 
       } catch (err) {
         console.error("Error fetching sessions:", err);
@@ -70,6 +78,10 @@ export default function Dashboard() {
       return;
     }
     setSnackbarOpen(false);
+  };
+
+  const toggleNotesExpansion = (sessionId) => {
+    setExpandedNotes(prev => ({ ...prev, [sessionId]: !prev[sessionId] }));
   };
 
   if (loading) {
@@ -94,6 +106,66 @@ export default function Dashboard() {
       )}
 
       <Grid container spacing={3}>
+        {/* Pending Requests Section */}
+        <Grid item xs={12} md={6}>
+          <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
+            <Typography variant="h5" sx={{ color: "#780000", mb: 2, fontWeight: 'bold' }}>
+              Pending Session Requests
+            </Typography>
+            {pendingRequests.length === 0 ? (
+              <Box>
+                <Typography sx={{ mb: 2 }}>You don't have any pending session requests.</Typography>
+                <Button
+                  component={Link}
+                  to="/find-therapist"
+                  variant="contained"
+                  sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
+                >
+                  Find a Therapist
+                </Button>
+              </Box>
+            ) : (
+              <List>
+                {pendingRequests.map((request) => (
+                  <Paper key={request.id} elevation={1} sx={{ mb: 2, p: 2, borderLeft: '5px solid #FFC107' }}>
+                    <ListItem disableGutters>
+                      <ListItemText
+                        primary={
+                          <Typography variant="h6" sx={{ color: '#FFC107' }}>
+                            Request to {request.therapist_name}
+                          </Typography>
+                        }
+                        secondary={
+                          <>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                              <Event sx={{ fontSize: 16, mr: 1, color: '#FFC107' }} />
+                              <Typography variant="body2">
+                                Date: {request.requested_date}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                              <AccessTime sx={{ fontSize: 16, mr: 1, color: '#FFC107' }} />
+                              <Typography variant="body2">
+                                Time: {request.requested_time}
+                              </Typography>
+                            </Box>
+                            {request.message && (
+                              <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic', color: '#555' }}>
+                                Your message: "{request.message}"
+                              </Typography>
+                            )}
+                            <Chip label="Pending" color="warning" size="small" sx={{ mt: 1 }} />
+                          </>
+                        }
+                      />
+                    </ListItem>
+                  </Paper>
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+
         {/* Scheduled Sessions Section */}
         <Grid item xs={12} md={6}>
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
@@ -103,17 +175,6 @@ export default function Dashboard() {
             {scheduledSessions.length === 0 ? (
               <Box>
                 <Typography sx={{ mb: 2 }}>You don't have any scheduled sessions yet.</Typography>
-                <Button 
-                  component={Link} 
-                  to="/find-therapist" 
-                  variant="contained" 
-                  sx={{ 
-                    backgroundColor: "#780000", 
-                    "&:hover": { backgroundColor: "#5a0000" } 
-                  }}
-                >
-                  Find a Therapist
-                </Button>
               </Box>
             ) : (
               <List>
@@ -131,18 +192,23 @@ export default function Dashboard() {
                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                               <Event sx={{ fontSize: 16, mr: 1, color: '#780000' }} />
                               <Typography variant="body2">
-                                Date: {session.requested_date}
+                                Date: {session.session_date}
                               </Typography>
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
                               <AccessTime sx={{ fontSize: 16, mr: 1, color: '#780000' }} />
                               <Typography variant="body2">
-                                Time: {session.requested_time}
+                                Time: {session.session_time}
                               </Typography>
                             </Box>
-                            {session.message && (
-                              <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic', color: '#555' }}>
-                                Your message: "{session.message}"
+                            <Chip
+                              label={session.session_type === 'online' ? 'Online' : 'In-Person'}
+                              size="small"
+                              sx={{ mt: 1, backgroundColor: session.session_type === 'online' ? '#E3F2FD' : '#FFF3E0', color: '#3F51B5' }}
+                            />
+                            {session.location && session.session_type === 'physical' && (
+                              <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic', color: '#555' }}>
+                                Location: {session.location}
                               </Typography>
                             )}
                           </>
@@ -156,7 +222,7 @@ export default function Dashboard() {
           </Paper>
         </Grid>
 
-        {/* Completed Sessions Section */}
+        {/* Completed Sessions Section (Updated to display ONLY recommendations) */}
         <Grid item xs={12} md={6}>
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
             <Typography variant="h5" sx={{ color: "#780000", mb: 2, fontWeight: 'bold' }}>
@@ -173,6 +239,13 @@ export default function Dashboard() {
                         primary={
                           <Typography variant="h6" sx={{ color: '#4CAF50' }}>
                             Session with {session.therapist_name}
+                            <IconButton
+                              onClick={() => toggleNotesExpansion(session.id)}
+                              size="small"
+                              sx={{ ml: 1, color: '#4CAF50' }}
+                            >
+                              {expandedNotes[session.id] ? <ExpandLess /> : <ExpandMore />}
+                            </IconButton>
                           </Typography>
                         }
                         secondary={
@@ -180,14 +253,35 @@ export default function Dashboard() {
                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                               <CheckCircleOutline sx={{ fontSize: 16, mr: 1, color: '#4CAF50' }} />
                               <Typography variant="body2">
-                                Date: {session.requested_date} (Completed)
+                                Date: {session.session_date} (Completed)
                               </Typography>
                             </Box>
-                            {session.session_notes && (
-                              <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic', color: '#555' }}>
-                                Notes: "{session.session_notes.substring(0, 100)}{session.session_notes.length > 100 ? '...' : ''}"
-                              </Typography>
-                            )}
+
+                            <Collapse in={expandedNotes[session.id]}>
+                              <Box sx={{ mt: 2, borderTop: '1px solid #eee', pt: 2 }}>
+                                {/* Only display recommendations */}
+                                {session.recommendations && (
+                                  <Box sx={{ mb: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                                      <Recommend sx={{ fontSize: 18, mr: 0.5 }} /> Recommendations:
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ mt: 0.5, color: '#555' }}>
+                                      {session.recommendations}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {session.follow_up_required && session.next_session_date && (
+                                  <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic', color: '#780000', fontWeight: 'bold' }}>
+                                    Follow-up required by: {session.next_session_date}
+                                  </Typography>
+                                )}
+                                {!session.recommendations && !session.follow_up_required && (
+                                  <Typography variant="body2" sx={{ mt: 1, color: '#555' }}>
+                                    No specific recommendations or follow-up noted for this session.
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Collapse>
                           </>
                         }
                       />
@@ -199,19 +293,6 @@ export default function Dashboard() {
           </Paper>
         </Grid>
       </Grid>
-
-      <Box sx={{ mt: 4, textAlign: 'center' }}>
-        <Button
-          onClick={logout}
-          variant="contained"
-          sx={{
-            backgroundColor: "#780000",
-            "&:hover": { backgroundColor: "#5a0000" },
-          }}
-        >
-          Logout
-        </Button>
-      </Box>
 
       <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
         <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
