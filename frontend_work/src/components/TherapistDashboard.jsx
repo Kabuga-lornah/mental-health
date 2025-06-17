@@ -14,6 +14,14 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
 
+// Theme colors
+const primaryColor = '#780000'; // Maroon
+const secondaryColor = '#fefae0'; // Cream/light background
+const buttonHoverColor = '#5a0000'; // Darker maroon for hover
+const textColor = '#333'; // Dark text
+const lightTextColor = '#666'; // Lighter text
+const borderColor = '#ddd'; // Light border
+
 export default function TherapistDashboard() {
   const { user, token, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -206,8 +214,8 @@ export default function TherapistDashboard() {
   if (authLoading || loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-        <CircularProgress sx={{ color: '#780000' }} />
-        <Typography sx={{ ml: 2, color: '#780000' }}>Loading Dashboard...</Typography>
+        <CircularProgress sx={{ color: primaryColor }} />
+        <Typography sx={{ ml: 2, color: primaryColor }}>Loading Dashboard...</Typography>
       </Box>
     );
   }
@@ -221,9 +229,9 @@ export default function TherapistDashboard() {
   }
   
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0' }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: secondaryColor }}>
       <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Typography variant="h4" sx={{ color: '#780000', mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ color: primaryColor, mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
           Therapist Dashboard
         </Typography>
 
@@ -233,29 +241,29 @@ export default function TherapistDashboard() {
           <Grid container spacing={4}>
             {/* Session Requests */}
             <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
-                <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
+              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
+                <Typography variant="h6" sx={{ color: primaryColor, mb: 2, fontWeight: 'bold' }}>
                   Pending Session Requests
                 </Typography>
                 <Box sx={{ maxHeight: '400px', overflowY: 'auto' }}>
                   {sessionRequests.length === 0 ? (
-                    <Typography>No pending session requests.</Typography>
+                    <Typography sx={{ color: lightTextColor }}>No pending session requests.</Typography>
                   ) : (
                     sessionRequests.map((request) => (
-                      <Card key={request.id} sx={{ mb: 2, border: '1px solid #eee' }}>
+                      <Card key={request.id} sx={{ mb: 2, border: `1px solid ${borderColor}` }}>
                         <CardContent>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#780000' }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: primaryColor }}>
                             {request.client_name}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" sx={{ color: lightTextColor }}>
                             {request.client_email}
                           </Typography>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
+                          <Typography variant="body2" sx={{ mt: 1, color: textColor }}>
                             <strong>Date:</strong> {request.requested_date}<br />
                             <strong>Time:</strong> {request.requested_time}
                           </Typography>
                           {request.message && (
-                            <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                            <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic', color: textColor }}>
                               "{request.message}"
                             </Typography>
                           )}
@@ -264,7 +272,11 @@ export default function TherapistDashboard() {
                           <Button
                             variant="contained"
                             size="small"
-                            sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
+                            sx={{ 
+                              backgroundColor: primaryColor, 
+                              '&:hover': { backgroundColor: buttonHoverColor },
+                              fontWeight: 'bold'
+                            }}
                             onClick={() => handleAcceptRequest(request)}
                           >
                             Accept
@@ -272,7 +284,15 @@ export default function TherapistDashboard() {
                           <Button
                             variant="outlined"
                             size="small"
-                            color="error"
+                            sx={{ 
+                              borderColor: primaryColor, 
+                              color: primaryColor,
+                              '&:hover': { 
+                                borderColor: buttonHoverColor,
+                                backgroundColor: 'rgba(120, 0, 0, 0.04)'
+                              },
+                              fontWeight: 'bold'
+                            }}
                             onClick={() => handleRejectRequest(request.id)}
                           >
                             Reject
@@ -287,29 +307,33 @@ export default function TherapistDashboard() {
 
             {/* Scheduled Sessions */}
             <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
-                <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
+              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
+                <Typography variant="h6" sx={{ color: primaryColor, mb: 2, fontWeight: 'bold' }}>
                   Scheduled Sessions
                 </Typography>
                 <Box sx={{ maxHeight: '400px', overflowY: 'auto' }}>
                   {scheduledSessions.length === 0 ? (
-                    <Typography>No scheduled sessions.</Typography>
+                    <Typography sx={{ color: lightTextColor }}>No scheduled sessions.</Typography>
                   ) : (
                     scheduledSessions.map((session) => (
-                      <Card key={session.id} sx={{ mb: 2, border: '1px solid #eee' }}>
+                      <Card key={session.id} sx={{ mb: 2, border: `1px solid ${borderColor}` }}>
                         <CardContent>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#780000', flexGrow: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: primaryColor, flexGrow: 1 }}>
                               {session.client_name}
                             </Typography>
                             <Chip
                               icon={session.session_type === 'online' ? <VideoCall /> : <LocationOn />}
                               label={session.session_type}
                               size="small"
-                              color={session.session_type === 'online' ? 'primary' : 'secondary'}
+                              sx={{
+                                backgroundColor: session.session_type === 'online' ? 'rgba(120, 0, 0, 0.1)' : 'rgba(0, 0, 120, 0.1)',
+                                color: session.session_type === 'online' ? primaryColor : '#000078',
+                                fontWeight: 'bold'
+                              }}
                             />
                           </Box>
-                          <Typography variant="body2">
+                          <Typography variant="body2" sx={{ color: textColor }}>
                             <strong>Date:</strong> {session.session_date}<br />
                             <strong>Time:</strong> {session.session_time}
                           </Typography>
@@ -319,7 +343,11 @@ export default function TherapistDashboard() {
                             variant="contained"
                             size="small"
                             startIcon={<Notes />}
-                            sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
+                            sx={{ 
+                              backgroundColor: primaryColor, 
+                              '&:hover': { backgroundColor: buttonHoverColor },
+                              fontWeight: 'bold'
+                            }}
                             onClick={() => handleOpenSessionNotes(session)}
                           >
                             Add Session Notes
@@ -334,63 +362,76 @@ export default function TherapistDashboard() {
 
             {/* Completed Sessions */}
             <Grid item xs={12}>
-              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2 }}>
-                <Typography variant="h6" sx={{ color: '#780000', mb: 2 }}>
+              <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
+                <Typography variant="h6" sx={{ color: primaryColor, mb: 2, fontWeight: 'bold' }}>
                   Recent Completed Sessions
                 </Typography>
                 <Box sx={{ maxHeight: '500px', overflowY: 'auto' }}>
                   {completedSessions.length === 0 ? (
-                    <Typography>No completed sessions.</Typography>
+                    <Typography sx={{ color: lightTextColor }}>No completed sessions.</Typography>
                   ) : (
                     completedSessions.map((session) => (
-                      <Card key={session.id} sx={{ mb: 2, border: '1px solid #eee' }}>
+                      <Card key={session.id} sx={{ mb: 2, border: `1px solid ${borderColor}` }}>
                         <CardContent>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#780000', flexGrow: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: primaryColor, flexGrow: 1 }}>
                               {session.client_name}
                             </Typography>
                             <Chip
                               icon={<CheckCircle />}
                               label="Completed"
                               size="small"
-                              color="success"
+                              sx={{
+                                backgroundColor: 'rgba(0, 120, 0, 0.1)',
+                                color: '#007800',
+                                fontWeight: 'bold'
+                              }}
                             />
                             <IconButton
                               onClick={() => toggleSessionExpansion(session.id)}
                               size="small"
-                              sx={{ ml: 1 }}
+                              sx={{ ml: 1, color: primaryColor }}
                             >
                               {expandedSessions[session.id] ? <ExpandLess /> : <ExpandMore />}
                             </IconButton>
                           </Box>
-                          <Typography variant="body2">
+                          <Typography variant="body2" sx={{ color: textColor }}>
                             <strong>Date:</strong> {session.session_date} | <strong>Time:</strong> {session.session_time}
                           </Typography>
                           
                           <Collapse in={expandedSessions[session.id]}>
                             <Box sx={{ mt: 2 }}>
-                              <Divider sx={{ my: 2 }} />
+                              <Divider sx={{ my: 2, borderColor: borderColor }} />
                               {session.notes && (
                                 <Box sx={{ mb: 2 }}>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#780000' }}>Session Notes:</Typography>
-                                  <Typography variant="body2" sx={{ mt: 1 }}>{session.notes}</Typography>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: primaryColor }}>Session Notes:</Typography>
+                                  <Typography variant="body2" sx={{ mt: 1, color: textColor }}>{session.notes}</Typography>
                                 </Box>
                               )}
                               {session.key_takeaways && (
                                 <Box sx={{ mb: 2 }}>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#780000' }}>Key Takeaways:</Typography>
-                                  <Typography variant="body2" sx={{ mt: 1 }}>{session.key_takeaways}</Typography>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: primaryColor }}>Key Takeaways:</Typography>
+                                  <Typography variant="body2" sx={{ mt: 1, color: textColor }}>{session.key_takeaways}</Typography>
                                 </Box>
                               )}
                               {session.recommendations && (
                                 <Box sx={{ mb: 2 }}>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#780000' }}>Recommendations:</Typography>
-                                  <Typography variant="body2" sx={{ mt: 1 }}>{session.recommendations}</Typography>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: primaryColor }}>Recommendations:</Typography>
+                                  <Typography variant="body2" sx={{ mt: 1, color: textColor }}>{session.recommendations}</Typography>
                                 </Box>
                               )}
                               {session.follow_up_required && (
                                 <Box sx={{ mb: 2 }}>
-                                  <Chip icon={<Schedule />} label={`Follow-up: ${session.next_session_date}`} color="warning" size="small" />
+                                  <Chip 
+                                    icon={<Schedule />} 
+                                    label={`Follow-up: ${session.next_session_date}`} 
+                                    sx={{
+                                      backgroundColor: 'rgba(120, 0, 0, 0.1)',
+                                      color: primaryColor,
+                                      fontWeight: 'bold'
+                                    }}
+                                    size="small" 
+                                  />
                                 </Box>
                               )}
                             </Box>
@@ -401,7 +442,15 @@ export default function TherapistDashboard() {
                             variant="outlined"
                             size="small"
                             startIcon={<Notes />}
-                            sx={{ borderColor: '#780000', color: '#780000' }}
+                            sx={{ 
+                              borderColor: primaryColor, 
+                              color: primaryColor,
+                              '&:hover': { 
+                                borderColor: buttonHoverColor,
+                                backgroundColor: 'rgba(120, 0, 0, 0.04)'
+                              },
+                              fontWeight: 'bold'
+                            }}
                             onClick={() => handleOpenSessionNotes(session)}
                           >
                             Edit Notes
@@ -417,30 +466,70 @@ export default function TherapistDashboard() {
         )}
       </Container>
       
-      {/* Modals are largely unchanged, but will now work with live data */}
       {/* Accept Session Modal */}
       <Dialog open={openAcceptModal} onClose={handleCloseAcceptModal} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Schedule Session</DialogTitle>
+        <DialogTitle sx={{ color: primaryColor, fontWeight: 'bold' }}>Schedule Session</DialogTitle>
         <DialogContent>
-          <Typography sx={{ mb: 3 }}>
+          <Typography sx={{ mb: 3, color: textColor }}>
             <strong>Client:</strong> {selectedRequest?.client_name}<br />
             <strong>Requested Date:</strong> {selectedRequest?.requested_date}<br />
             <strong>Requested Time:</strong> {selectedRequest?.requested_time}
           </Typography>
           <FormControl component="fieldset" sx={{ mb: 3 }}>
-            <FormLabel component="legend" sx={{ color: '#780000', fontWeight: 'bold' }}>Session Type</FormLabel>
+            <FormLabel component="legend" sx={{ color: primaryColor, fontWeight: 'bold' }}>Session Type</FormLabel>
             <RadioGroup value={sessionType} onChange={(e) => setSessionType(e.target.value)} row>
-              <FormControlLabel value="online" control={<Radio />} label="Online Session" />
-              <FormControlLabel value="physical" control={<Radio />} label="In-Person Session" />
+              <FormControlLabel 
+                value="online" 
+                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
+                label="Online Session" 
+                sx={{ color: textColor }}
+              />
+              <FormControlLabel 
+                value="physical" 
+                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
+                label="In-Person Session" 
+                sx={{ color: textColor }}
+              />
             </RadioGroup>
           </FormControl>
           {sessionType === 'physical' && (
-            <TextField fullWidth label="Location/Address" value={sessionLocation} onChange={(e) => setSessionLocation(e.target.value)} multiline rows={2} variant="outlined" sx={{ mb: 2 }} />
+            <TextField 
+              fullWidth 
+              label="Location/Address" 
+              value={sessionLocation} 
+              onChange={(e) => setSessionLocation(e.target.value)} 
+              multiline 
+              rows={2} 
+              variant="outlined" 
+              sx={{ mb: 2 }} 
+              InputLabelProps={{
+                style: { color: lightTextColor },
+              }}
+            />
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseAcceptModal} sx={{ color: '#780000' }}>Cancel</Button>
-          <Button onClick={handleConfirmSession} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>
+          <Button 
+            onClick={handleCloseAcceptModal} 
+            sx={{ 
+              color: primaryColor,
+              fontWeight: 'bold',
+              '&:hover': {
+                backgroundColor: 'rgba(120, 0, 0, 0.04)'
+              }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmSession} 
+            variant="contained" 
+            sx={{ 
+              backgroundColor: primaryColor, 
+              '&:hover': { backgroundColor: buttonHoverColor },
+              fontWeight: 'bold'
+            }}
+          >
             Schedule Session
           </Button>
         </DialogActions>
@@ -448,30 +537,126 @@ export default function TherapistDashboard() {
 
       {/* Session Notes Modal */}
       <Dialog open={openSessionNotesModal} onClose={handleCloseSessionNotesModal} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Session Notes & Recommendations</DialogTitle>
+        <DialogTitle sx={{ color: primaryColor, fontWeight: 'bold' }}>Session Notes & Recommendations</DialogTitle>
         <DialogContent>
-          <Typography sx={{ mb: 3, color: 'text.secondary' }}>
+          <Typography sx={{ mb: 3, color: textColor }}>
             <strong>Client:</strong> {selectedSession?.client_name}<br />
             <strong>Session Date:</strong> {selectedSession?.session_date} at {selectedSession?.session_time}
           </Typography>
-          <TextField fullWidth label="Session Notes" value={sessionNotes} onChange={(e) => setSessionNotes(e.target.value)} multiline rows={4} variant="outlined" sx={{ mb: 3 }} placeholder="Detailed notes about the session..." />
-          <TextField fullWidth label="Key Takeaways" value={keyTakeaways} onChange={(e) => setKeyTakeaways(e.target.value)} multiline rows={3} variant="outlined" sx={{ mb: 3 }} placeholder="Main insights from this session..." />
-          <TextField fullWidth label="Recommendations for Client" value={recommendations} onChange={(e) => setRecommendations(e.target.value)} multiline rows={4} variant="outlined" sx={{ mb: 3 }} placeholder="Specific recommendations or actions for the client..." />
-          <FormControlLabel control={<input type="checkbox" checked={followUpRequired} onChange={(e) => setFollowUpRequired(e.target.checked)} />} label="Follow-up session required" sx={{ mb: 2 }} />
+          <TextField 
+            fullWidth 
+            label="Session Notes" 
+            value={sessionNotes} 
+            onChange={(e) => setSessionNotes(e.target.value)} 
+            multiline 
+            rows={4} 
+            variant="outlined" 
+            sx={{ mb: 3 }} 
+            placeholder="Detailed notes about the session..." 
+            InputLabelProps={{
+              style: { color: lightTextColor },
+            }}
+          />
+          <TextField 
+            fullWidth 
+            label="Key Takeaways" 
+            value={keyTakeaways} 
+            onChange={(e) => setKeyTakeaways(e.target.value)} 
+            multiline 
+            rows={3} 
+            variant="outlined" 
+            sx={{ mb: 3 }} 
+            placeholder="Main insights from this session..." 
+            InputLabelProps={{
+              style: { color: lightTextColor },
+            }}
+          />
+          <TextField 
+            fullWidth 
+            label="Recommendations for Client" 
+            value={recommendations} 
+            onChange={(e) => setRecommendations(e.target.value)} 
+            multiline 
+            rows={4} 
+            variant="outlined" 
+            sx={{ mb: 3 }} 
+            placeholder="Specific recommendations or actions for the client..." 
+            InputLabelProps={{
+              style: { color: lightTextColor },
+            }}
+          />
+          <FormControlLabel 
+            control={
+              <input 
+                type="checkbox" 
+                checked={followUpRequired} 
+                onChange={(e) => setFollowUpRequired(e.target.checked)} 
+                style={{ 
+                  accentColor: primaryColor,
+                  marginRight: '8px'
+                }} 
+              />
+            } 
+            label="Follow-up session required" 
+            sx={{ mb: 2, color: textColor }} 
+          />
           {followUpRequired && (
-            <TextField fullWidth label="Next Session Date" type="date" value={nextSessionDate} onChange={(e) => setNextSessionDate(e.target.value)} InputLabelProps={{ shrink: true, }} sx={{ mb: 2 }} />
+            <TextField 
+              fullWidth 
+              label="Next Session Date" 
+              type="date" 
+              value={nextSessionDate} 
+              onChange={(e) => setNextSessionDate(e.target.value)} 
+              InputLabelProps={{ 
+                shrink: true,
+                style: { color: lightTextColor } 
+              }} 
+              sx={{ mb: 2 }} 
+            />
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseSessionNotesModal} sx={{ color: '#780000' }}>Cancel</Button>
-          <Button onClick={handleSaveSessionNotes} variant="contained" startIcon={<Recommend />} sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>
+          <Button 
+            onClick={handleCloseSessionNotesModal} 
+            sx={{ 
+              color: primaryColor,
+              fontWeight: 'bold',
+              '&:hover': {
+                backgroundColor: 'rgba(120, 0, 0, 0.04)'
+              }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveSessionNotes} 
+            variant="contained" 
+            startIcon={<Recommend />} 
+            sx={{ 
+              backgroundColor: primaryColor, 
+              '&:hover': { backgroundColor: buttonHoverColor },
+              fontWeight: 'bold'
+            }}
+          >
             Save & Mark as Complete
           </Button>
         </DialogActions>
       </Dialog>
 
       <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>{snackbarMessage}</Alert>
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={snackbarSeverity} 
+          sx={{ 
+            width: '100%',
+            backgroundColor: snackbarSeverity === 'error' ? '#ffebee' : 
+                            snackbarSeverity === 'success' ? '#e8f5e9' : 
+                            snackbarSeverity === 'info' ? '#e3f2fd' : '#fff8e1',
+            color: textColor
+          }}
+        >
+          {snackbarMessage}
+        </Alert>
       </Snackbar>
     </Box>
   );

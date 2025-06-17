@@ -27,6 +27,14 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
+// Theme colors
+const primaryColor = '#780000'; // Maroon
+const pageBackground = '#FFF8E1'; // Light yellow/peach background
+const buttonHoverColor = '#5a0000'; // Darker maroon for hover
+const textColor = '#333'; // Dark text
+const lightTextColor = '#666'; // Lighter text
+const borderColor = '#ddd'; // Light border
+
 const Input = styled('input')({
   display: 'none',
 });
@@ -51,7 +59,7 @@ export default function TherapistApplicationForm() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
-  // State for form fields, including specializations as an array
+  // State for form fields
   const [formData, setFormData] = useState({
     license_number: '',
     id_number: '',
@@ -71,7 +79,7 @@ export default function TherapistApplicationForm() {
   const [error, setError] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Fetch existing application status on component mount
+  // Fetch existing application status
   useEffect(() => {
     const fetchExistingApplication = async () => {
       if (!token) {
@@ -84,8 +92,8 @@ export default function TherapistApplicationForm() {
         });
         setExistingApplication(response.data);
       } catch (err) {
-        if (err.response && err.response.status === 404) {
-          setExistingApplication(null); // No application found
+        if (err.response?.status === 404) {
+          setExistingApplication(null);
         } else {
           setError("Could not check your application status. Please refresh the page.");
         }
@@ -97,24 +105,19 @@ export default function TherapistApplicationForm() {
     fetchExistingApplication();
   }, [token]);
 
-  // Handler for standard text inputs
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
   
-  // Handler for the multi-select specializations field
   const handleSpecializationChange = (event) => {
-    const {
-      target: { value },
-    } = event;
+    const { value } = event.target;
     setFormData({
       ...formData,
       specializations: typeof value === 'string' ? value.split(',') : value,
     });
   };
 
-  // Handler for file inputs
   const handleFileChange = (e) => {
     const { name, files: selectedFiles } = e.target;
     if (selectedFiles.length > 0) {
@@ -122,7 +125,6 @@ export default function TherapistApplicationForm() {
     }
   };
 
-  // Form submission handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -147,12 +149,12 @@ export default function TherapistApplicationForm() {
       return;
     }
 
-    // Create FormData object for submission
+    // Create FormData object
     const submissionFormData = new FormData();
     submissionFormData.append('license_number', formData.license_number);
     submissionFormData.append('id_number', formData.id_number);
     submissionFormData.append('motivation_statement', formData.motivation_statement);
-    submissionFormData.append('specializations', formData.specializations.join(',')); // Join array to string
+    submissionFormData.append('specializations', formData.specializations.join(','));
     submissionFormData.append('license_document', files.license_document);
     submissionFormData.append('id_document', files.id_document);
     submissionFormData.append('professional_photo', files.professional_photo);
@@ -170,9 +172,8 @@ export default function TherapistApplicationForm() {
 
     } catch (err) {
       let errorMessage = "An unexpected error occurred. Please try again.";
-      if (err.response && err.response.data) {
+      if (err.response?.data) {
           const errors = err.response.data;
-          // Extract error message from backend response
           if (errors.detail) {
               errorMessage = errors.detail;
           } else {
@@ -197,9 +198,15 @@ export default function TherapistApplicationForm() {
   // Loading state UI
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Checking your application status...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh',
+        backgroundColor: pageBackground
+      }}>
+        <CircularProgress sx={{ color: primaryColor }} />
+        <Typography sx={{ ml: 2, color: primaryColor }}>Checking your application status...</Typography>
       </Box>
     );
   }
@@ -207,123 +214,272 @@ export default function TherapistApplicationForm() {
   // UI for users with an existing application
   if (existingApplication) {
     return (
-      <Container maxWidth="sm" sx={{ py: 8 }}>
-        <Paper elevation={3} sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>Application Status</Typography>
-          <Typography variant="h6" sx={{ mb: 3 }}>
-            Your application is currently: <strong style={{ textTransform: 'capitalize' }}>{existingApplication.status}</strong>
-          </Typography>
-          <Typography variant="body1" sx={{ mb: 4 }}>
-            Thank you for your submission. You will be notified via email of any updates.
-          </Typography>
-          <Button component={Link} to="/dashboard" variant="contained">
-            Go to Dashboard
-          </Button>
-        </Paper>
-      </Container>
+      <Box sx={{ 
+        minHeight: '100vh',
+        backgroundColor: pageBackground,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 2
+      }}>
+        <Container maxWidth="sm">
+          <Paper elevation={3} sx={{ 
+            p: 4, 
+            textAlign: 'center', 
+            borderRadius: 2,
+            backgroundColor: 'white'
+          }}>
+            <Typography variant="h5" sx={{ 
+              fontWeight: 'bold', 
+              mb: 2,
+              color: primaryColor
+            }}>
+              Application Status
+            </Typography>
+            <Typography variant="h6" sx={{ mb: 3, color: textColor }}>
+              Your application is currently: <strong style={{ 
+                textTransform: 'capitalize',
+                color: existingApplication.status === 'approved' ? primaryColor : 
+                      existingApplication.status === 'pending' ? '#FFA500' : '#FF0000'
+              }}>
+                {existingApplication.status}
+              </strong>
+            </Typography>
+            <Typography variant="body1" sx={{ mb: 4, color: textColor }}>
+              Thank you for your submission. You will be notified via email of any updates.
+            </Typography>
+          </Paper>
+        </Container>
+      </Box>
     );
   }
 
   // Main application form UI
   return (
-    <Container component="main" maxWidth="md" sx={{ py: 8 }}>
-      <Paper elevation={6} sx={{ p: { xs: 2, sm: 4 }, borderRadius: 2 }}>
-        <Typography component="h1" variant="h4" sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
-          Therapist Application
-        </Typography>
-        <Typography variant="body1" sx={{ textAlign: 'center', mb: 4 }}>
-          Please provide your credentials for verification.
-        </Typography>
+    <Box sx={{ 
+      minHeight: '100vh',
+      backgroundColor: pageBackground,
+      py: 8
+    }}>
+      <Container maxWidth="md">
+        <Paper elevation={6} sx={{ 
+          p: { xs: 2, sm: 4 }, 
+          borderRadius: 2,
+          backgroundColor: 'white'
+        }}>
+          <Typography component="h1" variant="h4" sx={{ 
+            fontWeight: 'bold', 
+            textAlign: 'center', 
+            mb: 3,
+            color: primaryColor
+          }}>
+            Therapist Application
+          </Typography>
+          <Typography variant="body1" sx={{ 
+            textAlign: 'center', 
+            mb: 4,
+            color: textColor
+          }}>
+            Please provide your credentials for verification.
+          </Typography>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }}>
-            {error}
-          </Alert>
-        )}
+          {error && (
+            <Alert severity="error" sx={{ 
+              mb: 3, 
+              whiteSpace: 'pre-line',
+              backgroundColor: '#FFEBEE',
+              color: textColor
+            }}>
+              {error}
+            </Alert>
+          )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
-              <TextField required fullWidth id="license_number" label="License Number" name="license_number" value={formData.license_number} onChange={handleInputChange} />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField required fullWidth id="id_number" label="National ID Number" name="id_number" value={formData.id_number} onChange={handleInputChange} />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField required fullWidth id="motivation_statement" label="Motivation Statement" name="motivation_statement" multiline rows={5} value={formData.motivation_statement} onChange={handleInputChange} helperText="Briefly describe why you want to be a therapist on our platform." />
-            </Grid>
-            
-            {/* Specializations Multi-Select Dropdown */}
-            <Grid item xs={12}>
-              <FormControl fullWidth>
-                <InputLabel id="specializations-label">Specializations</InputLabel>
-                <Select
-                  labelId="specializations-label"
-                  id="specializations"
-                  multiple
-                  name="specializations"
-                  value={formData.specializations}
-                  onChange={handleSpecializationChange}
-                  input={<OutlinedInput label="Specializations" />}
-                  renderValue={(selected) => selected.join(', ')}
-                >
-                  {specializationsList.map((name) => (
-                    <MenuItem key={name} value={name}>
-                      <Checkbox checked={formData.specializations.indexOf(name) > -1} />
-                      <ListItemText primary={name} />
-                    </MenuItem>
-                  ))}
-                </Select>
-                <FormHelperText>Select one or more areas you specialize in.</FormHelperText>
-              </FormControl>
+          <Box component="form" onSubmit={handleSubmit} noValidate>
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="License Number" 
+                  name="license_number" 
+                  value={formData.license_number} 
+                  onChange={handleInputChange}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: borderColor },
+                      '&:hover fieldset': { borderColor: primaryColor },
+                    },
+                    '& .MuiInputLabel-root': { color: lightTextColor },
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="National ID Number" 
+                  name="id_number" 
+                  value={formData.id_number} 
+                  onChange={handleInputChange}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: borderColor },
+                      '&:hover fieldset': { borderColor: primaryColor },
+                    },
+                    '& .MuiInputLabel-root': { color: lightTextColor },
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="Motivation Statement" 
+                  name="motivation_statement" 
+                  multiline 
+                  rows={5} 
+                  value={formData.motivation_statement} 
+                  onChange={handleInputChange} 
+                  helperText="Briefly describe why you want to be a therapist on our platform."
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: borderColor },
+                      '&:hover fieldset': { borderColor: primaryColor },
+                    },
+                    '& .MuiInputLabel-root': { color: lightTextColor },
+                    '& .MuiFormHelperText-root': { color: lightTextColor },
+                  }}
+                />
+              </Grid>
+              
+              {/* Specializations Multi-Select Dropdown */}
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ color: lightTextColor }}>Specializations</InputLabel>
+                  <Select
+                    multiple
+                    name="specializations"
+                    value={formData.specializations}
+                    onChange={handleSpecializationChange}
+                    input={<OutlinedInput label="Specializations" />}
+                    renderValue={(selected) => selected.join(', ')}
+                    sx={{
+                      '& .MuiOutlinedInput-notchedOutline': { borderColor: borderColor },
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: primaryColor },
+                    }}
+                  >
+                    {specializationsList.map((name) => (
+                      <MenuItem key={name} value={name}>
+                        <Checkbox 
+                          checked={formData.specializations.indexOf(name) > -1} 
+                          sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
+                        />
+                        <ListItemText primary={name} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <FormHelperText sx={{ color: lightTextColor }}>
+                    Select one or more areas you specialize in.
+                  </FormHelperText>
+                </FormControl>
+              </Grid>
+
+              {/* File Upload Buttons */}
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth error={!files.license_document && submitting}>
+                  <Button 
+                    variant="outlined" 
+                    component="label" 
+                    sx={{ 
+                      py: 2,
+                      borderColor: primaryColor,
+                      color: primaryColor,
+                      '&:hover': { borderColor: buttonHoverColor },
+                    }}
+                  >
+                    Upload License
+                    <Input type="file" name="license_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
+                  </Button>
+                  {files.license_document ? 
+                    <FormHelperText sx={{ color: textColor }}>{files.license_document.name}</FormHelperText> : 
+                    <FormHelperText sx={{ color: lightTextColor }}>PDF, JPG, PNG</FormHelperText>}
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth error={!files.id_document && submitting}>
+                  <Button 
+                    variant="outlined" 
+                    component="label" 
+                    sx={{ 
+                      py: 2,
+                      borderColor: primaryColor,
+                      color: primaryColor,
+                      '&:hover': { borderColor: buttonHoverColor },
+                    }}
+                  >
+                    Upload ID Document
+                    <Input type="file" name="id_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
+                  </Button>
+                  {files.id_document ? 
+                    <FormHelperText sx={{ color: textColor }}>{files.id_document.name}</FormHelperText> : 
+                    <FormHelperText sx={{ color: lightTextColor }}>PDF, JPG, PNG</FormHelperText>}
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth error={!files.professional_photo && submitting}>
+                  <Button 
+                    variant="outlined" 
+                    component="label" 
+                    sx={{ 
+                      py: 2,
+                      borderColor: primaryColor,
+                      color: primaryColor,
+                      '&:hover': { borderColor: buttonHoverColor },
+                    }}
+                  >
+                    Upload Profile Photo
+                    <Input type="file" name="professional_photo" accept="image/*" onChange={handleFileChange} />
+                  </Button>
+                  {files.professional_photo ? 
+                    <FormHelperText sx={{ color: textColor }}>{files.professional_photo.name}</FormHelperText> : 
+                    <FormHelperText sx={{ color: lightTextColor }}>JPG, PNG</FormHelperText>}
+                </FormControl>
+              </Grid>
             </Grid>
 
-            {/* File Upload Buttons */}
-            <Grid item xs={12} sm={4}>
-              <FormControl fullWidth error={!files.license_document && submitting}>
-                <Button variant="outlined" component="label" sx={{ py: 2 }}>
-                  Upload License
-                  <Input type="file" name="license_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
-                </Button>
-                {files.license_document ? <FormHelperText>{files.license_document.name}</FormHelperText> : <FormHelperText>PDF, JPG, PNG</FormHelperText>}
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <FormControl fullWidth error={!files.id_document && submitting}>
-                <Button variant="outlined" component="label" sx={{ py: 2 }}>
-                  Upload ID Document
-                  <Input type="file" name="id_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
-                </Button>
-                {files.id_document ? <FormHelperText>{files.id_document.name}</FormHelperText> : <FormHelperText>PDF, JPG, PNG</FormHelperText>}
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <FormControl fullWidth error={!files.professional_photo && submitting}>
-                <Button variant="outlined" component="label" sx={{ py: 2 }}>
-                  Upload Profile Photo
-                  <Input type="file" name="professional_photo" accept="image/*" onChange={handleFileChange} />
-                </Button>
-                {files.professional_photo ? <FormHelperText>{files.professional_photo.name}</FormHelperText> : <FormHelperText>JPG, PNG</FormHelperText>}
-              </FormControl>
-            </Grid>
-          </Grid>
-
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            disabled={submitting}
-            sx={{ mt: 4, py: 1.5, fontSize: '1.1rem' }}
-          >
-            {submitting ? <CircularProgress size={26} color="inherit" /> : 'Submit Application'}
-          </Button>
-        </Box>
-      </Paper>
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              disabled={submitting}
+              sx={{ 
+                mt: 4, 
+                py: 1.5, 
+                fontSize: '1.1rem',
+                backgroundColor: primaryColor,
+                '&:hover': { backgroundColor: buttonHoverColor }
+              }}
+            >
+              {submitting ? <CircularProgress size={26} color="inherit" /> : 'Submit Application'}
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
       <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleSnackbarClose}>
-        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={snackbar.severity} 
+          sx={{ 
+            width: '100%',
+            backgroundColor: snackbar.severity === 'error' ? '#ffebee' : 
+                            snackbar.severity === 'success' ? '#e8f5e9' : 
+                            snackbar.severity === 'info' ? '#e3f2fd' : '#fff8e1',
+            color: textColor
+          }}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 }
