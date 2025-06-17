@@ -13,9 +13,15 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import dj_database_url 
+from dotenv import load_dotenv
 import os
 import cloudinary 
-import dj_database_url 
+
+
+
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -199,9 +205,9 @@ AUTH_USER_MODEL = 'mental_health_app.User'
 # Ensure CLOUDINARY_URL is set in environment variables in production,
 # or uncomment and set them directly here for development
 cloudinary.config( 
-    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME', 'dgdf0svqx'), 
-    api_key = os.environ.get('CLOUDINARY_API_KEY', '643477632634929'), 
-    api_secret = os.environ.get('CLOUDINARY_API_SECRET', 'GOCYIijtAEFjRTVZj5bJy4dzqE0') 
+    cloud_name = os.environ['CLOUDINARY_CLOUD_NAME'], 
+    api_key = os.environ['CLOUDINARY_API_KEY'], 
+    api_secret = os.environ['CLOUDINARY_API_SECRET'] 
 )
 
 # Default File Storage for Media (user uploads, e.g., images for user profiles)
