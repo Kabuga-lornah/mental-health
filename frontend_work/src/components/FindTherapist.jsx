@@ -1,24 +1,22 @@
-// File: frontend_work/src/components/FindTherapist.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
   Container,
-  Paper,
   Grid,
-  Button,
   CircularProgress,
-  Snackbar,
-  Alert,
   Chip,
-  Stack // Added Stack for consistent spacing of chips
+  Stack,
+  Card,
+  CardContent,
+  Avatar
 } from '@mui/material';
 import {
-  OnlinePredictionOutlined, // Icon for online sessions
-  PinDropOutlined // Icon for physical sessions
-} from '@mui/icons-material'; // Import icons
+  OnlinePredictionOutlined,
+  PinDropOutlined
+} from '@mui/icons-material';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext'; 
+import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function FindTherapist() {
@@ -27,7 +25,7 @@ export default function FindTherapist() {
   const [therapists, setTherapists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   useEffect(() => {
     const fetchTherapists = async () => {
       setLoading(true);
@@ -76,7 +74,14 @@ export default function FindTherapist() {
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: 8 }}>
       <Container maxWidth="lg">
-        <Typography variant="h4" sx={{ color: '#780000', mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ 
+          color: '#780000', 
+          mb: 6, 
+          textAlign: 'center', 
+          fontWeight: 'bold',
+          textTransform: 'uppercase',
+          letterSpacing: 1
+        }}>
           Find a Therapist
         </Typography>
 
@@ -85,96 +90,166 @@ export default function FindTherapist() {
             No therapists currently available. Please check back later!
           </Typography>
         ) : (
-          <Grid container spacing={4}>
+          <Grid container spacing={4} justifyContent="center">
             {therapists.map((therapist) => (
-              <Grid item xs={12} sm={6} md={4} key={therapist.id}>
-                <Paper 
-                  elevation={3} 
-                  sx={{ 
-                    p: 3, 
-                    backgroundColor: 'white', 
-                    borderRadius: 2, 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    height: '100%',
+              <Grid
+                item
+                xs={12}
+                sm={6}
+                md={4}
+                lg={3}
+                key={therapist.id}
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'center'
+                }}
+              >
+                <Card
+                  onClick={() => handleTherapistCardClick(therapist.id)}
+                  sx={{
+                    width: '100%',
+                    maxWidth: 300,
+                    minHeight: 300,
+                    border: '1px solid rgba(120, 0, 0, 0.2)',
+                    borderRadius: 3,
+                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                    transition: 'all 0.3s ease',
                     cursor: 'pointer',
                     '&:hover': {
-                      boxShadow: '0px 6px 12px rgba(0, 0, 0, 0.15)',
-                    }
+                      transform: 'translateY(-5px)',
+                      boxShadow: '0 6px 12px rgba(120, 0, 0, 0.2)',
+                      borderColor: '#780000'
+                    },
+                    display: 'flex',
+                    flexDirection: 'column'
                   }}
-                  onClick={() => handleTherapistCardClick(therapist.id)}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <img
-                      src={therapist.profile_picture || `https://placehold.co/60x60/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
-                      alt={therapist.full_name}
-                      style={{ borderRadius: '50%', width: 60, height: 60, objectFit: 'cover', marginRight: 15 }}
-                    />
-                    <Box>
-                      <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold' }}>
-                        {/* Display credential before full name */}
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center',
+                      mb: 2
+                    }}>
+                      <Avatar
+                        src={therapist.profile_picture || `https://placehold.co/100x100/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
+                        alt={therapist.full_name}
+                        sx={{ 
+                          width: 80, 
+                          height: 80, 
+                          mb: 2,
+                          bgcolor: '#780000',
+                          color: '#fefae0',
+                          fontSize: '2rem'
+                        }}
+                      />
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          color: '#780000', 
+                          fontWeight: 'bold',
+                          textAlign: 'center'
+                        }}
+                      >
                         {therapist.license_credentials ? `${therapist.license_credentials} ` : ''}{therapist.full_name}
                       </Typography>
-                      {/* Conditionally display hourly rate or free consultation */}
-                      {!therapist.is_free_consultation && (
-                          <Typography variant="body2" color="text.secondary">
-                            {therapist.hourly_rate && parseFloat(therapist.hourly_rate) > 0 ? 
-                              `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 
-                              'N/A'}
-                          </Typography>
-                      )}
-                      {therapist.is_free_consultation && (
-                           <Typography variant="body2" color="text.secondary">
-                               Free Initial Consultation
-                           </Typography>
-                      )}
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: 'text.secondary',
+                          textAlign: 'center',
+                          mt: 0.5
+                        }}
+                      >
+                        {therapist.is_free_consultation ? (
+                          'Free Initial Consultation'
+                        ) : (
+                          therapist.hourly_rate && parseFloat(therapist.hourly_rate) > 0 ?
+                            `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 'N/A'
+                        )}
+                      </Typography>
                     </Box>
-                  </Box>
-                  <Box sx={{ flexGrow: 1, mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {therapist.bio ? `${therapist.bio.substring(0, 100)}...` : 'No bio provided yet.'}
+                    
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary" 
+                      sx={{ 
+                        mb: 2,
+                        textAlign: 'center',
+                        fontStyle: therapist.bio ? 'normal' : 'italic'
+                      }}
+                    >
+                      {therapist.bio ? `${therapist.bio.substring(0, 100)}${therapist.bio.length > 100 ? '...' : ''}` : 'No bio provided yet.'}
                     </Typography>
-                  </Box>
-                  <Stack direction="row" spacing={1} sx={{ mt: 'auto', flexWrap: 'wrap', gap: 1 }}>
-                    {therapist.session_modes === 'online' && (
-                      <Chip 
-                        icon={<OnlinePredictionOutlined />} 
-                        label="Online Sessions" 
-                        size="small" 
-                        sx={{ backgroundColor: '#e0f7fa', color: '#006064' }} 
-                      />
-                    )}
-                    {therapist.session_modes === 'physical' && (
-                      <Chip 
-                        icon={<PinDropOutlined />} 
-                        label="Physical Sessions" 
-                        size="small" 
-                        sx={{ backgroundColor: '#ede7f6', color: '#4527a0' }} 
-                      />
-                    )}
-                    {therapist.session_modes === 'both' && (
-                      <>
-                        <Chip 
-                          icon={<OnlinePredictionOutlined />} 
-                          label="Online" 
-                          size="small" 
-                          sx={{ backgroundColor: '#e0f7fa', color: '#006064' }} 
+                    
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'center',
+                      flexWrap: 'wrap',
+                      gap: 1,
+                      mt: 'auto'
+                    }}>
+                      {therapist.session_modes === 'online' && (
+                        <Chip
+                          icon={<OnlinePredictionOutlined fontSize="small" />}
+                          label="Online"
+                          size="small"
+                          sx={{ 
+                            backgroundColor: '#fff3e0', 
+                            color: '#780000',
+                            border: '1px solid #78000020'
+                          }}
                         />
-                        <Chip 
-                          icon={<PinDropOutlined />} 
-                          label="Physical" 
-                          size="small" 
-                          sx={{ backgroundColor: '#ede7f6', color: '#4527a0' }} 
+                      )}
+                      {therapist.session_modes === 'physical' && (
+                        <Chip
+                          icon={<PinDropOutlined fontSize="small" />}
+                          label="Physical"
+                          size="small"
+                          sx={{ 
+                            backgroundColor: '#f3e5f5', 
+                            color: '#780000',
+                            border: '1px solid #78000020'
+                          }}
                         />
-                      </>
-                    )}
-                    {therapist.is_available ? (
-                      <Chip label="Available" color="success" size="small" />
-                    ) : (
-                      <Chip label="Not Available" color="error" size="small" />
-                    )}
-                  </Stack>
-                </Paper>
+                      )}
+                      {therapist.session_modes === 'both' && (
+                        <>
+                          <Chip
+                            icon={<OnlinePredictionOutlined fontSize="small" />}
+                            label="Online"
+                            size="small"
+                            sx={{ 
+                              backgroundColor: '#fff3e0', 
+                              color: '#780000',
+                              border: '1px solid #78000020'
+                            }}
+                          />
+                          <Chip
+                            icon={<PinDropOutlined fontSize="small" />}
+                            label="Physical"
+                            size="small"
+                            sx={{ 
+                              backgroundColor: '#f3e5f5', 
+                              color: '#780000',
+                              border: '1px solid #78000020'
+                            }}
+                          />
+                        </>
+                      )}
+                      <Chip
+                        label={therapist.is_available ? "Available" : "Not Available"}
+                        size="small"
+                        sx={{
+                          backgroundColor: therapist.is_available ? '#f0f7e6' : '#f5f5f5',
+                          color: therapist.is_available ? '#2e7d32' : '#999',
+                          border: `1px solid ${therapist.is_available ? '#2e7d3220' : '#ccc'}`,
+                          fontWeight: therapist.is_available ? 'bold' : 'normal'
+                        }}
+                      />
+                    </Box>
+                  </CardContent>
+                </Card>
               </Grid>
             ))}
           </Grid>
