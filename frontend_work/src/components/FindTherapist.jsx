@@ -11,8 +11,12 @@ import {
   Snackbar,
   Alert,
   Chip,
-  Stack
+  Stack // Added Stack for consistent spacing of chips
 } from '@mui/material';
+import {
+  OnlinePredictionOutlined, // Icon for online sessions
+  PinDropOutlined // Icon for physical sessions
+} from '@mui/icons-material'; // Import icons
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext'; 
 import { useNavigate } from 'react-router-dom';
@@ -111,7 +115,7 @@ export default function FindTherapist() {
                         {/* Display credential before full name */}
                         {therapist.license_credentials ? `${therapist.license_credentials} ` : ''}{therapist.full_name}
                       </Typography>
-                      {/* Conditionally display hourly rate */}
+                      {/* Conditionally display hourly rate or free consultation */}
                       {!therapist.is_free_consultation && (
                           <Typography variant="body2" color="text.secondary">
                             {therapist.hourly_rate && parseFloat(therapist.hourly_rate) > 0 ? 
@@ -126,6 +130,50 @@ export default function FindTherapist() {
                       )}
                     </Box>
                   </Box>
+                  <Box sx={{ flexGrow: 1, mb: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {therapist.bio ? `${therapist.bio.substring(0, 100)}...` : 'No bio provided yet.'}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1} sx={{ mt: 'auto', flexWrap: 'wrap', gap: 1 }}>
+                    {therapist.session_modes === 'online' && (
+                      <Chip 
+                        icon={<OnlinePredictionOutlined />} 
+                        label="Online Sessions" 
+                        size="small" 
+                        sx={{ backgroundColor: '#e0f7fa', color: '#006064' }} 
+                      />
+                    )}
+                    {therapist.session_modes === 'physical' && (
+                      <Chip 
+                        icon={<PinDropOutlined />} 
+                        label="Physical Sessions" 
+                        size="small" 
+                        sx={{ backgroundColor: '#ede7f6', color: '#4527a0' }} 
+                      />
+                    )}
+                    {therapist.session_modes === 'both' && (
+                      <>
+                        <Chip 
+                          icon={<OnlinePredictionOutlined />} 
+                          label="Online" 
+                          size="small" 
+                          sx={{ backgroundColor: '#e0f7fa', color: '#006064' }} 
+                        />
+                        <Chip 
+                          icon={<PinDropOutlined />} 
+                          label="Physical" 
+                          size="small" 
+                          sx={{ backgroundColor: '#ede7f6', color: '#4527a0' }} 
+                        />
+                      </>
+                    )}
+                    {therapist.is_available ? (
+                      <Chip label="Available" color="success" size="small" />
+                    ) : (
+                      <Chip label="Not Available" color="error" size="small" />
+                    )}
+                  </Stack>
                 </Paper>
               </Grid>
             ))}
@@ -135,4 +183,3 @@ export default function FindTherapist() {
     </Box>
   );
 }
-
