@@ -58,15 +58,18 @@ export default function Navbar() {
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           {user ? (
             <>
+              {/* Added Dashboard link */}
+              <Button component={Link} to="/dashboard" sx={{ color: "#fefae0" }}>
+                Dashboard
+              </Button>
+              {/* Existing Home link, you might consider removing or redirecting if Dashboard is the primary user landing */}
               <Button component={Link} to="/homepage" sx={{ color: "#fefae0" }}>
                 Home
               </Button>
 
-              {/* START: Added Button */}
               <Button component={Link} to="/find-therapist" sx={{ color: "#fefae0" }}>
                 Find a Therapist
               </Button>
-              {/* END: Added Button */}
 
               <Button component={Link} to="/journal" sx={{ color: "#fefae0" }}>
                 Start Journaling
