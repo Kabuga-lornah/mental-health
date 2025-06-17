@@ -1,3 +1,4 @@
+# File: Backend_work/mental_health_app/views.py
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -51,13 +52,17 @@ class RegisterView(generics.CreateAPIView):
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
                     'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
-                    # NEW fields added to user data in response
+                    # NEW fields added to user data in response (already existing)
                     'license_credentials': user.license_credentials,
                     'approach_modalities': user.approach_modalities,
                     'languages_spoken': user.languages_spoken,
                     'client_focus': user.client_focus,
                     'insurance_accepted': user.insurance_accepted,
-                    'video_introduction_url': user.video_introduction_url
+                    'video_introduction_url': user.video_introduction_url,
+                    # NEW fields added from user request
+                    'is_free_consultation': user.is_free_consultation,
+                    'session_modes': user.session_modes,
+                    'physical_address': user.physical_address,
                 }
             }, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -97,13 +102,17 @@ class LoginView(generics.GenericAPIView):
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
                     'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
-                    # NEW fields added to user data in response
+                    # NEW fields added to user data in response (already existing)
                     'license_credentials': user.license_credentials,
                     'approach_modalities': user.approach_modalities,
                     'languages_spoken': user.languages_spoken,
                     'client_focus': user.client_focus,
                     'insurance_accepted': user.insurance_accepted,
-                    'video_introduction_url': user.video_introduction_url
+                    'video_introduction_url': user.video_introduction_url,
+                    # NEW fields added from user request
+                    'is_free_consultation': user.is_free_consultation,
+                    'session_modes': user.session_modes,
+                    'physical_address': user.physical_address,
                 }
             })
         except Exception as e:
@@ -263,6 +272,22 @@ class SessionRequestCreateView(generics.CreateAPIView):
             raise serializers.ValidationError(
                 {"therapist": "You cannot request a session with yourself."}
             )
+        
+        # Check if the client already has a pending or scheduled session
+        existing_request = SessionRequest.objects.filter(
+            client=self.request.user, 
+            status__in=['pending', 'accepted']
+        ).exists()
+        
+        existing_session = Session.objects.filter(
+            client=self.request.user,
+            status='scheduled'
+        ).exists()
+
+        if existing_request or existing_session:
+            raise serializers.ValidationError(
+                {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."}
+            )
 
         serializer.save(client=self.request.user, therapist=therapist)
 
@@ -376,6 +401,7 @@ class SessionCreateFromRequestView(generics.CreateAPIView):
         if hasattr(session_request, 'session'):
              return Response({'error': 'A session has already been created for this request.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Update session request status to accepted
         session_request.status = 'accepted'
         session_request.save()
         
@@ -386,7 +412,8 @@ class SessionCreateFromRequestView(generics.CreateAPIView):
             'session_date': session_request.requested_date,
             'session_time': session_request.requested_time,
             'session_type': request.data.get('session_type', 'online'),
-            'location': request.data.get('location', None)
+            'location': request.data.get('location', None),
+            'zoom_meeting_url': request.data.get('zoom_meeting_url', None) # NEW: Get Zoom URL from request data
         }
         
         serializer = self.get_serializer(data=session_data)
@@ -406,6 +433,31 @@ class SessionDetailUpdateView(generics.UpdateAPIView):
             raise PermissionDenied("You do not have permission to edit this session.")
         return obj
 
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        # Handle status change to 'completed'
+        if 'status' in request.data and request.data['status'] == 'completed':
+            if instance.status != 'completed':
+                # Ensure all required "notes" fields are present if marking as completed
+                if not all(field in request.data for field in ['notes', 'key_takeaways', 'recommendations']):
+                     # It's better to make these fields explicitly required in the serializer
+                     # or add more specific validation here if they are nullable in the model
+                    pass # Handled by serializer validation now
+        
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied, we need to refresh the instance.
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+        
+        return Response(serializer.data)
+
+
 # NEW: Client Session List View
 class ClientSessionListView(generics.ListAPIView):
     serializer_class = SessionSerializer
@@ -420,3 +472,4 @@ class ClientSessionListView(generics.ListAPIView):
             queryset = queryset.filter(status=status_filter)
             
         return queryset.order_by('-session_date', '-session_time')
+

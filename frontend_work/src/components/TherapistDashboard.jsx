@@ -1,3 +1,4 @@
+// File: frontend_work/src/components/TherapistDashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Box, Typography, Container, Paper, Grid, Button, CircularProgress, 
@@ -43,8 +44,9 @@ export default function TherapistDashboard() {
   const [selectedSession, setSelectedSession] = useState(null);
   
   // Session management states for modals
-  const [sessionType, setSessionType] = useState('online');
-  const [sessionLocation, setSessionLocation] = useState('');
+  const [sessionType, setSessionType] = useState('online'); // Defaults to online
+  const [sessionLocation, setSessionLocation] = useState(''); // For physical sessions
+  const [zoomMeetingUrl, setZoomMeetingUrl] = useState(''); // NEW: For online sessions
   const [sessionNotes, setSessionNotes] = useState('');
   const [keyTakeaways, setKeyTakeaways] = useState('');
   const [recommendations, setRecommendations] = useState('');
@@ -125,13 +127,19 @@ export default function TherapistDashboard() {
     if (!selectedRequest) return;
   
     try {
-      // This single API call now handles accepting the request AND creating the session
+      const payload = {
+        session_request: selectedRequest.id,
+        session_type: sessionType,
+      };
+
+      if (sessionType === 'physical') {
+        payload.location = sessionLocation;
+      } else if (sessionType === 'online') {
+        payload.zoom_meeting_url = zoomMeetingUrl; // NEW: Add Zoom URL to payload
+      }
+
       await axios.post('http://localhost:8000/api/therapist/sessions/create/', 
-        {
-          session_request: selectedRequest.id,
-          session_type: sessionType,
-          location: sessionType === 'physical' ? sessionLocation : '',
-        },
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
   
@@ -194,6 +202,7 @@ export default function TherapistDashboard() {
     setSelectedRequest(null);
     setSessionType('online');
     setSessionLocation('');
+    setZoomMeetingUrl(''); // Reset Zoom URL
   };
 
   const handleCloseSessionNotesModal = () => {
@@ -337,6 +346,13 @@ export default function TherapistDashboard() {
                             <strong>Date:</strong> {session.session_date}<br />
                             <strong>Time:</strong> {session.session_time}
                           </Typography>
+                          {session.session_type === 'online' && session.zoom_meeting_url && (
+                                <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic', color: textColor }}>
+                                    <a href={session.zoom_meeting_url} target="_blank" rel="noopener noreferrer" style={{ color: primaryColor }}>
+                                        Zoom Link
+                                    </a>
+                                </Typography>
+                            )}
                         </CardContent>
                         <CardActions>
                           <Button
@@ -505,6 +521,20 @@ export default function TherapistDashboard() {
               InputLabelProps={{
                 style: { color: lightTextColor },
               }}
+            />
+          )}
+          {sessionType === 'online' && ( // NEW: Zoom URL field for online sessions
+            <TextField 
+              fullWidth 
+              label="Zoom Meeting URL" 
+              value={zoomMeetingUrl} 
+              onChange={(e) => setZoomMeetingUrl(e.target.value)} 
+              variant="outlined" 
+              sx={{ mb: 2 }} 
+              InputLabelProps={{
+                style: { color: lightTextColor },
+              }}
+              placeholder="e.g., https://zoom.us/j/your-meeting-id"
             />
           )}
         </DialogContent>

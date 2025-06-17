@@ -1,3 +1,4 @@
+// File: frontend_work/src/components/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -7,7 +8,7 @@ import {
 } from "@mui/material";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { AccessTime, Event, CheckCircleOutline, ExpandMore, ExpandLess, Recommend } from "@mui/icons-material"; // Removed Notes icon as notes won't be displayed
+import { AccessTime, Event, CheckCircleOutline, ExpandMore, ExpandLess, Recommend, VideoCall, LocationOn } from "@mui/icons-material"; // Removed Notes icon as notes won't be displayed
 
 export default function Dashboard() {
   const { user, token } = useAuth();
@@ -131,20 +132,20 @@ export default function Dashboard() {
                     <ListItem disableGutters>
                       <ListItemText
                         primary={
-                          <Typography variant="h6" sx={{ color: '#FFC107' }}>
+                          <Typography variant="h6" sx={{ color: '#780000' }}>
                             Request to {request.therapist_name}
                           </Typography>
                         }
                         secondary={
                           <>
                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                              <Event sx={{ fontSize: 16, mr: 1, color: '#FFC107' }} />
+                              <Event sx={{ fontSize: 16, mr: 1, color: '#780000' }} />
                               <Typography variant="body2">
                                 Date: {request.requested_date}
                               </Typography>
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                              <AccessTime sx={{ fontSize: 16, mr: 1, color: '#FFC107' }} />
+                              <AccessTime sx={{ fontSize: 16, mr: 1, color: '#780000' }} />
                               <Typography variant="body2">
                                 Time: {request.requested_time}
                               </Typography>
@@ -202,6 +203,7 @@ export default function Dashboard() {
                               </Typography>
                             </Box>
                             <Chip
+                              icon={session.session_type === 'online' ? <VideoCall /> : <LocationOn />}
                               label={session.session_type === 'online' ? 'Online' : 'In-Person'}
                               size="small"
                               sx={{ mt: 1, backgroundColor: session.session_type === 'online' ? '#E3F2FD' : '#FFF3E0', color: '#3F51B5' }}
@@ -210,6 +212,14 @@ export default function Dashboard() {
                               <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic', color: '#555' }}>
                                 Location: {session.location}
                               </Typography>
+                            )}
+                            {/* NEW: Display Zoom URL for online sessions */}
+                            {session.session_type === 'online' && session.zoom_meeting_url && (
+                                <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic', color: '#555' }}>
+                                    <a href={session.zoom_meeting_url} target="_blank" rel="noopener noreferrer" style={{ color: '#780000' }}>
+                                        Join Session (Zoom)
+                                    </a>
+                                </Typography>
                             )}
                           </>
                         }

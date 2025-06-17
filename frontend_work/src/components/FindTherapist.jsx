@@ -1,3 +1,4 @@
+// File: frontend_work/src/components/FindTherapist.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -107,13 +108,22 @@ export default function FindTherapist() {
                     />
                     <Box>
                       <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold' }}>
-                        {therapist.full_name}
+                        {/* Display credential before full name */}
+                        {therapist.license_credentials ? `${therapist.license_credentials} ` : ''}{therapist.full_name}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {therapist.hourly_rate && parseFloat(therapist.hourly_rate) > 0 ? 
-                          `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 
-                          'Free Consultation'}
-                      </Typography>
+                      {/* Conditionally display hourly rate */}
+                      {!therapist.is_free_consultation && (
+                          <Typography variant="body2" color="text.secondary">
+                            {therapist.hourly_rate && parseFloat(therapist.hourly_rate) > 0 ? 
+                              `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hour` : 
+                              'N/A'}
+                          </Typography>
+                      )}
+                      {therapist.is_free_consultation && (
+                           <Typography variant="body2" color="text.secondary">
+                               Free Initial Consultation
+                           </Typography>
+                      )}
                     </Box>
                   </Box>
                 </Paper>
@@ -125,3 +135,4 @@ export default function FindTherapist() {
     </Box>
   );
 }
+

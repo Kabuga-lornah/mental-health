@@ -1,3 +1,4 @@
+// File: frontend_work/src/components/TherapistApplicationForm.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -73,14 +74,10 @@ export default function TherapistApplicationForm() {
     languages_spoken: '',
     client_focus: '',
     insurance_accepted: false,
-    
-    // NEW pricing and session fields
-    session_type_choice: 'paid', // 'free' or 'paid'
-    hourly_rate: '',
-    rate_per_week: '',
-    rate_per_month: '',
-    free_sessions_offered: 0,
-    mpesa_phone_number: '', // For Mpesa prompting
+    years_of_experience: '', // NEW: Years of experience
+    is_free_consultation: false, // NEW: Free consultation option
+    session_modes: 'online', // NEW: Session types: 'online', 'physical', 'both'
+    physical_address: '', // NEW: Physical address for in-person sessions
   });
 
   const [files, setFiles] = useState({
@@ -153,7 +150,7 @@ export default function TherapistApplicationForm() {
     if (!formData.license_number.trim() || !formData.id_number.trim() || 
         !formData.motivation_statement.trim() || !formData.license_credentials.trim() ||
         !formData.approach_modalities.trim() || !formData.languages_spoken.trim() ||
-        !formData.client_focus.trim()
+        !formData.client_focus.trim() || !formData.years_of_experience
     ) {
       setError("Please fill in all required text fields for professional details.");
       setSubmitting(false);
@@ -172,30 +169,16 @@ export default function TherapistApplicationForm() {
       return;
     }
 
-    // Pricing validation
-    if (formData.session_type_choice === 'paid') {
-      if (!formData.hourly_rate || isNaN(parseFloat(formData.hourly_rate)) || parseFloat(formData.hourly_rate) <= 0) {
-        setError("Please provide a valid hourly rate for paid sessions.");
+    // Conditional validation for session modes and physical address
+    if ((formData.session_modes === 'physical' || formData.session_modes === 'both') && !formData.physical_address.trim()) {
+        setError("Physical address is required if offering in-person sessions.");
         setSubmitting(false);
         return;
-      }
-      if (formData.rate_per_week && isNaN(parseFloat(formData.rate_per_week))) {
-        setError("Weekly rate must be a valid number.");
-        setSubmitting(false);
-        return;
-      }
-      if (formData.rate_per_month && isNaN(parseFloat(formData.rate_per_month))) {
-        setError("Monthly rate must be a valid number.");
-        setSubmitting(false);
-        return;
-      }
-    } else { // Free sessions
-      if (isNaN(parseInt(formData.free_sessions_offered))) {
-        setError("Number of free sessions must be a valid number.");
-        setSubmitting(false);
-        return;
-      }
     }
+    // For now, hourly_rate is not directly in the application model,
+    // it's set on the User model upon approval via admin.
+    // The application form is just collecting 'is_free_consultation'
+    // and the logic on the user model will determine if hourly_rate is needed.
 
     // Create FormData object
     const submissionFormData = new FormData();
@@ -213,19 +196,12 @@ export default function TherapistApplicationForm() {
     submissionFormData.append('languages_spoken', formData.languages_spoken);
     submissionFormData.append('client_focus', formData.client_focus);
     submissionFormData.append('insurance_accepted', formData.insurance_accepted);
-
-    // NEW: Append pricing and session fields
-    submissionFormData.append('is_free_consultation', formData.session_type_choice === 'free'); // Boolean based on choice
-    if (formData.session_type_choice === 'paid') {
-      submissionFormData.append('hourly_rate', parseFloat(formData.hourly_rate));
-      if (formData.rate_per_week) submissionFormData.append('rate_per_week', parseFloat(formData.rate_per_week));
-      if (formData.rate_per_month) submissionFormData.append('rate_per_month', parseFloat(formData.rate_per_month));
-    } else {
-      submissionFormData.append('free_sessions_offered', parseInt(formData.free_sessions_offered));
-    }
-    if (formData.mpesa_phone_number.trim()) {
-      submissionFormData.append('mpesa_phone_number', formData.mpesa_phone_number.trim());
-    }
+    
+    // NEW: Append years of experience, free consultation, session modes, and physical address
+    submissionFormData.append('years_of_experience', formData.years_of_experience);
+    submissionFormData.append('is_free_consultation', formData.is_free_consultation);
+    submissionFormData.append('session_modes', formData.session_modes);
+    submissionFormData.append('physical_address', formData.physical_address);
 
 
     try {
@@ -431,6 +407,23 @@ export default function TherapistApplicationForm() {
                   }}
                 />
               </Grid>
+              {/* NEW: Years of Experience field */}
+              <Grid item xs={12}>
+                <TextField 
+                  required 
+                  fullWidth 
+                  label="Years of Experience" 
+                  name="years_of_experience" 
+                  type="number"
+                  value={formData.years_of_experience} 
+                  onChange={handleInputChange}
+                  inputProps={{ min: 0 }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                  }}
+                />
+              </Grid>
             </Grid>
               
             {/* Section 2: Specializations and Approach */}
@@ -521,37 +514,80 @@ export default function TherapistApplicationForm() {
               </Grid>
             </Grid>
 
-            {/* Section 3: Pricing and Payment */}
+            {/* Section 3: Pricing and Session Modes */}
             <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
-              Pricing & Session Details
+              Session & Availability Details
             </Typography>
             <Grid container spacing={3} mb={4}>
+                {/* NEW: Session Modes (Online/Physical/Both) */}
+                <Grid item xs={12}>
+                    <FormControl component="fieldset" fullWidth>
+                        <Typography variant="body1" sx={{ color: textColor, mb: 1, fontWeight: 'medium' }}>
+                            Session Delivery:
+                        </Typography>
+                        <RadioGroup
+                            row
+                            name="session_modes"
+                            value={formData.session_modes}
+                            onChange={handleInputChange}
+                        >
+                            <FormControlLabel 
+                                value="online" 
+                                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
+                                label={<Typography sx={{ color: textColor }}>Online</Typography>} 
+                            />
+                            <FormControlLabel 
+                                value="physical" 
+                                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
+                                label={<Typography sx={{ color: textColor }}>Physical (In-Person)</Typography>} 
+                            />
+                            <FormControlLabel 
+                                value="both" 
+                                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
+                                label={<Typography sx={{ color: textColor }}>Both</Typography>} 
+                            />
+                        </RadioGroup>
+                    </FormControl>
+                </Grid>
+                {/* NEW: Physical Address if physical sessions are offered */}
+                {(formData.session_modes === 'physical' || formData.session_modes === 'both') && (
+                    <Grid item xs={12}>
+                        <TextField 
+                            required 
+                            fullWidth 
+                            label="Physical Location/Address" 
+                            name="physical_address" 
+                            multiline 
+                            rows={3}
+                            value={formData.physical_address} 
+                            onChange={handleInputChange}
+                            helperText="Provide the address where in-person sessions will take place."
+                            sx={{
+                                '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                                '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                                '& .MuiFormHelperText-root': { color: lightTextColor },
+                            }}
+                        />
+                    </Grid>
+                )}
+
+              {/* NEW: Is Free Consultation */}
               <Grid item xs={12}>
-                <FormControl component="fieldset" fullWidth>
-                  <Typography variant="body1" sx={{ color: textColor, mb: 1, fontWeight: 'medium' }}>
-                    Session Fee Structure:
-                  </Typography>
-                  <RadioGroup
-                    row
-                    name="session_type_choice"
-                    value={formData.session_type_choice}
-                    onChange={handleInputChange}
-                  >
-                    <FormControlLabel 
-                      value="paid" 
-                      control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
-                      label={<Typography sx={{ color: textColor }}>Paid Sessions</Typography>} 
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={formData.is_free_consultation}
+                      onChange={handleInputChange}
+                      name="is_free_consultation"
+                      sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
                     />
-                    <FormControlLabel 
-                      value="free" 
-                      control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
-                      label={<Typography sx={{ color: textColor }}>Offer Free Consultation</Typography>} 
-                    />
-                  </RadioGroup>
-                </FormControl>
+                  }
+                  label={<Typography sx={{ color: textColor }}>Offer a free consultation?</Typography>}
+                />
               </Grid>
 
-              {formData.session_type_choice === 'paid' ? (
+              {/* Conditionally render payment fields based on is_free_consultation */}
+              {!formData.is_free_consultation && (
                 <>
                   <Grid item xs={12} sm={4}>
                     <TextField 
@@ -569,6 +605,9 @@ export default function TherapistApplicationForm() {
                       }}
                     />
                   </Grid>
+                  {/* These fields are no longer directly in the TherapistApplication model for the backend,
+                      but can be collected here if desired and handled by the system logic later.
+                      For now, they are removed from the form as the backend doesn't store them in TherapistApplication.
                   <Grid item xs={12} sm={4}>
                     <TextField 
                       fullWidth 
@@ -599,56 +638,42 @@ export default function TherapistApplicationForm() {
                       }}
                     />
                   </Grid>
+                  */}
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.insurance_accepted}
+                          onChange={handleInputChange}
+                          name="insurance_accepted"
+                          sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
+                        />
+                      }
+                      label={<Typography sx={{ color: textColor }}>Do you accept insurance?</Typography>}
+                    />
+                  </Grid>
+
+                  {/* Mpesa phone number is not directly stored on the therapist application itself,
+                      but can be a user profile field updated after approval.
+                  <Grid item xs={12}>
+                    <TextField 
+                      fullWidth 
+                      label="Mpesa Phone Number (for payments)" 
+                      name="mpesa_phone_number" 
+                      value={formData.mpesa_phone_number} 
+                      onChange={handleInputChange}
+                      helperText="Enter the phone number associated with your Mpesa account for client payments."
+                      sx={{
+                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
+                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
+                        '& .MuiFormHelperText-root': { color: lightTextColor },
+                      }}
+                    />
+                  </Grid>
+                  */}
                 </>
-              ) : (
-                <Grid item xs={12} sm={6}>
-                  <TextField 
-                    fullWidth 
-                    label="Number of Free Sessions Offered" 
-                    name="free_sessions_offered" 
-                    type="number"
-                    value={formData.free_sessions_offered} 
-                    onChange={handleInputChange}
-                    inputProps={{ min: 0 }}
-                    helperText="e.g., '1' for one free introductory session."
-                    sx={{
-                      '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                      '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                      '& .MuiFormHelperText-root': { color: lightTextColor },
-                    }}
-                  />
-                </Grid>
               )}
               
-              <Grid item xs={12}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.insurance_accepted}
-                      onChange={handleInputChange}
-                      name="insurance_accepted"
-                      sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
-                    />
-                  }
-                  label={<Typography sx={{ color: textColor }}>Do you accept insurance?</Typography>}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <TextField 
-                  fullWidth 
-                  label="Mpesa Phone Number (for payments)" 
-                  name="mpesa_phone_number" 
-                  value={formData.mpesa_phone_number} 
-                  onChange={handleInputChange}
-                  helperText="Enter the phone number associated with your Mpesa account for client payments."
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                    '& .MuiFormHelperText-root': { color: lightTextColor },
-                  }}
-                />
-              </Grid>
             </Grid>
 
             {/* Section 4: Document Uploads */}

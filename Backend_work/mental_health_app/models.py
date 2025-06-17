@@ -1,3 +1,5 @@
+# File: Backend_work/mental_health_app/models.py
+# Add the following imports if not already present
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
@@ -34,7 +36,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     profile_picture = models.ImageField(upload_to='profiles/', null=True, blank=True)
     is_therapist = models.BooleanField(default=False)
     
-    # Therapist-specific fields
+    # Therapist-specific fields (already existing in User model)
     is_verified = models.BooleanField(default=False)  # True if therapist application is approved
     bio = models.TextField(blank=True, null=True)  # Short description about the therapist
     years_of_experience = models.IntegerField(blank=True, null=True)
@@ -48,9 +50,25 @@ class User(AbstractBaseUser, PermissionsMixin):
     languages_spoken = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of languages")
     client_focus = models.TextField(blank=True, null=True, help_text="e.g., Adults, Teens, LGBTQ+, Couples")
     insurance_accepted = models.BooleanField(default=False)
-    # payment_info = models.TextField(blank=True, null=True, help_text="Details about payment methods, e.g., 'Private pay, Aetna'") # Hourly rate covers some of this
     video_introduction_url = models.URLField(max_length=500, blank=True, null=True, help_text="Link to a brief video introduction")
     
+    # NEW fields for free consultation, session modes, and physical address
+    is_free_consultation = models.BooleanField(default=False) # If true, implies free initial consultation/session
+    SESSION_MODES_CHOICES = [
+        ('online', 'Online'),
+        ('physical', 'Physical (In-Person)'),
+        ('both', 'Both Online & Physical'),
+    ]
+    session_modes = models.CharField(
+        max_length=50,
+        choices=SESSION_MODES_CHOICES,
+        default='online',
+        blank=True,
+        null=True
+    )
+    physical_address = models.TextField(blank=True, null=True, help_text="Physical address for in-person sessions")
+
+
     # Required fields
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -91,12 +109,29 @@ class TherapistApplication(models.Model):
 
     # NEW: Fields for additional therapist profile information, captured during application
     # These will be transferred to the User profile upon approval
+    years_of_experience = models.IntegerField(blank=True, null=True) # Added from user request
     license_credentials = models.CharField(max_length=100, blank=True, null=True)
     approach_modalities = models.TextField(blank=True, null=True)
     languages_spoken = models.CharField(max_length=255, blank=True, null=True)
     client_focus = models.TextField(blank=True, null=True)
     insurance_accepted = models.BooleanField(default=False)
-    # payment_info_application = models.TextField(blank=True, null=True) # If more detailed than hourly rate
+
+    # NEW fields for free consultation, session modes, and physical address
+    is_free_consultation = models.BooleanField(default=False)
+    SESSION_MODES_CHOICES = [
+        ('online', 'Online'),
+        ('physical', 'Physical (In-Person)'),
+        ('both', 'Both Online & Physical'),
+    ]
+    session_modes = models.CharField(
+        max_length=50,
+        choices=SESSION_MODES_CHOICES,
+        default='online',
+        blank=True,
+        null=True
+    )
+    physical_address = models.TextField(blank=True, null=True)
+
 
     # Status of the application
     APPLICATION_STATUS_CHOICES = [
@@ -199,7 +234,8 @@ class Session(models.Model):
     session_date = models.DateField()
     session_time = models.TimeField()
     session_type = models.CharField(max_length=50, default='online') # e.g., 'online', 'physical'
-    location = models.CharField(max_length=255, blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True) # Used if session_type is physical
+    zoom_meeting_url = models.URLField(max_length=500, blank=True, null=True, help_text="Zoom meeting URL for online sessions") # NEW FIELD
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
     
@@ -214,4 +250,5 @@ class Session(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Session for {self.client.username} with {self.therapist.username} on {self.session_date}"
+        return f"Session for {self.client.email} with {self.therapist.email} on {self.session_date}"
+

@@ -1,3 +1,4 @@
+# File: Backend_work/mental_health_project/settings.py
 """
 Django settings for mental_health_project project.
 
@@ -198,9 +199,9 @@ AUTH_USER_MODEL = 'mental_health_app.User'
 # Ensure CLOUDINARY_URL is set in environment variables in production,
 # or uncomment and set them directly here for development
 cloudinary.config( 
-    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME', 'dgdf0svqx'),
-    api_key = os.environ.get('CLOUDINARY_API_KEY', '643477632634929'),
-    api_secret = os.environ.get('CLOUDINARY_API_SECRET', 'GOCYIijtAEFjRTVZj5bJy4dzqE0')
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME', 'dgdf0svqx'), 
+    api_key = os.environ.get('CLOUDINARY_API_KEY', '643477632634929'), 
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET', 'GOCYIijtAEFjRTVZj5bJy4dzqE0') 
 )
 
 # Default File Storage for Media (user uploads, e.g., images for user profiles)

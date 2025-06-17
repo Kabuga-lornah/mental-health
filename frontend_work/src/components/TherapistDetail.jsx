@@ -1,3 +1,4 @@
+// File: frontend_work/src/components/TherapistDetail.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -19,6 +20,11 @@ import {
   Card,
   CardContent,
   Divider,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -37,6 +43,7 @@ export default function TherapistDetail() {
   const [requestMessage, setRequestMessage] = useState('');
   const [requestedDate, setRequestedDate] = useState('');
   const [requestedTime, setRequestedTime] = useState('');
+  const [sessionType, setSessionType] = useState('online'); // Default to online for request
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
@@ -67,6 +74,12 @@ export default function TherapistDetail() {
 
   const handleRequestSessionClick = () => {
     setOpenRequestModal(true);
+    // Set default session type based on therapist's primary mode if available
+    if (therapist?.session_modes === 'online' || therapist?.session_modes === 'both') {
+      setSessionType('online');
+    } else if (therapist?.session_modes === 'physical') {
+      setSessionType('physical');
+    }
   };
 
   const handleCloseRequestModal = () => {
@@ -74,6 +87,7 @@ export default function TherapistDetail() {
     setRequestMessage('');
     setRequestedDate('');
     setRequestedTime('');
+    setSessionType('online'); // Reset to default
   };
 
   const handleSubmitSessionRequest = async () => {
@@ -87,7 +101,9 @@ export default function TherapistDetail() {
         message: requestMessage,
         requested_date: requestedDate,
         requested_time: requestedTime,
-        status: 'pending'
+        status: 'pending',
+        // Add session_type to the request payload
+        session_type: sessionType, 
       };
 
       await axios.post('http://localhost:8000/api/session-requests/', payload, {
@@ -103,7 +119,7 @@ export default function TherapistDetail() {
       handleCloseRequestModal();
     } catch (err) {
       console.error("Error sending session request:", err.response?.data || err.message);
-      setSnackbarMessage(err.response?.data?.therapist?.[0] || err.message || "Failed to send session request.");
+      setSnackbarMessage(err.response?.data?.detail || err.response?.data?.therapist?.[0] || err.message || "Failed to send session request.");
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
@@ -167,7 +183,8 @@ export default function TherapistDetail() {
                 style={{ borderRadius: '50%', width: 180, height: 180, objectFit: 'cover', border: '4px solid #780000' }}
               />
               <Typography variant="h5" sx={{ color: '#780000', mt: 2, fontWeight: 'bold' }}>
-                {therapist.full_name}
+                {/* Display credential before full name */}
+                {therapist.license_credentials ? `${therapist.license_credentials} ` : ''}{therapist.full_name}
               </Typography>
               <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 1 }}>
                 {therapist.license_credentials}
@@ -215,12 +232,22 @@ export default function TherapistDetail() {
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2"><strong>Years of Experience:</strong> {therapist.years_of_experience || 'N/A'}</Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2"><strong>Hourly Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}` : 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2"><strong>Accepts Insurance:</strong> {therapist.insurance_accepted ? 'Yes' : 'No'}</Typography>
-                  </Grid>
+                  {/* Conditionally hide hourly rate and insurance for free consultation therapists */}
+                  {!therapist.is_free_consultation && (
+                      <>
+                          <Grid item xs={12} sm={6}>
+                            <Typography variant="body2"><strong>Hourly Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}` : 'N/A'}</Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <Typography variant="body2"><strong>Accepts Insurance:</strong> {therapist.insurance_accepted ? 'Yes' : 'No'}</Typography>
+                          </Grid>
+                      </>
+                  )}
+                  {therapist.is_free_consultation && (
+                      <Grid item xs={12} sm={6}>
+                          <Typography variant="body2"><strong>Consultation Fee:</strong> Free Initial Consultation</Typography>
+                      </Grid>
+                  )}
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2"><strong>Languages Spoken:</strong> {therapist.languages_spoken || 'N/A'}</Typography>
                   </Grid>
@@ -231,6 +258,22 @@ export default function TherapistDetail() {
                     <Typography variant="body2"><strong>Approach/Modalities:</strong> {therapist.approach_modalities || 'No specific approach listed.'}</Typography>
                   </Grid>
                 </Grid>
+              </Box>
+              
+              {/* NEW: Display Session Modes and Physical Address */}
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
+                  Session Information
+                </Typography>
+                <Typography variant="body2">
+                    <strong>Session Modes:</strong> {therapist.session_modes ? therapist.session_modes.replace('both', 'Online & Physical') : 'N/A'}
+                </Typography>
+                {therapist.session_modes && (therapist.session_modes === 'physical' || therapist.session_modes === 'both') && (
+                    <Typography variant="body2">
+                        <strong>Physical Location:</strong> {therapist.physical_address || 'Not specified'}
+                    </Typography>
+                )}
               </Box>
 
               {therapist.specializations && therapist.specializations.length > 0 && (
@@ -249,8 +292,9 @@ export default function TherapistDetail() {
                 </>
               )}
 
+              {/* Removed Contact section (Email, Phone) as per user request */}
+              {/*
               <Divider sx={{ my: 2 }} />
-
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
                   Contact
@@ -258,6 +302,7 @@ export default function TherapistDetail() {
                 <Typography variant="body2"><strong>Email:</strong> {therapist.email}</Typography>
                 <Typography variant="body2"><strong>Phone:</strong> {therapist.phone || 'N/A'}</Typography>
               </Box>
+              */}
 
               {therapist.video_introduction_url && (
                 <>
@@ -323,6 +368,26 @@ export default function TherapistDetail() {
             onChange={(e) => setRequestedTime(e.target.value)}
             sx={{ mb: 2 }}
           />
+          {/* Session Type selection for client based on therapist's modes */}
+          {(therapist?.session_modes === 'online' || therapist?.session_modes === 'physical' || therapist?.session_modes === 'both') && (
+            <FormControl component="fieldset" fullWidth sx={{ mb: 2 }}>
+                <FormLabel component="legend">Choose Session Type</FormLabel>
+                <RadioGroup
+                    row
+                    name="sessionType"
+                    value={sessionType}
+                    onChange={(e) => setSessionType(e.target.value)}
+                >
+                    {therapist.session_modes === 'online' || therapist.session_modes === 'both' ? (
+                        <FormControlLabel value="online" control={<Radio />} label="Online Session" />
+                    ) : null}
+                    {therapist.session_modes === 'physical' || therapist.session_modes === 'both' ? (
+                        <FormControlLabel value="physical" control={<Radio />} label="Physical Session" />
+                    ) : null}
+                </RadioGroup>
+            </FormControl>
+          )}
+
           <TextField
             margin="dense"
             label="Message (Optional)"
