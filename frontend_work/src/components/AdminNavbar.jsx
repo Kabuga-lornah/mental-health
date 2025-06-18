@@ -1,4 +1,3 @@
-// src/components/AdminNavbar.jsx
 import React from 'react';
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
@@ -10,7 +9,7 @@ export default function AdminNavbar() {
 
   const handleLogout = () => {
     logout();
-    navigate('/login'); // Redirect to login after logout
+    navigate('/login'); 
   };
 
   return (

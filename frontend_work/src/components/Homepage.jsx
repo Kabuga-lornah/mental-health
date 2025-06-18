@@ -1,12 +1,10 @@
 import React from "react";
 import { Box, Typography, Button, Container, Grid, Paper, Divider } from "@mui/material";
 import { Link } from "react-router-dom";
-import AIChatbot from "./AIChatbot"; // Import the new AI Chatbot component
-
-// Navbar import is kept but handled by App.jsx's AppNavbar, so it's not directly rendered here.
+import AIChatbot from "./AIChatbot"; 
 
 // Placeholder images - consider replacing with actual, relevant images
-const heroImage = "https://placehold.co/1920x1080/780000/fefae0?text=MindWell+Hero"; // Large banner image
+const heroImage = "https://placehold.co/1920x1080/780000/fefae0?text=MindWell+Hero"; 
 const journalingFeatureImage = "https://placehold.co/600x400/C13F3F/fefae0?text=Smart+Journaling";
 const therapistFeatureImage = "https://placehold.co/600x400/A02C2C/fefae0?text=Expert+Therapists";
 const aiSupportFeatureImage = "https://placehold.co/600x400/8B0000/fefae0?text=AI+Chatbot";

@@ -1,4 +1,3 @@
-# File: Backend_work/mental_health_app/views.py
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -18,7 +17,6 @@ from .serializers import (
 
 User = get_user_model()
 
-# Custom permission for admin access
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_staff and request.user.is_superuser
@@ -52,14 +50,12 @@ class RegisterView(generics.CreateAPIView):
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
                     'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
-                    # NEW fields added to user data in response (already existing)
                     'license_credentials': user.license_credentials,
                     'approach_modalities': user.approach_modalities,
                     'languages_spoken': user.languages_spoken,
                     'client_focus': user.client_focus,
                     'insurance_accepted': user.insurance_accepted,
                     'video_introduction_url': user.video_introduction_url,
-                    # NEW fields added from user request
                     'is_free_consultation': user.is_free_consultation,
                     'session_modes': user.session_modes,
                     'physical_address': user.physical_address,
@@ -102,14 +98,12 @@ class LoginView(generics.GenericAPIView):
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
                     'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
-                    # NEW fields added to user data in response (already existing)
                     'license_credentials': user.license_credentials,
                     'approach_modalities': user.approach_modalities,
                     'languages_spoken': user.languages_spoken,
                     'client_focus': user.client_focus,
                     'insurance_accepted': user.insurance_accepted,
                     'video_introduction_url': user.video_introduction_url,
-                    # NEW fields added from user request
                     'is_free_consultation': user.is_free_consultation,
                     'session_modes': user.session_modes,
                     'physical_address': user.physical_address,
@@ -192,14 +186,12 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         if TherapistApplication.objects.filter(applicant=self.request.user).exists():
             raise serializers.ValidationError({"detail": "You have already submitted a therapist application."})
-
-        # Ensure applicant's is_therapist status is set to True upon application submission
         user = self.request.user
         if not user.is_therapist:
             user.is_therapist = True
             user.save()
 
-        # Save the application, including the new fields
+
         application = serializer.save(applicant=self.request.user)
         
 
@@ -250,8 +242,7 @@ class TherapistListView(generics.ListAPIView):
 class TherapistDetailView(generics.RetrieveAPIView):
     serializer_class = TherapistSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = User.objects.filter(is_therapist=True, is_verified=True) # Only show verified therapists
-
+    queryset = User.objects.filter(is_therapist=True, is_verified=True)
     def get_serializer_context(self):
         return {'request': self.request}
 
@@ -273,7 +264,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 {"therapist": "You cannot request a session with yourself."}
             )
         
-        # Check if the client already has a pending or scheduled session
+    
         existing_request = SessionRequest.objects.filter(
             client=self.request.user, 
             status__in=['pending', 'accepted']
@@ -289,7 +280,6 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."}
             )
         
-        # --- NEW PAYMENT LOGIC START ---
         # If therapist charges for sessions (not free consultation)
         if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
             # Check if a completed and unused payment exists for this client and therapist
@@ -297,16 +287,14 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 client=self.request.user,
                 therapist=therapist,
                 status='completed',
-                session_request__isnull=True # Check if payment hasn't been linked to a session request yet
+                session_request__isnull=True
             ).first()
 
             if not payment:
                 raise serializers.ValidationError(
                     {"detail": "Payment required before requesting a session with this therapist."}
                 )
-            # Mark payment as used by linking it to the session request
-            # The session_request field on Payment model will be updated after SessionRequest is saved.
-        # --- NEW PAYMENT LOGIC END ---
+    
 
         session_request_instance = serializer.save(client=self.request.user, therapist=therapist)
 
@@ -320,7 +308,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
             ).first()
             if payment:
                 payment.session_request = session_request_instance
-                payment.status = 'used' # Mark the payment as used
+                payment.status = 'used' 
                 payment.save()
 
 
@@ -446,7 +434,7 @@ class SessionCreateFromRequestView(generics.CreateAPIView):
             'session_time': session_request.requested_time,
             'session_type': request.data.get('session_type', 'online'),
             'location': request.data.get('location', None),
-            'zoom_meeting_url': request.data.get('zoom_meeting_url', None) # NEW: Get Zoom URL from request data
+            'zoom_meeting_url': request.data.get('zoom_meeting_url', None) 
         }
         
         serializer = self.get_serializer(data=session_data)
@@ -475,16 +463,15 @@ class SessionDetailUpdateView(generics.UpdateAPIView):
         # Handle status change to 'completed'
         if 'status' in request.data and request.data['status'] == 'completed':
             if instance.status != 'completed':
-                # Ensure all required "notes" fields are present if marking as completed
+
                 if not all(field in request.data for field in ['notes', 'key_takeaways', 'recommendations']):
-                     # It's better to make these fields explicitly required in the serializer
-                     # or add more specific validation here if they are nullable in the model
-                    pass # Handled by serializer validation now
+               
+                    pass 
         
         self.perform_update(serializer)
 
         if getattr(instance, '_prefetched_objects_cache', None):
-            # If 'prefetch_related' has been applied, we need to refresh the instance.
+
             instance = self.get_object()
             serializer = self.get_serializer(instance)
         
@@ -497,7 +484,7 @@ class ClientSessionListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Only return sessions where the current user is the client
+
         queryset = Session.objects.filter(client=self.request.user)
         
         status_filter = self.request.query_params.get('status')
@@ -523,15 +510,13 @@ class PaymentCreateView(generics.CreateAPIView):
         except User.DoesNotExist:
             return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Simulate Mpesa payment success
-        # In a real application, this would involve Mpesa API calls and callbacks
-        # For now, we'll directly mark it as completed
+      
         payment_data = {
             'client': request.user.id,
             'therapist': therapist.id,
             'amount': amount,
-            'status': 'completed', # Simulate successful payment
-            'transaction_id': f"Mpesa-{timezone.now().timestamp()}" # Simple simulated transaction ID
+            'status': 'completed', 
+            'transaction_id': f"Mpesa-{timezone.now().timestamp()}" 
         }
 
         serializer = self.get_serializer(data=payment_data)
@@ -558,7 +543,7 @@ class ClientPaymentStatusView(generics.RetrieveAPIView):
             client=request.user,
             therapist=therapist,
             status='completed',
-            session_request__isnull=True # Ensure the payment hasn't been used for a session request yet
+            session_request__isnull=True 
         ).exists()
 
         return Response({"has_paid": has_paid})

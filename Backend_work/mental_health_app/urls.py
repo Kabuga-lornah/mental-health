@@ -1,4 +1,3 @@
-# mental_health_app/urls.py
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
@@ -8,14 +7,11 @@ from .views import (
     TherapistApplicationCreateView,
     MyTherapistApplicationView,
     AdminTherapistApplicationListView, AdminTherapistApplicationDetailView,
-    
-    # Import the new session management views
     TherapistSessionListView,
     SessionCreateFromRequestView,
     SessionDetailUpdateView,
     ClientSessionListView,
-    TherapistDetailView, # NEW: Import TherapistDetailView
-    # NEW: Import payment views
+    TherapistDetailView, 
     PaymentCreateView,
     ClientPaymentStatusView,
 )
@@ -41,7 +37,7 @@ urlpatterns = [
 
     # SESSION REQUESTS (from clients to therapists)
     path('therapists/', TherapistListView.as_view(), name='therapist-list'),
-    path('therapists/<int:pk>/', TherapistDetailView.as_view(), name='therapist-detail'), # NEW: Therapist Detail View
+    path('therapists/<int:pk>/', TherapistDetailView.as_view(), name='therapist-detail'), 
     path('session-requests/', SessionRequestCreateView.as_view(), name='session-request-create'),
     path('therapist/session-requests/', TherapistSessionRequestListView.as_view(), name='therapist-session-requests'),
     path('client/session-requests/', ClientSessionRequestListView.as_view(), name='client-session-requests'),

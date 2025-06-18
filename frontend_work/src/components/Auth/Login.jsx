@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../../context/AuthContext"; // Corrected import path
+import { useAuth } from "../../context/AuthContext"; 
 import { useNavigate, Link } from "react-router-dom";
 import {
   Box,
@@ -13,15 +13,15 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { login, user: authUser } = useAuth(); // Renamed 'user' to 'authUser' for clarity
-  const navigate = useNavigate(); // Hook for navigation
+  const { login, user: authUser } = useAuth(); 
+  const navigate = useNavigate(); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); // Clear previous errors
+    setError(""); 
     try {
       console.log("DEBUG: Login.jsx: Attempting login with email:", email);
-      const response = await login(email, password); // Call login
+      const response = await login(email, password); 
 
       console.log("DEBUG: Login.jsx - Response from login function:", response);
 
@@ -33,7 +33,7 @@ export default function Login() {
         if (response.user.is_staff && response.user.is_superuser) {
           console.log("DEBUG: Login.jsx - Redirecting to admin applications with navigate.");
           navigate("/admin/applications");
-          return; // Stop further execution
+          return; 
         }
         // Therapist redirect
         else if (response.user.is_therapist) {
@@ -47,7 +47,7 @@ export default function Login() {
         }
       } else {
         console.warn("DEBUG: Login.jsx - Login successful but user object not immediately available from response. Redirecting based on AuthContext user state.");
-        // Fallback using the user from AuthContext, which should be updated
+   
         if (authUser) {
             console.log("DEBUG: Login.jsx - Fallback: user from AuthContext: ", authUser);
             if (authUser.is_staff && authUser.is_superuser) {

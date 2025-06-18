@@ -40,12 +40,12 @@ export default function AIChatbot() {
       const payload = {
         contents: chatHistory,
         generationConfig: {
-          temperature: 0.7, // Adjust creativity
+          temperature: 0.7, 
           maxOutputTokens: 200,
         },
       };
 
-      const apiKey = ""; // Leave as empty string, Canvas will provide in runtime
+      const apiKey = ""; 
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {

@@ -10,7 +10,7 @@ export default function Register() {
     first_name: "",
     last_name: "",
     phone: "",
-    registerAsTherapist: false, // Changed from isTherapist to indicate intent to apply
+    registerAsTherapist: false, 
   });
   const [error, setError] = useState("");
   const { register } = useAuth();
@@ -18,7 +18,7 @@ export default function Register() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Correctly handle the value from the RadioGroup
+  
     const processedValue = name === 'registerAsTherapist' ? value === 'therapist' : value;
     setFormData({
       ...formData,
@@ -28,14 +28,11 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); // Clear previous errors
+    setError(""); 
     try {
-      // is_therapist in backend will be set based on registerAsTherapist
-      // New users will always start with is_verified=False by default in backend models
+
       await register({ ...formData, isTherapist: formData.registerAsTherapist });
-      
-      // FIXED: Always redirect to login page regardless of user type
-      // The user will need to login first, then they'll be redirected appropriately based on their role
+
       navigate('/login');
       
     } catch (err) {
@@ -60,7 +57,7 @@ export default function Register() {
           width: "100%",
           maxWidth: "400px",
           backgroundColor: "white",
-          borderRadius: 2, // Added rounded corners
+          borderRadius: 2, 
         }}
       >
         <Typography variant="h4" sx={{ color: "#780000", mb: 3, textAlign: "center", fontWeight: "bold" }}>
@@ -80,7 +77,7 @@ export default function Register() {
             onChange={handleChange}
             sx={{ mb: 2 }}
             required
-            variant="outlined" // Use outlined variant for modern look
+            variant="outlined" 
           />
           <TextField
             fullWidth
@@ -142,12 +139,12 @@ export default function Register() {
             fullWidth
             type="submit"
             variant="contained"
-            size="large" // Make button larger
+            size="large" 
             sx={{
               backgroundColor: "#780000",
               "&:hover": { backgroundColor: "#5a0000" },
-              py: 1.5, // Padding for height
-              borderRadius: 2, // Rounded corners for button
+              py: 1.5, 
+              borderRadius: 2, 
             }}
           >
             Register

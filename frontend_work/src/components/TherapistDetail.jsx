@@ -435,7 +435,7 @@ export default function TherapistDetail() {
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 sx={{ mb: 2 }}
-                disabled // Amount is fixed for now
+                disabled 
             />
             <TextField
                 margin="dense"

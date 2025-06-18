@@ -35,25 +35,23 @@ class User(AbstractBaseUser, PermissionsMixin):
     phone = models.CharField(max_length=15, blank=True)
     profile_picture = models.ImageField(upload_to='profiles/', null=True, blank=True)
     is_therapist = models.BooleanField(default=False)
-    
-    # Therapist-specific fields (already existing in User model)
-    is_verified = models.BooleanField(default=False)  # True if therapist application is approved
-    bio = models.TextField(blank=True, null=True)  # Short description about the therapist
-    years_of_experience = models.IntegerField(blank=True, null=True)
-    specializations = models.CharField(max_length=255, blank=True, null=True)  # e.g., "Anxiety, Depression, Trauma"
-    is_available = models.BooleanField(default=False)  # Indicates if therapist is actively taking new clients/sessions
-    hourly_rate = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)  # Price per hour for sessions
 
-    # NEW: Additional therapist profile fields for display
+    is_verified = models.BooleanField(default=False)  
+    bio = models.TextField(blank=True, null=True)  
+    years_of_experience = models.IntegerField(blank=True, null=True)
+    specializations = models.CharField(max_length=255, blank=True, null=True)  
+    is_available = models.BooleanField(default=False)  
+    hourly_rate = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True) 
+
+
     license_credentials = models.CharField(max_length=100, blank=True, null=True, help_text="e.g., LMFT, LCSW, PhD")
     approach_modalities = models.TextField(blank=True, null=True, help_text="e.g., CBT, EMDR, Psychodynamic")
     languages_spoken = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of languages")
     client_focus = models.TextField(blank=True, null=True, help_text="e.g., Adults, Teens, LGBTQ+, Couples")
     insurance_accepted = models.BooleanField(default=False)
     video_introduction_url = models.URLField(max_length=500, blank=True, null=True, help_text="Link to a brief video introduction")
-    
-    # NEW fields for free consultation, session modes, and physical address
-    is_free_consultation = models.BooleanField(default=False) # If true, implies free initial consultation/session
+ 
+    is_free_consultation = models.BooleanField(default=False)
     SESSION_MODES_CHOICES = [
         ('online', 'Online'),
         ('physical', 'Physical (In-Person)'),
@@ -102,21 +100,19 @@ class TherapistApplication(models.Model):
     id_document = models.FileField(upload_to='therapist_docs/ids/')
     professional_photo = models.ImageField(upload_to='therapist_docs/photos/')
     
-    # Personal statement/motivation
+ 
     motivation_statement = models.TextField()
 
     specializations = models.CharField(max_length=255, blank=True, null=True, help_text="Comma-separated list of specializations")
 
-    # NEW: Fields for additional therapist profile information, captured during application
-    # These will be transferred to the User profile upon approval
-    years_of_experience = models.IntegerField(blank=True, null=True) # Added from user request
+    years_of_experience = models.IntegerField(blank=True, null=True) 
     license_credentials = models.CharField(max_length=100, blank=True, null=True)
     approach_modalities = models.TextField(blank=True, null=True)
     languages_spoken = models.CharField(max_length=255, blank=True, null=True)
     client_focus = models.TextField(blank=True, null=True)
     insurance_accepted = models.BooleanField(default=False)
 
-    # NEW fields for free consultation, session modes, and physical address
+  
     is_free_consultation = models.BooleanField(default=False)
     SESSION_MODES_CHOICES = [
         ('online', 'Online'),
@@ -233,9 +229,9 @@ class Session(models.Model):
     
     session_date = models.DateField()
     session_time = models.TimeField()
-    session_type = models.CharField(max_length=50, default='online') # e.g., 'online', 'physical'
-    location = models.CharField(max_length=255, blank=True, null=True) # Used if session_type is physical
-    zoom_meeting_url = models.URLField(max_length=500, blank=True, null=True, help_text="Zoom meeting URL for online sessions") # NEW FIELD
+    session_type = models.CharField(max_length=50, default='online') 
+    location = models.CharField(max_length=255, blank=True, null=True) 
+    zoom_meeting_url = models.URLField(max_length=500, blank=True, null=True, help_text="Zoom meeting URL for online sessions") 
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
     
@@ -262,11 +258,10 @@ class Payment(models.Model):
         ('pending', 'Pending'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
-        ('used', 'Used') # New status to mark a payment as used for a session request
+        ('used', 'Used') 
     ]
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     transaction_id = models.CharField(max_length=255, blank=True, null=True)
-    # Link to the session request once it's made (optional, can be null until request is made)
     session_request = models.OneToOneField(SessionRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment')
 
     class Meta:
