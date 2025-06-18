@@ -2,7 +2,7 @@
 # mental_health_app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import JournalEntry, TherapistApplication, SessionRequest, Session # Make sure to import Session
+from .models import JournalEntry, TherapistApplication, SessionRequest, Session, Payment # Make sure to import Session and Payment
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
@@ -456,3 +456,8 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ['id', 'client', 'therapist', 'amount', 'payment_date', 'status', 'transaction_id', 'session_request']
+        read_only_fields = ['id', 'client', 'payment_date', 'status', 'transaction_id', 'session_request']

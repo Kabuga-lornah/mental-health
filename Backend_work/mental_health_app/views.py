@@ -7,13 +7,13 @@ from django.db.models import Q
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import PermissionDenied
-from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session
+from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment
 
 from .serializers import (
     UserSerializer, LoginSerializer, JournalEntrySerializer, JournalListSerializer,
     TherapistSerializer, SessionRequestSerializer, SessionRequestUpdateSerializer,
     TherapistApplicationSerializer, TherapistApplicationAdminSerializer,
-    SessionSerializer, RegisterSerializer
+    SessionSerializer, RegisterSerializer, PaymentSerializer
 )
 
 User = get_user_model()
@@ -288,8 +288,41 @@ class SessionRequestCreateView(generics.CreateAPIView):
             raise serializers.ValidationError(
                 {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."}
             )
+        
+        # --- NEW PAYMENT LOGIC START ---
+        # If therapist charges for sessions (not free consultation)
+        if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
+            # Check if a completed and unused payment exists for this client and therapist
+            payment = Payment.objects.filter(
+                client=self.request.user,
+                therapist=therapist,
+                status='completed',
+                session_request__isnull=True # Check if payment hasn't been linked to a session request yet
+            ).first()
 
-        serializer.save(client=self.request.user, therapist=therapist)
+            if not payment:
+                raise serializers.ValidationError(
+                    {"detail": "Payment required before requesting a session with this therapist."}
+                )
+            # Mark payment as used by linking it to the session request
+            # The session_request field on Payment model will be updated after SessionRequest is saved.
+        # --- NEW PAYMENT LOGIC END ---
+
+        session_request_instance = serializer.save(client=self.request.user, therapist=therapist)
+
+        # Link the payment to the session request AFTER the session request is saved
+        if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
+            payment = Payment.objects.filter(
+                client=self.request.user,
+                therapist=therapist,
+                status='completed',
+                session_request__isnull=True
+            ).first()
+            if payment:
+                payment.session_request = session_request_instance
+                payment.status = 'used' # Mark the payment as used
+                payment.save()
+
 
 class TherapistSessionCreateView(generics.CreateAPIView):
     serializer_class = SessionRequestSerializer
@@ -473,3 +506,59 @@ class ClientSessionListView(generics.ListAPIView):
             
         return queryset.order_by('-session_date', '-session_time')
 
+
+class PaymentCreateView(generics.CreateAPIView):
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        therapist_id = request.data.get('therapist')
+        amount = request.data.get('amount')
+
+        if not therapist_id or not amount:
+            return Response({"error": "Therapist ID and amount are required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
+        except User.DoesNotExist:
+            return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Simulate Mpesa payment success
+        # In a real application, this would involve Mpesa API calls and callbacks
+        # For now, we'll directly mark it as completed
+        payment_data = {
+            'client': request.user.id,
+            'therapist': therapist.id,
+            'amount': amount,
+            'status': 'completed', # Simulate successful payment
+            'transaction_id': f"Mpesa-{timezone.now().timestamp()}" # Simple simulated transaction ID
+        }
+
+        serializer = self.get_serializer(data=payment_data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response({"message": "Payment simulated successfully! You can now request a session.", "payment_status": "completed"}, status=status.HTTP_201_CREATED)
+
+class ClientPaymentStatusView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        therapist_id = self.kwargs.get('therapist_id')
+        if not therapist_id:
+            return Response({"error": "Therapist ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
+        except User.DoesNotExist:
+            return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check for any unused, completed payments from this client to this therapist
+        has_paid = Payment.objects.filter(
+            client=request.user,
+            therapist=therapist,
+            status='completed',
+            session_request__isnull=True # Ensure the payment hasn't been used for a session request yet
+        ).exists()
+
+        return Response({"has_paid": has_paid})

@@ -1,5 +1,5 @@
 // File: frontend_work/src/components/TherapistDetail.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -48,37 +48,73 @@ export default function TherapistDetail() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
-  useEffect(() => {
-    const fetchTherapistDetails = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await axios.get(`http://localhost:8000/api/therapists/${id}/`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        setTherapist(response.data);
-      } catch (err) {
-        console.error("Error fetching therapist details:", err);
-        setError("Failed to load therapist details. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
+  // NEW: States for Payment Flow
+  const [openPaymentModal, setOpenPaymentModal] = useState(false);
+  const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [hasPaidForTherapist, setHasPaidForTherapist] = useState(false); // Tracks if client has a valid payment for this therapist
 
+  // Function to fetch therapist details
+  const fetchTherapistDetails = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get(`http://localhost:8000/api/therapists/${id}/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setTherapist(response.data);
+      // After fetching therapist details, check payment status if they are not free
+      if (!response.data.is_free_consultation && parseFloat(response.data.hourly_rate) > 0) {
+        await checkPaymentStatus(response.data.id);
+      } else {
+        setHasPaidForTherapist(true); // No payment needed if free consultation
+      }
+    } catch (err) {
+      console.error("Error fetching therapist details:", err);
+      setError("Failed to load therapist details. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, token]);
+
+  // NEW: Function to check payment status for the therapist
+  const checkPaymentStatus = useCallback(async (therapistId) => {
+    try {
+      const response = await axios.get(`http://localhost:8000/api/payments/status/${therapistId}/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setHasPaidForTherapist(response.data.has_paid);
+    } catch (err) {
+      console.error("Error checking payment status:", err);
+      setHasPaidForTherapist(false);
+    }
+  }, [token]);
+
+
+  useEffect(() => {
     if (user && token && id) {
       fetchTherapistDetails();
     }
-  }, [user, token, id]);
+  }, [user, token, id, fetchTherapistDetails]);
 
   const handleRequestSessionClick = () => {
-    setOpenRequestModal(true);
-    // Set default session type based on therapist's primary mode if available
-    if (therapist?.session_modes === 'online' || therapist?.session_modes === 'both') {
-      setSessionType('online');
-    } else if (therapist?.session_modes === 'physical') {
-      setSessionType('physical');
+    // If therapist charges and user hasn't paid, open payment modal
+    if (therapist && !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0 && !hasPaidForTherapist) {
+        setOpenPaymentModal(true);
+        setPaymentAmount(therapist.hourly_rate.toFixed(2)); // Pre-fill amount
+    } else {
+        // Otherwise, open the session request modal
+        setOpenRequestModal(true);
+        // Set default session type based on therapist's primary mode if available
+        if (therapist?.session_modes === 'online' || therapist?.session_modes === 'both') {
+            setSessionType('online');
+        } else if (therapist?.session_modes === 'physical') {
+            setSessionType('physical');
+        }
     }
   };
 
@@ -88,6 +124,48 @@ export default function TherapistDetail() {
     setRequestedDate('');
     setRequestedTime('');
     setSessionType('online'); // Reset to default
+  };
+
+  const handleClosePaymentModal = () => {
+    setOpenPaymentModal(false);
+    setMpesaPhoneNumber('');
+    setPaymentAmount('');
+    setError(null); // Clear payment errors
+  };
+
+  const handleSubmitPayment = async () => {
+    try {
+      if (!user) throw new Error("You must be logged in to make a payment.");
+      if (!therapist) throw new Error("Therapist data not loaded.");
+      if (!paymentAmount || parseFloat(paymentAmount) <= 0) throw new Error("Please enter a valid amount.");
+
+      const payload = {
+        therapist: therapist.id,
+        amount: parseFloat(paymentAmount),
+        // mpesa_phone_number: mpesaPhoneNumber, // Send if backend is ready to receive
+      };
+
+      // Simulate payment by calling the backend payment initiation endpoint
+      await axios.post('http://localhost:8000/api/payments/initiate/', payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      setSnackbarMessage("Payment successful! You can now request a session.");
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      setHasPaidForTherapist(true); // Mark as paid for this therapist
+      handleClosePaymentModal();
+      // Optionally, you might want to automatically open the session request modal here
+      // setOpenRequestModal(true);
+    } catch (err) {
+      console.error("Error processing payment:", err.response?.data || err.message);
+      setSnackbarMessage(err.response?.data?.error || err.message || "Failed to process payment.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
   };
 
   const handleSubmitSessionRequest = async () => {
@@ -102,7 +180,6 @@ export default function TherapistDetail() {
         requested_date: requestedDate,
         requested_time: requestedTime,
         status: 'pending',
-        // Add session_type to the request payload
         session_type: sessionType, 
       };
 
@@ -117,6 +194,10 @@ export default function TherapistDetail() {
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
       handleCloseRequestModal();
+      // After successfully requesting a session, re-check payment status
+      // to ensure the 'used' status is reflected if implemented on backend.
+      await checkPaymentStatus(therapist.id); 
+
     } catch (err) {
       console.error("Error sending session request:", err.response?.data || err.message);
       setSnackbarMessage(err.response?.data?.detail || err.response?.data?.therapist?.[0] || err.message || "Failed to send session request.");
@@ -171,6 +252,11 @@ export default function TherapistDetail() {
     );
   }
 
+  // Determine button text and disabled state
+  const isPaidTherapist = !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0;
+  const buttonText = isPaidTherapist && !hasPaidForTherapist ? "Make Payment to Request" : "Request Session";
+  const isButtonDisabled = (user && user.is_therapist) || !therapist.is_available;
+
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: 8 }}>
       <Container maxWidth="md">
@@ -206,9 +292,12 @@ export default function TherapistDetail() {
                   borderRadius: 2,
                 }}
                 onClick={handleRequestSessionClick}
-                disabled={!therapist.is_available || (user && user.is_therapist)}
+                disabled={isButtonDisabled}
               >
-                {user && user.is_therapist ? "Therapists Cannot Request" : "Request Session"}
+                {isButtonDisabled ? 
+                  (user && user.is_therapist ? "Therapists Cannot Request" : "Therapist Not Available") 
+                  : buttonText
+                }
               </Button>
             </Grid>
 
@@ -292,18 +381,6 @@ export default function TherapistDetail() {
                 </>
               )}
 
-              {/* Removed Contact section (Email, Phone) as per user request */}
-              {/*
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
-                  Contact
-                </Typography>
-                <Typography variant="body2"><strong>Email:</strong> {therapist.email}</Typography>
-                <Typography variant="body2"><strong>Phone:</strong> {therapist.phone || 'N/A'}</Typography>
-              </Box>
-              */}
-
               {therapist.video_introduction_url && (
                 <>
                   <Divider sx={{ my: 2 }} />
@@ -340,6 +417,43 @@ export default function TherapistDetail() {
           </Grid>
         </Paper>
       </Container>
+
+      {/* NEW: Payment Modal (for Mpesa Simulation) */}
+      <Dialog open={openPaymentModal} onClose={handleClosePaymentModal}>
+        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Make Payment to {therapist?.full_name}</DialogTitle>
+        <DialogContent>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+                Please pay KES {therapist?.hourly_rate} to request a session.
+            </Typography>
+            <TextField
+                autoFocus
+                margin="dense"
+                label="Amount (Ksh)"
+                type="number"
+                fullWidth
+                variant="outlined"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                sx={{ mb: 2 }}
+                disabled // Amount is fixed for now
+            />
+            <TextField
+                margin="dense"
+                label="Mpesa Phone Number (e.g., 0712345678)"
+                type="tel"
+                fullWidth
+                variant="outlined"
+                value={mpesaPhoneNumber}
+                onChange={(e) => setMpesaPhoneNumber(e.target.value)}
+                helperText="Enter your Mpesa registered phone number for simulation."
+                sx={{ mb: 2 }}
+            />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePaymentModal} sx={{ color: '#780000' }}>Cancel</Button>
+          <Button onClick={handleSubmitPayment} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>Pay Now (Simulated)</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Session Request Modal */}
       <Dialog open={openRequestModal} onClose={handleCloseRequestModal}>

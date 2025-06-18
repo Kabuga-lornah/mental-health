@@ -252,3 +252,26 @@ class Session(models.Model):
     def __str__(self):
         return f"Session for {self.client.email} with {self.therapist.email} on {self.session_date}"
 
+class Payment(models.Model):
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payments_made')
+    therapist = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payments_received')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateTimeField(auto_now_add=True)
+    # Status for the payment simulation: pending, completed, failed
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('used', 'Used') # New status to mark a payment as used for a session request
+    ]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    transaction_id = models.CharField(max_length=255, blank=True, null=True)
+    # Link to the session request once it's made (optional, can be null until request is made)
+    session_request = models.OneToOneField(SessionRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment')
+
+    class Meta:
+        ordering = ['-payment_date']
+        verbose_name_plural = 'Payments'
+
+    def __str__(self):
+        return f"Payment of {self.amount} by {self.client.email} to {self.therapist.email} - Status: {self.status}"

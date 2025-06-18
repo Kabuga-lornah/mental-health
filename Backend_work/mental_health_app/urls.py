@@ -15,6 +15,9 @@ from .views import (
     SessionDetailUpdateView,
     ClientSessionListView,
     TherapistDetailView, # NEW: Import TherapistDetailView
+    # NEW: Import payment views
+    PaymentCreateView,
+    ClientPaymentStatusView,
 )
 
 urlpatterns = [
@@ -55,4 +58,8 @@ urlpatterns = [
 
     # NEW: GET /api/client/sessions/ -> Lists all sessions for the client
     path('client/sessions/', ClientSessionListView.as_view(), name='client-session-list'),
+
+    # NEW: Payment Endpoints
+    path('payments/initiate/', PaymentCreateView.as_view(), name='payment-initiate'),
+    path('payments/status/<int:therapist_id>/', ClientPaymentStatusView.as_view(), name='client-payment-status'),
 ]
