@@ -139,16 +139,16 @@ class JournalEntryView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         queryset = JournalEntry.objects.filter(user=self.request.user)
-        
+
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         if start_date and end_date:
             queryset = queryset.filter(date__range=[start_date, end_date])
-        
+
         mood = self.request.query_params.get('mood')
         if mood:
             queryset = queryset.filter(mood__iexact=mood)
-            
+
         return queryset.order_by('-date')
 
     def perform_create(self, serializer):
@@ -193,7 +193,7 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
 
 
         application = serializer.save(applicant=self.request.user)
-        
+
 
 class MyTherapistApplicationView(generics.RetrieveAPIView):
     serializer_class = TherapistApplicationSerializer
@@ -223,7 +223,7 @@ class TherapistListView(generics.ListAPIView):
 
     def get_queryset(self):
         queryset = User.objects.filter(is_therapist=True, is_available=True, is_verified=True)
-        
+
         search_query = self.request.query_params.get('search')
         if search_query:
             queryset = queryset.filter(
@@ -231,10 +231,10 @@ class TherapistListView(generics.ListAPIView):
                 Q(last_name__icontains=search_query) |
                 Q(email__icontains=search_query)
             )
-        
+
         # Add request context to serializer for profile_picture absolute URL
         return queryset.order_by('last_name', 'first_name')
-    
+
     def get_serializer_context(self):
         return {'request': self.request}
 
@@ -263,13 +263,14 @@ class SessionRequestCreateView(generics.CreateAPIView):
             raise serializers.ValidationError(
                 {"therapist": "You cannot request a session with yourself."}
             )
-        
-    
+
+        # Updated: Check for existing pending/accepted session requests that are not rejected or cancelled
         existing_request = SessionRequest.objects.filter(
-            client=self.request.user, 
+            client=self.request.user,
             status__in=['pending', 'accepted']
         ).exists()
-        
+
+        # Updated: Check for existing scheduled sessions that are not completed or cancelled
         existing_session = Session.objects.filter(
             client=self.request.user,
             status='scheduled'
@@ -279,7 +280,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
             raise serializers.ValidationError(
                 {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."}
             )
-        
+
         # If therapist charges for sessions (not free consultation)
         if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
             # Check if a completed and unused payment exists for this client and therapist
@@ -294,7 +295,6 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 raise serializers.ValidationError(
                     {"detail": "Payment required before requesting a session with this therapist."}
                 )
-    
 
         session_request_instance = serializer.save(client=self.request.user, therapist=therapist)
 
@@ -308,7 +308,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
             ).first()
             if payment:
                 payment.session_request = session_request_instance
-                payment.status = 'used' 
+                payment.status = 'used'
                 payment.save()
 
 
@@ -321,7 +321,7 @@ class TherapistSessionCreateView(generics.CreateAPIView):
             raise serializers.ValidationError(
                 {"detail": "Only verified therapists can create sessions."}
             )
-        
+
         client_id = self.request.data.get('client')
         try:
             client = User.objects.get(id=client_id)
@@ -336,7 +336,7 @@ class TherapistSessionCreateView(generics.CreateAPIView):
             )
 
         serializer.save(
-            client=client, 
+            client=client,
             therapist=self.request.user,
             status='accepted'
         )
@@ -348,13 +348,13 @@ class TherapistSessionRequestListView(generics.ListAPIView):
     def get_queryset(self):
         if not self.request.user.is_therapist or not self.request.user.is_verified:
             return SessionRequest.objects.none()
-            
+
         status_filter = self.request.query_params.get('status')
         queryset = SessionRequest.objects.filter(therapist=self.request.user)
-        
+
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-            
+
         return queryset.order_by('-created_at')
 
 class ClientSessionRequestListView(generics.ListAPIView):
@@ -364,10 +364,10 @@ class ClientSessionRequestListView(generics.ListAPIView):
     def get_queryset(self):
         status_filter = self.request.query_params.get('status')
         queryset = SessionRequest.objects.filter(client=self.request.user)
-        
+
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-            
+
         return queryset.order_by('-created_at')
 
 class SessionRequestDetailView(generics.RetrieveAPIView):
@@ -387,10 +387,10 @@ class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
         return SessionRequest.objects.filter(
             Q(client=self.request.user) | Q(therapist=self.request.user)
         )
-    
+
     def perform_update(self, serializer):
         instance = serializer.save()
-        
+
     def perform_destroy(self, instance):
         if instance.status == 'pending' and instance.client == self.request.user:
             instance.status = 'cancelled'
@@ -418,14 +418,14 @@ class SessionCreateFromRequestView(generics.CreateAPIView):
 
         if request.user != session_request.therapist:
             return Response({'error': 'You are not authorized to accept this request.'}, status=status.HTTP_403_FORBIDDEN)
-        
+
         if hasattr(session_request, 'session'):
              return Response({'error': 'A session has already been created for this request.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Update session request status to accepted
         session_request.status = 'accepted'
         session_request.save()
-        
+
         session_data = {
             'session_request': session_request.id,
             'client': session_request.client.id,
@@ -434,9 +434,9 @@ class SessionCreateFromRequestView(generics.CreateAPIView):
             'session_time': session_request.requested_time,
             'session_type': request.data.get('session_type', 'online'),
             'location': request.data.get('location', None),
-            'zoom_meeting_url': request.data.get('zoom_meeting_url', None) 
+            'zoom_meeting_url': request.data.get('zoom_meeting_url', None)
         }
-        
+
         serializer = self.get_serializer(data=session_data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -465,16 +465,16 @@ class SessionDetailUpdateView(generics.UpdateAPIView):
             if instance.status != 'completed':
 
                 if not all(field in request.data for field in ['notes', 'key_takeaways', 'recommendations']):
-               
-                    pass 
-        
+
+                    pass
+
         self.perform_update(serializer)
 
         if getattr(instance, '_prefetched_objects_cache', None):
 
             instance = self.get_object()
             serializer = self.get_serializer(instance)
-        
+
         return Response(serializer.data)
 
 
@@ -486,11 +486,11 @@ class ClientSessionListView(generics.ListAPIView):
     def get_queryset(self):
 
         queryset = Session.objects.filter(client=self.request.user)
-        
+
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-            
+
         return queryset.order_by('-session_date', '-session_time')
 
 
@@ -501,22 +501,23 @@ class PaymentCreateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         therapist_id = request.data.get('therapist')
         amount = request.data.get('amount')
+        mpesa_phone_number = request.data.get('mpesa_phone_number') # Added mpesa_phone_number to accept from frontend
 
         if not therapist_id or not amount:
             return Response({"error": "Therapist ID and amount are required."}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
         except User.DoesNotExist:
             return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
 
-      
+
         payment_data = {
             'client': request.user.id,
             'therapist': therapist.id,
             'amount': amount,
-            'status': 'completed', 
-            'transaction_id': f"Mpesa-{timezone.now().timestamp()}" 
+            'status': 'completed',
+            'transaction_id': f"Mpesa-{timezone.now().timestamp()}"
         }
 
         serializer = self.get_serializer(data=payment_data)
@@ -543,7 +544,7 @@ class ClientPaymentStatusView(generics.RetrieveAPIView):
             client=request.user,
             therapist=therapist,
             status='completed',
-            session_request__isnull=True 
+            session_request__isnull=True
         ).exists()
 
         return Response({"has_paid": has_paid})
