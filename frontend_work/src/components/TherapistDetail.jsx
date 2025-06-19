@@ -4,7 +4,7 @@ import {
   Typography,
   Container,
   Paper,
-  Grid, // Keep Grid import
+  Grid,
   Button,
   CircularProgress,
   Dialog,
@@ -30,57 +30,25 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 export default function TherapistDetail() {
-  const { id } = useParams(); // Get therapist ID from URL
+  const { id } = useParams();
   const navigate = useNavigate();
   const { user, token } = useAuth();
   const [therapist, setTherapist] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // States for Session Request Modal
   const [openRequestModal, setOpenRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState('');
   const [requestedDate, setRequestedDate] = useState('');
   const [requestedTime, setRequestedTime] = useState('');
-  const [sessionType, setSessionType] = useState('online'); // Default to online for request
+  const [sessionType, setSessionType] = useState('online');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-
-  // States for Payment Flow
   const [openPaymentModal, setOpenPaymentModal] = useState(false);
   const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  // Tracks if client has a valid, unused payment for this therapist
   const [hasPaidForTherapist, setHasPaidForTherapist] = useState(false);
 
-  // Function to fetch therapist details
-  const fetchTherapistDetails = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.get(`http://localhost:8000/api/therapists/${id}/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setTherapist(response.data);
-      // After fetching therapist details, check payment status if they are not free
-      if (!response.data.is_free_consultation && parseFloat(response.data.hourly_rate) > 0) {
-        await checkPaymentStatus(response.data.id);
-      } else {
-        // No payment needed if therapist offers free consultation
-        setHasPaidForTherapist(true);
-      }
-    } catch (err) {
-      console.error("Error fetching therapist details:", err);
-      setError("Failed to load therapist details. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
-  }, [id, token]);
-
-  // Function to check payment status for the therapist
   const checkPaymentStatus = useCallback(async (therapistId) => {
     try {
       const response = await axios.get(`http://localhost:8000/api/payments/status/${therapistId}/`, {
@@ -91,9 +59,36 @@ export default function TherapistDetail() {
       setHasPaidForTherapist(response.data.has_paid);
     } catch (err) {
       console.error("Error checking payment status:", err);
-      setHasPaidForTherapist(false); // Assume not paid if error occurs
+      setHasPaidForTherapist(false);
     }
   }, [token]);
+
+  const fetchTherapistDetails = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get(`http://localhost:8000/api/therapists/${id}/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setTherapist(response.data);
+      console.log('Therapist Details Fetched:', response.data);
+      console.log('Therapist is_free_consultation:', response.data.is_free_consultation);
+      console.log('Therapist hourly_rate:', response.data.hourly_rate);
+
+      if (!response.data.is_free_consultation && parseFloat(response.data.hourly_rate) > 0) {
+        await checkPaymentStatus(response.data.id);
+      } else {
+        setHasPaidForTherapist(true);
+      }
+    } catch (err) {
+      console.error("Error fetching therapist details:", err);
+      setError("Failed to load therapist details. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, token, checkPaymentStatus]);
 
   useEffect(() => {
     if (user && token && id) {
@@ -101,17 +96,21 @@ export default function TherapistDetail() {
     }
   }, [user, token, id, fetchTherapistDetails]);
 
-  // Handles the click on the "Request Session" button,
-  // determining whether to show payment or session request modal.
   const handleRequestSessionClick = () => {
-    // Check if therapist charges and if the client has not yet paid
+    console.log('--- Request Session Click Diagnostics ---');
+    console.log('Therapist object:', therapist);
+    console.log('is_free_consultation:', therapist?.is_free_consultation);
+    console.log('hourly_rate:', therapist?.hourly_rate);
+    console.log('hasPaidForTherapist state:', hasPaidForTherapist);
+    console.log('Condition for Payment Modal:',
+      therapist && !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0 && !hasPaidForTherapist);
+    console.log('---------------------------------------');
+
     if (therapist && !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0 && !hasPaidForTherapist) {
       setOpenPaymentModal(true);
-      setPaymentAmount(therapist.hourly_rate.toFixed(2)); // Pre-fill amount
+      setPaymentAmount(therapist.hourly_rate.toFixed(2));
     } else {
-      // If therapist is free or client has already paid, open the session request modal
       setOpenRequestModal(true);
-      // Set default session type based on therapist's primary mode if available
       if (therapist?.session_modes === 'online' || therapist?.session_modes === 'both') {
         setSessionType('online');
       } else if (therapist?.session_modes === 'physical') {
@@ -120,45 +119,33 @@ export default function TherapistDetail() {
     }
   };
 
-  // Closes the session request modal and resets its states.
   const handleCloseRequestModal = () => {
     setOpenRequestModal(false);
     setRequestMessage('');
     setRequestedDate('');
     setRequestedTime('');
-    setSessionType('online'); // Reset to default
+    setSessionType('online');
   };
 
-  // Closes the payment modal and resets its states.
   const handleClosePaymentModal = () => {
     setOpenPaymentModal(false);
     setMpesaPhoneNumber('');
     setPaymentAmount('');
-    setError(null); // Clear payment errors if any
+    setError(null);
   };
 
-  // Handles the submission of the Mpesa payment (simulated).
   const handleSubmitPayment = async () => {
     try {
-      if (!user) {
-        throw new Error("You must be logged in to make a payment.");
-      }
-      if (!therapist) {
-        throw new Error("Therapist data not loaded.");
-      }
-      if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-        throw new Error("Please enter a valid amount.");
-      }
-      // For a real Mpesa integration, you'd send the phone number and other details
-      // to your backend, which would then interact with the Mpesa API.
-      // Here, it's a simulated payment as per the backend code.
+      if (!user) throw new Error("You must be logged in to make a payment.");
+      if (!therapist) throw new Error("Therapist data not loaded.");
+      if (!paymentAmount || parseFloat(paymentAmount) <= 0) throw new Error("Please enter a valid amount.");
+
       const payload = {
         therapist: therapist.id,
         amount: parseFloat(paymentAmount),
-        mpesa_phone_number: mpesaPhoneNumber, // Send if backend is ready to receive
+        mpesa_phone_number: mpesaPhoneNumber,
       };
 
-      // Simulate payment by calling the backend payment initiation endpoint
       await axios.post('http://localhost:8000/api/payments/initiate/', payload, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -169,11 +156,8 @@ export default function TherapistDetail() {
       setSnackbarMessage("Payment successful! You can now request a session.");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      setHasPaidForTherapist(true); // Mark as paid for this therapist
+      setHasPaidForTherapist(true);
       handleClosePaymentModal();
-      // Optionally, if you want the session request modal to open automatically after payment:
-      // setOpenRequestModal(true);
-
     } catch (err) {
       console.error("Error processing payment:", err.response?.data || err.message);
       setSnackbarMessage(err.response?.data?.error || err.message || "Failed to process payment.");
@@ -182,25 +166,18 @@ export default function TherapistDetail() {
     }
   };
 
-  // Handles the submission of the session request.
   const handleSubmitSessionRequest = async () => {
     try {
-      if (!user) {
-        throw new Error("You must be logged in to request a session.");
-      }
-      if (!therapist) {
-        throw new Error("Therapist data not loaded.");
-      }
-      if (!requestedDate || !requestedTime) {
-        throw new Error("Please select a preferred date and time.");
-      }
+      if (!user) throw new Error("You must be logged in to request a session.");
+      if (!therapist) throw new Error("Therapist data not loaded.");
+      if (!requestedDate || !requestedTime) throw new Error("Please select a preferred date and time.");
 
       const payload = {
         therapist: therapist.id,
         message: requestMessage,
         requested_date: requestedDate,
         requested_time: requestedTime,
-        status: 'pending', // Initial status for a new request
+        status: 'pending',
         session_type: sessionType,
       };
 
@@ -215,13 +192,12 @@ export default function TherapistDetail() {
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
       handleCloseRequestModal();
-      // After successfully requesting a session, re-check payment status.
-      // This is crucial because the backend will mark the 'completed' payment as 'used'.
       await checkPaymentStatus(therapist.id);
-
     } catch (err) {
-      console.error("Error sending session request:", err.response?.data || err.message);
-      // Enhanced error message parsing for backend validation errors
+      console.error("Full error object on session request:", err);
+      console.error("Backend response data for 400 error:", err.response?.data);
+      console.error("Backend response status for 400 error:", err.response?.status);
+      
       setSnackbarMessage(
         err.response?.data?.detail
           ? (Array.isArray(err.response.data.detail) ? err.response.data.detail.join(', ') : err.response.data.detail)
@@ -232,15 +208,11 @@ export default function TherapistDetail() {
     }
   };
 
-  // Closes the snackbar notification.
   const handleSnackbarClose = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
+    if (reason === 'clickaway') return;
     setSnackbarOpen(false);
   };
 
-  // Display loading indicator
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
@@ -250,7 +222,6 @@ export default function TherapistDetail() {
     );
   }
 
-  // Display error message if fetching fails
   if (error) {
     return (
       <Box sx={{ textAlign: 'center', mt: 4 }}>
@@ -266,7 +237,6 @@ export default function TherapistDetail() {
     );
   }
 
-  // Display message if therapist not found
   if (!therapist) {
     return (
       <Box sx={{ textAlign: 'center', mt: 4 }}>
@@ -282,25 +252,22 @@ export default function TherapistDetail() {
     );
   }
 
-  // Determine button text and disabled state based on therapist and payment status
   const isPaidTherapist = !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0;
   const buttonText = isPaidTherapist && !hasPaidForTherapist ? "Make Payment to Request" : "Request Session";
-  // Disable button if current user is a therapist or if the therapist is not available
   const isButtonDisabled = (user && user.is_therapist) || !therapist.is_available;
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: 8 }}>
       <Container maxWidth="md">
         <Paper elevation={6} sx={{ p: { xs: 2, sm: 4 }, borderRadius: 3, backgroundColor: 'white' }}>
-          <Grid container spacing={4} alignItems="flex-start"> {/* Grid container */}
-            <Grid item xs={12} md={4}> {/* Updated Grid item syntax */}
+          <Grid container spacing={4} alignItems="flex-start">
+            <Grid item xs={12} md={4}>
               <img
                 src={therapist.profile_picture || `https://placehold.co/150x150/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
                 alt={therapist.full_name}
                 style={{ borderRadius: '50%', width: 180, height: 180, objectFit: 'cover', border: '4px solid #780000' }}
               />
               <Typography variant="h5" sx={{ color: '#780000', mt: 2, fontWeight: 'bold' }}>
-                {/* Display credential before full name */}
                 {therapist.license_credentials ? `${therapist.license_credentials} ` : ''}{therapist.full_name}
               </Typography>
               <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 1 }}>
@@ -332,7 +299,7 @@ export default function TherapistDetail() {
               </Button>
             </Grid>
 
-            <Grid item xs={12} md={8}> {/* Updated Grid item syntax */}
+            <Grid item xs={12} md={8}>
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
                   About Me
@@ -348,39 +315,37 @@ export default function TherapistDetail() {
                 <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
                   Professional Details
                 </Typography>
-                <Grid container spacing={2}> {/* Inner Grid container */}
-                  <Grid item xs={12} sm={6}> {/* Updated Grid item syntax */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
                     <Typography variant="body2"><strong>Years of Experience:</strong> {therapist.years_of_experience || 'N/A'}</Typography>
                   </Grid>
-                  {/* Conditionally hide hourly rate and insurance for free consultation therapists */}
                   {!therapist.is_free_consultation && (
                     <>
-                      <Grid item xs={12} sm={6}> {/* Updated Grid item syntax */}
+                      <Grid item xs={12} sm={6}>
                         <Typography variant="body2"><strong>Hourly Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}` : 'N/A'}</Typography>
                       </Grid>
-                      <Grid item xs={12} sm={6}> {/* Updated Grid item syntax */}
+                      <Grid item xs={12} sm={6}>
                         <Typography variant="body2"><strong>Accepts Insurance:</strong> {therapist.insurance_accepted ? 'Yes' : 'No'}</Typography>
                       </Grid>
                     </>
                   )}
                   {therapist.is_free_consultation && (
-                    <Grid item xs={12} sm={6}> {/* Updated Grid item syntax */}
+                    <Grid item xs={12} sm={6}>
                       <Typography variant="body2"><strong>Consultation Fee:</strong> Free Initial Consultation</Typography>
                     </Grid>
                   )}
-                  <Grid item xs={12} sm={6}> {/* Updated Grid item syntax */}
+                  <Grid item xs={12} sm={6}>
                     <Typography variant="body2"><strong>Languages Spoken:</strong> {therapist.languages_spoken || 'N/A'}</Typography>
                   </Grid>
-                  <Grid item xs={12}> {/* Updated Grid item syntax */}
+                  <Grid item xs={12}>
                     <Typography variant="body2"><strong>Client Focus:</strong> {therapist.client_focus || 'N/A'}</Typography>
                   </Grid>
-                  <Grid item xs={12}> {/* Updated Grid item syntax */}
+                  <Grid item xs={12}>
                     <Typography variant="body2"><strong>Approach/Modalities:</strong> {therapist.approach_modalities || 'No specific approach listed.'}</Typography>
                   </Grid>
                 </Grid>
               </Box>
 
-              {/* Display Session Modes and Physical Address */}
               <Divider sx={{ my: 2 }} />
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
@@ -424,7 +389,7 @@ export default function TherapistDetail() {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                           Watch this brief video to learn more about the therapist's approach.
                         </Typography>
-                        <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%' /* 16:9 Aspect Ratio */ }}>
+                        <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
                           <iframe
                             src={therapist.video_introduction_url}
                             title="Therapist Introduction"
@@ -449,7 +414,6 @@ export default function TherapistDetail() {
         </Paper>
       </Container>
 
-      {/* Payment Modal (for Mpesa Simulation) */}
       <Dialog open={openPaymentModal} onClose={handleClosePaymentModal}>
         <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Make Payment to {therapist?.full_name}</DialogTitle>
         <DialogContent>
@@ -466,7 +430,7 @@ export default function TherapistDetail() {
             value={paymentAmount}
             onChange={(e) => setPaymentAmount(e.target.value)}
             sx={{ mb: 2 }}
-            disabled // Amount is pre-filled and should not be editable by user
+            disabled
           />
           <TextField
             margin="dense"
@@ -486,7 +450,6 @@ export default function TherapistDetail() {
         </DialogActions>
       </Dialog>
 
-      {/* Session Request Modal */}
       <Dialog open={openRequestModal} onClose={handleCloseRequestModal}>
         <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Request Session with {therapist?.full_name}</DialogTitle>
         <DialogContent>
@@ -513,7 +476,6 @@ export default function TherapistDetail() {
             onChange={(e) => setRequestedTime(e.target.value)}
             sx={{ mb: 2 }}
           />
-          {/* Session Type selection for client based on therapist's modes */}
           {(therapist?.session_modes === 'online' || therapist?.session_modes === 'physical' || therapist?.session_modes === 'both') && (
             <FormControl component="fieldset" fullWidth sx={{ mb: 2 }}>
               <FormLabel component="legend">Choose Session Type</FormLabel>
@@ -551,7 +513,6 @@ export default function TherapistDetail() {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar for feedback */}
       <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
         <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
           {snackbarMessage}
