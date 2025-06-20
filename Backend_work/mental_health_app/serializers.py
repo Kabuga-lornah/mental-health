@@ -27,9 +27,9 @@ class UserSerializer(serializers.ModelSerializer):
         style={'input_type': 'password'}
     )
     is_verified = serializers.BooleanField(read_only=True)
-    bio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    bio = serializers.TextField(blank=True, null=True) # Changed from CharField
     years_of_experience = serializers.IntegerField(required=False, allow_null=True)
-    specializations = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    specializations = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True) # Added max_length
     is_available = serializers.BooleanField(required=False, default=False)
     hourly_rate = serializers.DecimalField(
         max_digits=6,
@@ -45,7 +45,7 @@ class UserSerializer(serializers.ModelSerializer):
     languages_spoken = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     client_focus = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     insurance_accepted = serializers.BooleanField(required=False, default=False)
-    video_introduction_url = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+    video_introduction_url = serializers.URLField(max_length=500, required=False, allow_null=True, allow_blank=True) # Added max_length
 
     # NEW: Fields for free consultation, session modes, and physical address
     is_free_consultation = serializers.BooleanField(required=False, default=False)
@@ -331,7 +331,8 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
             'reviewed_at', 'reviewer_notes', 'specializations',
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted',
-            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address'
+            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
+            'hourly_rate' # This line now has the correct comma before it
         ]
         read_only_fields = [
             'id', 'applicant', 'status', 'submitted_at',
@@ -379,7 +380,8 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
             'reviewed_at', 'reviewer_notes', 'specializations',
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted',
-            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address'
+            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
+            'hourly_rate' # This line now has the correct comma before it
         ]
         read_only_fields = [
             'id', 'applicant', 'submitted_at', 'applicant_email', 
@@ -392,9 +394,6 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
         ]
 
     def update(self, instance, validated_data):
-        """
-        Handles application status changes and updates the applicant's user profile.
-        """
         instance.status = validated_data.get('status', instance.status)
         instance.reviewer_notes = validated_data.get('reviewer_notes', instance.reviewer_notes)
         instance.reviewed_at = timezone.now()
@@ -436,4 +435,23 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = ['id', 'client', 'therapist', 'amount', 'payment_date', 'status', 'transaction_id', 'session_request']
-        read_only_fields = ['id', 'client', 'payment_date', 'status', 'transaction_id', 'session_request']
+        read_only_fields = ['id', 'payment_date', 'status', 'transaction_id', 'session_request']
+
+class SessionSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.get_full_name', read_only=True)
+    client_email = serializers.EmailField(source='client.email', read_only=True)
+    therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
+    therapist_email = serializers.EmailField(source='therapist.email', read_only=True)
+
+    class Meta:
+        model = Session
+        fields = [
+            'id', 'client', 'therapist', 'scheduled_date', 'scheduled_time',
+            'duration_minutes', 'session_notes', 'is_completed',
+            'client_name', 'client_email', 'therapist_name', 'therapist_email',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'client_name', 'client_email', 'therapist_name', 'therapist_email',
+            'created_at', 'updated_at'
+        ]

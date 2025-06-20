@@ -1,4 +1,3 @@
-// File: frontend_work/src/components/TherapistApplicationForm.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -26,24 +25,22 @@ import {
   ListItemText,
   OutlinedInput,
   FormControlLabel,
-  RadioGroup, // Added for radio buttons
-  Radio,      // Added for radio buttons
+  RadioGroup,
+  Radio,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
-// Theme colors
-const primaryColor = '#780000'; // Maroon
-const pageBackground = '#FFF8E1'; // Light yellow/peach background
-const buttonHoverColor = '#5a0000'; // Darker maroon for hover
-const textColor = '#333'; // Dark text
-const lightTextColor = '#666'; // Lighter text
-const borderColor = '#ddd'; // Light border
+const primaryColor = '#780000';
+const pageBackground = '#FFF8E1';
+const buttonHoverColor = '#5a0000';
+const textColor = '#333';
+const lightTextColor = '#666';
+const borderColor = '#ddd';
 
 const Input = styled('input')({
   display: 'none',
 });
 
-// List of available specializations for the multi-select dropdown
 const specializationsList = [
   'Anxiety and Stress Management',
   'Depression and Mood Disorders',
@@ -63,7 +60,6 @@ export default function TherapistApplicationForm() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
-  // State for form fields, including new ones
   const [formData, setFormData] = useState({
     license_number: '',
     id_number: '',
@@ -74,10 +70,11 @@ export default function TherapistApplicationForm() {
     languages_spoken: '',
     client_focus: '',
     insurance_accepted: false,
-    years_of_experience: '', // NEW: Years of experience
-    is_free_consultation: false, // NEW: Free consultation option
-    session_modes: 'online', // NEW: Session types: 'online', 'physical', 'both'
-    physical_address: '', // NEW: Physical address for in-person sessions
+    years_of_experience: '',
+    is_free_consultation: false,
+    session_modes: 'online',
+    physical_address: '',
+    hourly_rate: '',
   });
 
   const [files, setFiles] = useState({
@@ -92,7 +89,6 @@ export default function TherapistApplicationForm() {
   const [error, setError] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Fetch existing application status
   useEffect(() => {
     const fetchExistingApplication = async () => {
       if (!token) {
@@ -146,7 +142,6 @@ export default function TherapistApplicationForm() {
     setError('');
     setSubmitting(true);
 
-    // Validation checks
     if (!formData.license_number.trim() || !formData.id_number.trim() || 
         !formData.motivation_statement.trim() || !formData.license_credentials.trim() ||
         !formData.approach_modalities.trim() || !formData.languages_spoken.trim() ||
@@ -169,18 +164,12 @@ export default function TherapistApplicationForm() {
       return;
     }
 
-    // Conditional validation for session modes and physical address
     if ((formData.session_modes === 'physical' || formData.session_modes === 'both') && !formData.physical_address.trim()) {
         setError("Physical address is required if offering in-person sessions.");
         setSubmitting(false);
         return;
     }
-    // For now, hourly_rate is not directly in the application model,
-    // it's set on the User model upon approval via admin.
-    // The application form is just collecting 'is_free_consultation'
-    // and the logic on the user model will determine if hourly_rate is needed.
 
-    // Create FormData object
     const submissionFormData = new FormData();
     submissionFormData.append('license_number', formData.license_number);
     submissionFormData.append('id_number', formData.id_number);
@@ -189,20 +178,19 @@ export default function TherapistApplicationForm() {
     submissionFormData.append('license_document', files.license_document);
     submissionFormData.append('id_document', files.id_document);
     submissionFormData.append('professional_photo', files.professional_photo);
-    
-    // Append existing new fields
     submissionFormData.append('license_credentials', formData.license_credentials);
     submissionFormData.append('approach_modalities', formData.approach_modalities);
     submissionFormData.append('languages_spoken', formData.languages_spoken);
     submissionFormData.append('client_focus', formData.client_focus);
     submissionFormData.append('insurance_accepted', formData.insurance_accepted);
-    
-    // NEW: Append years of experience, free consultation, session modes, and physical address
     submissionFormData.append('years_of_experience', formData.years_of_experience);
     submissionFormData.append('is_free_consultation', formData.is_free_consultation);
     submissionFormData.append('session_modes', formData.session_modes);
     submissionFormData.append('physical_address', formData.physical_address);
 
+    if (!formData.is_free_consultation && formData.hourly_rate) {
+      submissionFormData.append('hourly_rate', parseFloat(formData.hourly_rate));
+    }
 
     try {
       const response = await axios.post('http://localhost:8000/api/therapist-applications/submit/', submissionFormData, {
@@ -240,7 +228,6 @@ export default function TherapistApplicationForm() {
     setSnackbar({ ...snackbar, open: false });
   };
 
-  // Loading state UI
   if (loading) {
     return (
       <Box sx={{ 
@@ -256,7 +243,6 @@ export default function TherapistApplicationForm() {
     );
   }
 
-  // UI for users with an existing application
   if (existingApplication) {
     return (
       <Box sx={{ 
@@ -299,7 +285,6 @@ export default function TherapistApplicationForm() {
     );
   }
 
-  // Main application form UI
   return (
     <Box sx={{ 
       minHeight: '100vh',
@@ -340,7 +325,6 @@ export default function TherapistApplicationForm() {
           )}
 
           <Box component="form" onSubmit={handleSubmit} noValidate>
-            {/* Section 1: Basic Professional Details */}
             <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
               Professional Information
             </Typography>
@@ -407,7 +391,6 @@ export default function TherapistApplicationForm() {
                   }}
                 />
               </Grid>
-              {/* NEW: Years of Experience field */}
               <Grid item xs={12}>
                 <TextField 
                   required 
@@ -426,7 +409,6 @@ export default function TherapistApplicationForm() {
               </Grid>
             </Grid>
               
-            {/* Section 2: Specializations and Approach */}
             <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
               Specializations & Approach
             </Typography>
@@ -514,12 +496,10 @@ export default function TherapistApplicationForm() {
               </Grid>
             </Grid>
 
-            {/* Section 3: Pricing and Session Modes */}
             <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
               Session & Availability Details
             </Typography>
             <Grid container spacing={3} mb={4}>
-                {/* NEW: Session Modes (Online/Physical/Both) */}
                 <Grid item xs={12}>
                     <FormControl component="fieldset" fullWidth>
                         <Typography variant="body1" sx={{ color: textColor, mb: 1, fontWeight: 'medium' }}>
@@ -549,7 +529,6 @@ export default function TherapistApplicationForm() {
                         </RadioGroup>
                     </FormControl>
                 </Grid>
-                {/* NEW: Physical Address if physical sessions are offered */}
                 {(formData.session_modes === 'physical' || formData.session_modes === 'both') && (
                     <Grid item xs={12}>
                         <TextField 
@@ -571,7 +550,6 @@ export default function TherapistApplicationForm() {
                     </Grid>
                 )}
 
-              {/* NEW: Is Free Consultation */}
               <Grid item xs={12}>
                 <FormControlLabel
                   control={
@@ -586,7 +564,6 @@ export default function TherapistApplicationForm() {
                 />
               </Grid>
 
-              {/* Conditionally render payment fields based on is_free_consultation */}
               {!formData.is_free_consultation && (
                 <>
                   <Grid item xs={12} sm={4}>
@@ -605,40 +582,6 @@ export default function TherapistApplicationForm() {
                       }}
                     />
                   </Grid>
-                  {/* These fields are no longer directly in the TherapistApplication model for the backend,
-                      but can be collected here if desired and handled by the system logic later.
-                      For now, they are removed from the form as the backend doesn't store them in TherapistApplication.
-                  <Grid item xs={12} sm={4}>
-                    <TextField 
-                      fullWidth 
-                      label="Weekly Rate (Ksh, Optional)" 
-                      name="rate_per_week" 
-                      type="number"
-                      value={formData.rate_per_week} 
-                      onChange={handleInputChange}
-                      inputProps={{ min: 0 }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                      }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField 
-                      fullWidth 
-                      label="Monthly Rate (Ksh, Optional)" 
-                      name="rate_per_month" 
-                      type="number"
-                      value={formData.rate_per_month} 
-                      onChange={handleInputChange}
-                      inputProps={{ min: 0 }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                      }}
-                    />
-                  </Grid>
-                  */}
                   <Grid item xs={12}>
                     <FormControlLabel
                       control={
@@ -652,31 +595,10 @@ export default function TherapistApplicationForm() {
                       label={<Typography sx={{ color: textColor }}>Do you accept insurance?</Typography>}
                     />
                   </Grid>
-
-                  {/* Mpesa phone number is not directly stored on the therapist application itself,
-                      but can be a user profile field updated after approval.
-                  <Grid item xs={12}>
-                    <TextField 
-                      fullWidth 
-                      label="Mpesa Phone Number (for payments)" 
-                      name="mpesa_phone_number" 
-                      value={formData.mpesa_phone_number} 
-                      onChange={handleInputChange}
-                      helperText="Enter the phone number associated with your Mpesa account for client payments."
-                      sx={{
-                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                        '& .MuiFormHelperText-root': { color: lightTextColor },
-                      }}
-                    />
-                  </Grid>
-                  */}
                 </>
               )}
-              
             </Grid>
 
-            {/* Section 4: Document Uploads */}
             <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
               Document Uploads
             </Typography>

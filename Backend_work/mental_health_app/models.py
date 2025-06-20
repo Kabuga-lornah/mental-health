@@ -111,6 +111,8 @@ class TherapistApplication(models.Model):
     languages_spoken = models.CharField(max_length=255, blank=True, null=True)
     client_focus = models.TextField(blank=True, null=True)
     insurance_accepted = models.BooleanField(default=False)
+    hourly_rate = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+
 
   
     is_free_consultation = models.BooleanField(default=False)

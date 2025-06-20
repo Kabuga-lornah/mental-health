@@ -7,16 +7,379 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import PermissionDenied
 from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment
-
-from .serializers import (
-    UserSerializer, LoginSerializer, JournalEntrySerializer, JournalListSerializer,
-    TherapistSerializer, SessionRequestSerializer, SessionRequestUpdateSerializer,
-    TherapistApplicationSerializer, TherapistApplicationAdminSerializer,
-    SessionSerializer, RegisterSerializer, PaymentSerializer
-)
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+import json
 
 User = get_user_model()
 
+# Serializers
+class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+        validators=[validate_password]
+    )
+    password2 = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
+    )
+    is_verified = serializers.BooleanField(read_only=True)
+    bio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    years_of_experience = serializers.IntegerField(required=False, allow_null=True)
+    specializations = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    is_available = serializers.BooleanField(required=False, default=False)
+    hourly_rate = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        required=False,
+        allow_null=True
+    )
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+    license_credentials = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    approach_modalities = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    languages_spoken = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    client_focus = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    insurance_accepted = serializers.BooleanField(required=False, default=False)
+    video_introduction_url = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+    is_free_consultation = serializers.BooleanField(required=False, default=False)
+    session_modes = serializers.ChoiceField(choices=User.SESSION_MODES_CHOICES, required=False, allow_null=True)
+    physical_address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'password', 'password2',
+            'first_name', 'last_name', 'phone', 'is_therapist',
+            'is_verified', 'bio', 'years_of_experience', 'specializations',
+            'is_available', 'hourly_rate', 'profile_picture',
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted', 'video_introduction_url',
+            'is_free_consultation', 'session_modes', 'physical_address'
+        ]
+        extra_kwargs = {
+            'email': {'required': True},
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+            'id': {'read_only': True},
+        }
+
+    def validate(self, attrs):
+        if attrs.get('password') and attrs.get('password2') and attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Password fields didn't match."})
+        
+        email = attrs.get('email')
+        if self.instance is None and User.objects.filter(email=email).exists():
+            raise serializers.ValidationError({"email": "This email is already in use."})
+            
+        if attrs.get('is_therapist'):
+            if attrs.get('is_available') is None:
+                raise serializers.ValidationError(
+                    {"is_available": "Therapists must specify availability."}
+                )
+            if not attrs.get('is_free_consultation') and (attrs.get('hourly_rate') is not None and not isinstance(attrs['hourly_rate'], (int, float))):
+                raise serializers.ValidationError(
+                    {"hourly_rate": "Hourly rate must be a number."}
+                )
+            if attrs.get('session_modes') in ['physical', 'both'] and not attrs.get('physical_address'):
+                raise serializers.ValidationError(
+                    {"physical_address": "Physical address is required for in-person sessions."}
+                )
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('password2', None)
+        email = validated_data.pop('email')
+        password = validated_data.pop('password')
+        
+        try:
+            user = User.objects.create_user(email=email, password=password, **validated_data)
+            return user
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(e.message_dict)
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+        validated_data.pop('password2', None)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+            
+        instance.save()
+        return instance
+
+class RegisterSerializer(UserSerializer):
+    class Meta(UserSerializer.Meta):
+        pass
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
+    )
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+        if email and password:
+            user = User.objects.filter(email=email).first()
+            if user and user.check_password(password):
+                attrs['user'] = user
+                return attrs
+            raise serializers.ValidationError("Unable to log in with provided credentials.")
+        raise serializers.ValidationError("Must include 'email' and 'password'.")
+
+class TherapistSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField() 
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'full_name', 
+            'is_available', 'hourly_rate', 'profile_picture',
+            'bio', 'years_of_experience', 'specializations',
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted', 'video_introduction_url',
+            'is_free_consultation', 'session_modes', 'physical_address'
+        ]
+        read_only_fields = fields
+
+    def get_full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+
+    def get_profile_picture(self, obj):
+        if obj.profile_picture:
+            request = self.context.get('request')
+            if request is not None:
+                return request.build_absolute_uri(obj.profile_picture.url)
+            return obj.profile_picture.url
+        return None 
+
+class JournalEntrySerializer(serializers.ModelSerializer):
+    attachment_file = serializers.FileField(
+        required=False,
+        allow_null=True,
+        write_only=True
+    )
+
+    class Meta:
+        model = JournalEntry
+        fields = [
+            'id', 'date', 'mood', 'entry', 'tags',
+            'attachment_name', 'attachment_file', 'user'
+        ]
+        read_only_fields = ['id', 'date', 'user']
+
+    def create(self, validated_data):
+        attachment_file = validated_data.pop('attachment_file', None)
+        if attachment_file:
+            validated_data['attachment_name'] = attachment_file.name
+        return super().create(validated_data)
+
+    def to_internal_value(self, data):
+        tags = data.get('tags')
+        if tags and isinstance(tags, str):
+            try:
+                mutable_data = data.copy()
+                mutable_data['tags'] = json.loads(tags)
+                return super().to_internal_value(mutable_data)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError({
+                    'tags': 'Invalid JSON format for tags.'
+                })
+        return super().to_internal_value(data)
+
+class JournalListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JournalEntry
+        fields = ['id', 'date', 'mood', 'tags', 'attachment_name']
+        read_only_fields = fields
+
+class SessionRequestSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.get_full_name', read_only=True)
+    therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
+    client_email = serializers.EmailField(source='client.email', read_only=True)
+    session_duration = serializers.IntegerField(min_value=30, max_value=240, default=60)
+    client = serializers.PrimaryKeyRelatedField(read_only=True)
+    
+    class Meta:
+        model = SessionRequest
+        fields = [
+            'id', 'client', 'therapist', 'status', 'requested_date',
+            'requested_time', 'message', 'created_at', 'updated_at',
+            'client_name', 'therapist_name', 'client_email',
+            'session_duration', 'session_notes', 'is_paid'
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'client_name', 
+            'therapist_name', 'client_email'
+        ]
+
+    def validate(self, attrs):
+        if attrs.get('therapist') and not attrs['therapist'].is_therapist:
+            raise serializers.ValidationError(
+                {"therapist": "Selected user is not a therapist."}
+            )
+        return attrs
+
+    def create(self, validated_data):
+        return SessionRequest.objects.create(**validated_data)
+
+class SessionRequestUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionRequest
+        fields = ['id', 'status', 'session_notes', 'is_paid', 'requested_date', 'requested_time', 'message']  
+        read_only_fields = ['id']
+
+    def validate_status(self, value):
+        valid_transitions = {
+            'pending': ['accepted', 'rejected', 'cancelled'],
+            'accepted': ['completed', 'cancelled'],
+            'rejected': [],
+            'completed': [],
+            'cancelled': []
+        }
+        current_status = self.instance.status
+        if value not in valid_transitions.get(current_status, []):
+            raise serializers.ValidationError(
+                f"Cannot transition from {current_status} to {value}"
+            )
+        return value
+
+class SessionSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.get_full_name', read_only=True)
+    client_email = serializers.EmailField(source='client.email', read_only=True)
+    therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
+
+    class Meta:
+        model = Session
+        fields = [
+            'id', 'session_request', 'client', 'therapist', 'client_name', 'client_email',
+            'therapist_name', 'session_date', 'session_time', 'session_type', 'location',
+            'status', 'notes', 'key_takeaways', 'recommendations', 'follow_up_required',
+            'next_session_date', 'created_at', 'updated_at', 'zoom_meeting_url'
+        ]
+        read_only_fields = ['client_name', 'client_email', 'therapist_name', 'created_at', 'updated_at']
+
+class TherapistApplicationSerializer(serializers.ModelSerializer):
+    applicant_email = serializers.ReadOnlyField(source='applicant.email')
+    applicant_full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TherapistApplication
+        fields = [
+            'id', 'applicant', 'applicant_email', 'applicant_full_name',
+            'license_number', 'license_document', 'id_number', 'id_document',
+            'professional_photo', 'motivation_statement', 'status', 'submitted_at',
+            'reviewed_at', 'reviewer_notes', 'specializations',
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted',
+            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
+            'hourly_rate'
+        ]
+        read_only_fields = [
+            'id', 'applicant', 'status', 'submitted_at',
+            'reviewed_at', 'reviewer_notes', 'applicant_email', 'applicant_full_name'
+        ]
+        extra_kwargs = {
+            'license_document': {'required': True},
+            'id_document': {'required': True},
+            'professional_photo': {'required': True},
+            'license_number': {'required': True},
+            'id_number': {'required': True},
+            'motivation_statement': {'required': True},
+            'specializations': {'required': True}, 
+            'years_of_experience': {'required': True}, 
+            'license_credentials': {'required': True},
+            'approach_modalities': {'required': True},
+            'languages_spoken': {'required': True},
+            'client_focus': {'required': True},
+        }
+    
+    def validate(self, attrs):
+        session_modes = attrs.get('session_modes')
+        physical_address = attrs.get('physical_address')
+        if session_modes in ['physical', 'both'] and not physical_address:
+            raise serializers.ValidationError({"physical_address": "Physical address is required if offering in-person sessions."})
+        return attrs
+
+    def get_applicant_full_name(self, obj):
+        return obj.applicant.get_full_name()
+
+class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
+    applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
+    applicant_full_name = serializers.CharField(source='applicant.get_full_name', read_only=True)
+
+    class Meta:
+        model = TherapistApplication
+        fields = [
+            'id', 'applicant', 'applicant_email', 'applicant_full_name',
+            'license_number', 'license_document', 'id_number', 'id_document',
+            'professional_photo', 'motivation_statement', 'status', 'submitted_at',
+            'reviewed_at', 'reviewer_notes', 'specializations',
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted',
+            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
+            'hourly_rate'
+        ]
+        read_only_fields = [
+            'id', 'applicant', 'submitted_at', 'applicant_email', 
+            'applicant_full_name', 'license_number', 'license_document', 
+            'id_number', 'id_document', 'professional_photo', 
+            'motivation_statement', 'specializations',
+            'license_credentials', 'approach_modalities', 'languages_spoken',
+            'client_focus', 'insurance_accepted',
+            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address'
+        ]
+
+    def update(self, instance, validated_data):
+        instance.status = validated_data.get('status', instance.status)
+        instance.reviewer_notes = validated_data.get('reviewer_notes', instance.reviewer_notes)
+        instance.reviewed_at = timezone.now()
+        
+        applicant = instance.applicant
+        
+        if instance.status == 'approved':
+            applicant.is_verified = True
+            applicant.is_available = True
+            if not applicant.bio: 
+                applicant.bio = instance.motivation_statement
+            
+            applicant.specializations = instance.specializations
+            applicant.license_credentials = instance.license_credentials
+            applicant.approach_modalities = instance.approach_modalities
+            applicant.languages_spoken = instance.languages_spoken
+            applicant.client_focus = instance.client_focus
+            applicant.insurance_accepted = instance.insurance_accepted
+            applicant.years_of_experience = instance.years_of_experience
+            applicant.is_free_consultation = instance.is_free_consultation 
+            applicant.session_modes = instance.session_modes 
+            applicant.physical_address = instance.physical_address 
+
+            applicant.save()
+        else: 
+            if applicant.is_verified:
+                applicant.is_verified = False
+                applicant.is_available = False
+                applicant.save()
+                
+        instance.save()
+        return instance
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ['id', 'client', 'therapist', 'amount', 'payment_date', 'status', 'transaction_id', 'session_request']
+        read_only_fields = ['id', 'client', 'payment_date', 'status', 'transaction_id', 'session_request']
+
+# Views
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_staff and request.user.is_superuser
@@ -191,9 +554,7 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
             user.is_therapist = True
             user.save()
 
-
         application = serializer.save(applicant=self.request.user)
-
 
 class MyTherapistApplicationView(generics.RetrieveAPIView):
     serializer_class = TherapistApplicationSerializer
@@ -215,7 +576,41 @@ class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
     queryset = TherapistApplication.objects.all()
 
     def perform_update(self, serializer):
-        serializer.save()
+        instance = serializer.save()
+
+        if instance.status == 'approved':
+            user = instance.applicant
+            user.is_therapist = True
+            user.is_verified = True
+            user.is_available = True
+
+            user.bio = instance.motivation_statement
+            user.specializations = instance.specializations
+            user.years_of_experience = instance.years_of_experience
+            user.license_credentials = instance.license_credentials
+            user.approach_modalities = instance.approach_modalities
+            user.languages_spoken = instance.languages_spoken
+            user.client_focus = instance.client_focus
+            user.insurance_accepted = instance.insurance_accepted
+            user.is_free_consultation = instance.is_free_consultation 
+            user.session_modes = instance.session_modes 
+            user.physical_address = instance.physical_address 
+
+            if instance.professional_photo:
+                user.profile_picture = instance.professional_photo
+            
+            if not instance.is_free_consultation and instance.hourly_rate is not None:
+                user.hourly_rate = instance.hourly_rate
+            elif instance.is_free_consultation:
+                user.hourly_rate = None
+            
+            user.save()
+        else:
+            user_applicant = instance.applicant
+            if user_applicant.is_verified:
+                user_applicant.is_verified = False
+                user_applicant.is_available = False
+                user_applicant.save()
 
 class TherapistListView(generics.ListAPIView):
     serializer_class = TherapistSerializer
@@ -232,13 +627,11 @@ class TherapistListView(generics.ListAPIView):
                 Q(email__icontains=search_query)
             )
 
-        # Add request context to serializer for profile_picture absolute URL
         return queryset.order_by('last_name', 'first_name')
 
     def get_serializer_context(self):
         return {'request': self.request}
 
-# NEW: Therapist Detail View
 class TherapistDetailView(generics.RetrieveAPIView):
     serializer_class = TherapistSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -264,13 +657,11 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 {"therapist": "You cannot request a session with yourself."}
             )
 
-        # Updated: Check for existing pending/accepted session requests that are not rejected or cancelled
         existing_request = SessionRequest.objects.filter(
             client=self.request.user,
             status__in=['pending', 'accepted']
         ).exists()
 
-        # Updated: Check for existing scheduled sessions that are not completed or cancelled
         existing_session = Session.objects.filter(
             client=self.request.user,
             status='scheduled'
@@ -281,9 +672,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."}
             )
 
-        # If therapist charges for sessions (not free consultation)
         if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
-            # Check if a completed and unused payment exists for this client and therapist
             payment = Payment.objects.filter(
                 client=self.request.user,
                 therapist=therapist,
@@ -298,7 +687,6 @@ class SessionRequestCreateView(generics.CreateAPIView):
 
         session_request_instance = serializer.save(client=self.request.user, therapist=therapist)
 
-        # Link the payment to the session request AFTER the session request is saved
         if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
             payment = Payment.objects.filter(
                 client=self.request.user,
@@ -310,7 +698,6 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 payment.session_request = session_request_instance
                 payment.status = 'used'
                 payment.save()
-
 
 class TherapistSessionCreateView(generics.CreateAPIView):
     serializer_class = SessionRequestSerializer
@@ -400,7 +787,6 @@ class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
                 "You can only cancel pending requests that you have created."
             )
 
-# Session Views
 class TherapistSessionListView(generics.ListAPIView):
     serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -422,7 +808,6 @@ class SessionCreateFromRequestView(generics.CreateAPIView):
         if hasattr(session_request, 'session'):
              return Response({'error': 'A session has already been created for this request.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Update session request status to accepted
         session_request.status = 'accepted'
         session_request.save()
 
@@ -460,31 +845,24 @@ class SessionDetailUpdateView(generics.UpdateAPIView):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
 
-        # Handle status change to 'completed'
         if 'status' in request.data and request.data['status'] == 'completed':
             if instance.status != 'completed':
-
                 if not all(field in request.data for field in ['notes', 'key_takeaways', 'recommendations']):
-
                     pass
 
         self.perform_update(serializer)
 
         if getattr(instance, '_prefetched_objects_cache', None):
-
             instance = self.get_object()
             serializer = self.get_serializer(instance)
 
         return Response(serializer.data)
 
-
-# NEW: Client Session List View
 class ClientSessionListView(generics.ListAPIView):
     serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-
         queryset = Session.objects.filter(client=self.request.user)
 
         status_filter = self.request.query_params.get('status')
@@ -493,7 +871,6 @@ class ClientSessionListView(generics.ListAPIView):
 
         return queryset.order_by('-session_date', '-session_time')
 
-
 class PaymentCreateView(generics.CreateAPIView):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -501,7 +878,7 @@ class PaymentCreateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         therapist_id = request.data.get('therapist')
         amount = request.data.get('amount')
-        mpesa_phone_number = request.data.get('mpesa_phone_number') # Added mpesa_phone_number to accept from frontend
+        mpesa_phone_number = request.data.get('mpesa_phone_number')
 
         if not therapist_id or not amount:
             return Response({"error": "Therapist ID and amount are required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -510,7 +887,6 @@ class PaymentCreateView(generics.CreateAPIView):
             therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
         except User.DoesNotExist:
             return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
-
 
         payment_data = {
             'client': request.user.id,
@@ -539,7 +915,6 @@ class ClientPaymentStatusView(generics.RetrieveAPIView):
         except User.DoesNotExist:
             return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check for any unused, completed payments from this client to this therapist
         has_paid = Payment.objects.filter(
             client=request.user,
             therapist=therapist,

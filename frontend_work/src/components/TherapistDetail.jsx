@@ -108,7 +108,7 @@ export default function TherapistDetail() {
 
     if (therapist && !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0 && !hasPaidForTherapist) {
       setOpenPaymentModal(true);
-      setPaymentAmount(therapist.hourly_rate.toFixed(2));
+      setPaymentAmount(parseFloat(therapist.hourly_rate).toFixed(2));
     } else {
       setOpenRequestModal(true);
       if (therapist?.session_modes === 'online' || therapist?.session_modes === 'both') {
