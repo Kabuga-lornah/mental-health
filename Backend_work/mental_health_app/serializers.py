@@ -27,7 +27,7 @@ class UserSerializer(serializers.ModelSerializer):
         style={'input_type': 'password'}
     )
     is_verified = serializers.BooleanField(read_only=True)
-    bio = serializers.TextField(blank=True, null=True) # Changed from CharField
+    bio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     years_of_experience = serializers.IntegerField(required=False, allow_null=True)
     specializations = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True) # Added max_length
     is_available = serializers.BooleanField(required=False, default=False)
@@ -193,9 +193,6 @@ class TherapistSerializer(serializers.ModelSerializer):
         return None 
 
 class JournalEntrySerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating and viewing detailed journal entries.
-    """
     attachment_file = serializers.FileField(
         required=False,
         allow_null=True,
@@ -299,7 +296,6 @@ class SessionRequestUpdateSerializer(serializers.ModelSerializer):
             )
         return value
 
-# NEW: Serializer for the Session model
 class SessionSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.get_full_name', read_only=True)
     client_email = serializers.EmailField(source='client.email', read_only=True)
@@ -316,9 +312,6 @@ class SessionSerializer(serializers.ModelSerializer):
         read_only_fields = ['client_name', 'client_email', 'therapist_name', 'created_at', 'updated_at']
 
 class TherapistApplicationSerializer(serializers.ModelSerializer):
-    """
-    Serializer for users to submit an application to become a therapist.
-    """
     applicant_email = serializers.ReadOnlyField(source='applicant.email')
     applicant_full_name = serializers.SerializerMethodField()
 
@@ -332,7 +325,7 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted',
             'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
-            'hourly_rate' # This line now has the correct comma before it
+            'hourly_rate'
         ]
         read_only_fields = [
             'id', 'applicant', 'status', 'submitted_at',
@@ -364,10 +357,6 @@ class TherapistApplicationSerializer(serializers.ModelSerializer):
         return obj.applicant.get_full_name()
 
 class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
-    """
-    Serializer for admins to review and update therapist applications.
-    This serializer handles the logic of verifying the user upon approval.
-    """
     applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
     applicant_full_name = serializers.CharField(source='applicant.get_full_name', read_only=True)
 
@@ -381,7 +370,7 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted',
             'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
-            'hourly_rate' # This line now has the correct comma before it
+            'hourly_rate'
         ]
         read_only_fields = [
             'id', 'applicant', 'submitted_at', 'applicant_email', 
@@ -400,16 +389,13 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
         
         applicant = instance.applicant
         
-        # Logic for when an application is approved
         if instance.status == 'approved':
             applicant.is_verified = True
             applicant.is_available = True
             if not applicant.bio: 
                 applicant.bio = instance.motivation_statement
             
-       
             applicant.specializations = instance.specializations
-            
             applicant.license_credentials = instance.license_credentials
             applicant.approach_modalities = instance.approach_modalities
             applicant.languages_spoken = instance.languages_spoken
@@ -420,22 +406,40 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
             applicant.session_modes = instance.session_modes 
             applicant.physical_address = instance.physical_address 
 
+            if instance.professional_photo:
+                applicant.profile_picture = instance.professional_photo
+            
+            if not instance.is_free_consultation and instance.hourly_rate is not None:
+                applicant.hourly_rate = instance.hourly_rate
+            elif instance.is_free_consultation:
+                applicant.hourly_rate = None
+            
             applicant.save()
         else: 
             if applicant.is_verified:
                 applicant.is_verified = False
                 applicant.is_available = False
-         
                 applicant.save()
                 
         instance.save()
         return instance
 
 class PaymentSerializer(serializers.ModelSerializer):
+    client = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    # Add the M-Pesa specific fields for reading/writing
+    checkout_request_id = serializers.CharField(max_length=100, read_only=True)
+    mpesa_receipt_number = serializers.CharField(max_length=50, read_only=True)
+
     class Meta:
         model = Payment
-        fields = ['id', 'client', 'therapist', 'amount', 'payment_date', 'status', 'transaction_id', 'session_request']
-        read_only_fields = ['id', 'payment_date', 'status', 'transaction_id', 'session_request']
+        fields = [
+            'id', 'client', 'therapist', 'amount', 'payment_date', 'status', 
+            'transaction_id', 'session_request', 'checkout_request_id', 'mpesa_receipt_number'
+        ]
+        read_only_fields = [
+            'id', 'payment_date', 'status', 'transaction_id', 'session_request',
+            'checkout_request_id', 'mpesa_receipt_number' # These are set by M-Pesa or internally
+        ]
 
 class SessionSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.get_full_name', read_only=True)

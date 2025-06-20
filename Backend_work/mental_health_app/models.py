@@ -265,7 +265,11 @@ class Payment(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     transaction_id = models.CharField(max_length=255, blank=True, null=True)
     session_request = models.OneToOneField(SessionRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment')
-
+    
+    # NEW M-Pesa specific fields
+    checkout_request_id = models.CharField(max_length=100, blank=True, null=True, unique=True, help_text="Safaricom's CheckoutRequestID for STK Push")
+    mpesa_receipt_number = models.CharField(max_length=50, blank=True, null=True, unique=True, help_text="Mpesa Receipt Number after successful transaction")
+    
     class Meta:
         ordering = ['-payment_date']
         verbose_name_plural = 'Payments'

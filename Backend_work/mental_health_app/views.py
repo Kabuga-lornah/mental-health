@@ -6,380 +6,99 @@ from django.db.models import Q
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import PermissionDenied
+from django.conf import settings
+import requests
+import base64
+from datetime import datetime
+import json
+
 from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-import json
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 
 User = get_user_model()
 
-# Serializers
-class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'},
-        validators=[validate_password]
-    )
-    password2 = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
-    )
-    is_verified = serializers.BooleanField(read_only=True)
-    bio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    years_of_experience = serializers.IntegerField(required=False, allow_null=True)
-    specializations = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    is_available = serializers.BooleanField(required=False, default=False)
-    hourly_rate = serializers.DecimalField(
-        max_digits=6,
-        decimal_places=2,
-        required=False,
-        allow_null=True
-    )
-    profile_picture = serializers.ImageField(required=False, allow_null=True)
-    license_credentials = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    approach_modalities = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    languages_spoken = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    client_focus = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    insurance_accepted = serializers.BooleanField(required=False, default=False)
-    video_introduction_url = serializers.URLField(required=False, allow_null=True, allow_blank=True)
-    is_free_consultation = serializers.BooleanField(required=False, default=False)
-    session_modes = serializers.ChoiceField(choices=User.SESSION_MODES_CHOICES, required=False, allow_null=True)
-    physical_address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+from .serializers import (
+    UserSerializer, RegisterSerializer, LoginSerializer, TherapistSerializer,
+    JournalEntrySerializer, JournalListSerializer, SessionRequestSerializer,
+    SessionRequestUpdateSerializer, SessionSerializer, TherapistApplicationSerializer,
+    TherapistApplicationAdminSerializer, PaymentSerializer
+)
 
-    class Meta:
-        model = User
-        fields = [
-            'id', 'email', 'password', 'password2',
-            'first_name', 'last_name', 'phone', 'is_therapist',
-            'is_verified', 'bio', 'years_of_experience', 'specializations',
-            'is_available', 'hourly_rate', 'profile_picture',
-            'license_credentials', 'approach_modalities', 'languages_spoken',
-            'client_focus', 'insurance_accepted', 'video_introduction_url',
-            'is_free_consultation', 'session_modes', 'physical_address'
-        ]
-        extra_kwargs = {
-            'email': {'required': True},
-            'first_name': {'required': True},
-            'last_name': {'required': True},
-            'id': {'read_only': True},
-        }
+def generate_mpesa_access_token():
+    consumer_key = settings.MPESA_CONSUMER_KEY
+    consumer_secret = settings.MPESA_CONSUMER_SECRET
+    api_url = f"{settings.MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials"
 
-    def validate(self, attrs):
-        if attrs.get('password') and attrs.get('password2') and attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({"password": "Password fields didn't match."})
-        
-        email = attrs.get('email')
-        if self.instance is None and User.objects.filter(email=email).exists():
-            raise serializers.ValidationError({"email": "This email is already in use."})
-            
-        if attrs.get('is_therapist'):
-            if attrs.get('is_available') is None:
-                raise serializers.ValidationError(
-                    {"is_available": "Therapists must specify availability."}
-                )
-            if not attrs.get('is_free_consultation') and (attrs.get('hourly_rate') is not None and not isinstance(attrs['hourly_rate'], (int, float))):
-                raise serializers.ValidationError(
-                    {"hourly_rate": "Hourly rate must be a number."}
-                )
-            if attrs.get('session_modes') in ['physical', 'both'] and not attrs.get('physical_address'):
-                raise serializers.ValidationError(
-                    {"physical_address": "Physical address is required for in-person sessions."}
-                )
-        return attrs
+    try:
+        response = requests.get(
+            api_url,
+            auth=(consumer_key, consumer_secret),
+            timeout=10
+        )
+        response.raise_for_status()
+        token = response.json()['access_token']
+        return token
+    except requests.exceptions.RequestException as e:
+        print(f"Error generating M-Pesa access token: {e}")
+        return None
 
-    def create(self, validated_data):
-        validated_data.pop('password2', None)
-        email = validated_data.pop('email')
-        password = validated_data.pop('password')
-        
-        try:
-            user = User.objects.create_user(email=email, password=password, **validated_data)
-            return user
-        except DjangoValidationError as e:
-            raise serializers.ValidationError(e.message_dict)
+def initiate_stk_push(phone_number, amount, account_reference, transaction_desc, callback_url):
+    access_token = generate_mpesa_access_token()
+    if not access_token:
+        return {"success": False, "message": "Failed to get M-Pesa access token."}
 
-    def update(self, instance, validated_data):
-        password = validated_data.pop('password', None)
-        if password:
-            instance.set_password(password)
-        validated_data.pop('password2', None)
-        
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-            
-        instance.save()
-        return instance
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    password = base64.b64encode(
+        f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}".encode()
+    ).decode('utf-8')
 
-class RegisterSerializer(UserSerializer):
-    class Meta(UserSerializer.Meta):
-        pass
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
 
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
-    )
+    payload = {
+        "BusinessShortCode": settings.MPESA_SHORTCODE,
+        "Password": password,
+        "Timestamp": timestamp,
+        "TransactionType": "CustomerPayBillOnline",
+        "Amount": int(amount),
+        "PartyA": phone_number,
+        "PartyB": settings.MPESA_SHORTCODE,
+        "PhoneNumber": phone_number,
+        "CallBackURL": callback_url,
+        "AccountReference": account_reference,
+        "TransactionDesc": transaction_desc
+    }
 
-    def validate(self, attrs):
-        email = attrs.get('email')
-        password = attrs.get('password')
-        if email and password:
-            user = User.objects.filter(email=email).first()
-            if user and user.check_password(password):
-                attrs['user'] = user
-                return attrs
-            raise serializers.ValidationError("Unable to log in with provided credentials.")
-        raise serializers.ValidationError("Must include 'email' and 'password'.")
+    try:
+        response = requests.post(f"{settings.MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest", json=payload, headers=headers, timeout=20)
+        response.raise_for_status()
+        response_data = response.json()
+        print(f"STK Push response: {response_data}")
 
-class TherapistSerializer(serializers.ModelSerializer):
-    full_name = serializers.SerializerMethodField()
-    profile_picture = serializers.SerializerMethodField() 
+        if response_data.get('ResponseCode') == '0':
+            return {
+                "success": True,
+                "message": "STK Push initiated successfully.",
+                "checkout_request_id": response_data.get('CheckoutRequestID'),
+                "merchant_request_id": response_data.get('MerchantRequestID')
+            }
+        else:
+            return {
+                "success": False,
+                "message": response_data.get('ResponseDescription', 'STK Push initiation failed.'),
+                "error_code": response_data.get('ResponseCode'),
+                "error_message": response_data.get('CustomerMessage')
+            }
+    except requests.exceptions.RequestException as e:
+        print(f"Error initiating STK Push: {e}")
+        return {"success": False, "message": f"Network or API error: {e}"}
 
-    class Meta:
-        model = User
-        fields = [
-            'id', 'full_name', 
-            'is_available', 'hourly_rate', 'profile_picture',
-            'bio', 'years_of_experience', 'specializations',
-            'license_credentials', 'approach_modalities', 'languages_spoken',
-            'client_focus', 'insurance_accepted', 'video_introduction_url',
-            'is_free_consultation', 'session_modes', 'physical_address'
-        ]
-        read_only_fields = fields
-
-    def get_full_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
-
-    def get_profile_picture(self, obj):
-        if obj.profile_picture:
-            request = self.context.get('request')
-            if request is not None:
-                return request.build_absolute_uri(obj.profile_picture.url)
-            return obj.profile_picture.url
-        return None 
-
-class JournalEntrySerializer(serializers.ModelSerializer):
-    attachment_file = serializers.FileField(
-        required=False,
-        allow_null=True,
-        write_only=True
-    )
-
-    class Meta:
-        model = JournalEntry
-        fields = [
-            'id', 'date', 'mood', 'entry', 'tags',
-            'attachment_name', 'attachment_file', 'user'
-        ]
-        read_only_fields = ['id', 'date', 'user']
-
-    def create(self, validated_data):
-        attachment_file = validated_data.pop('attachment_file', None)
-        if attachment_file:
-            validated_data['attachment_name'] = attachment_file.name
-        return super().create(validated_data)
-
-    def to_internal_value(self, data):
-        tags = data.get('tags')
-        if tags and isinstance(tags, str):
-            try:
-                mutable_data = data.copy()
-                mutable_data['tags'] = json.loads(tags)
-                return super().to_internal_value(mutable_data)
-            except json.JSONDecodeError:
-                raise serializers.ValidationError({
-                    'tags': 'Invalid JSON format for tags.'
-                })
-        return super().to_internal_value(data)
-
-class JournalListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = JournalEntry
-        fields = ['id', 'date', 'mood', 'tags', 'attachment_name']
-        read_only_fields = fields
-
-class SessionRequestSerializer(serializers.ModelSerializer):
-    client_name = serializers.CharField(source='client.get_full_name', read_only=True)
-    therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
-    client_email = serializers.EmailField(source='client.email', read_only=True)
-    session_duration = serializers.IntegerField(min_value=30, max_value=240, default=60)
-    client = serializers.PrimaryKeyRelatedField(read_only=True)
-    
-    class Meta:
-        model = SessionRequest
-        fields = [
-            'id', 'client', 'therapist', 'status', 'requested_date',
-            'requested_time', 'message', 'created_at', 'updated_at',
-            'client_name', 'therapist_name', 'client_email',
-            'session_duration', 'session_notes', 'is_paid'
-        ]
-        read_only_fields = [
-            'id', 'created_at', 'updated_at', 'client_name', 
-            'therapist_name', 'client_email'
-        ]
-
-    def validate(self, attrs):
-        if attrs.get('therapist') and not attrs['therapist'].is_therapist:
-            raise serializers.ValidationError(
-                {"therapist": "Selected user is not a therapist."}
-            )
-        return attrs
-
-    def create(self, validated_data):
-        return SessionRequest.objects.create(**validated_data)
-
-class SessionRequestUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SessionRequest
-        fields = ['id', 'status', 'session_notes', 'is_paid', 'requested_date', 'requested_time', 'message']  
-        read_only_fields = ['id']
-
-    def validate_status(self, value):
-        valid_transitions = {
-            'pending': ['accepted', 'rejected', 'cancelled'],
-            'accepted': ['completed', 'cancelled'],
-            'rejected': [],
-            'completed': [],
-            'cancelled': []
-        }
-        current_status = self.instance.status
-        if value not in valid_transitions.get(current_status, []):
-            raise serializers.ValidationError(
-                f"Cannot transition from {current_status} to {value}"
-            )
-        return value
-
-class SessionSerializer(serializers.ModelSerializer):
-    client_name = serializers.CharField(source='client.get_full_name', read_only=True)
-    client_email = serializers.EmailField(source='client.email', read_only=True)
-    therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
-
-    class Meta:
-        model = Session
-        fields = [
-            'id', 'session_request', 'client', 'therapist', 'client_name', 'client_email',
-            'therapist_name', 'session_date', 'session_time', 'session_type', 'location',
-            'status', 'notes', 'key_takeaways', 'recommendations', 'follow_up_required',
-            'next_session_date', 'created_at', 'updated_at', 'zoom_meeting_url'
-        ]
-        read_only_fields = ['client_name', 'client_email', 'therapist_name', 'created_at', 'updated_at']
-
-class TherapistApplicationSerializer(serializers.ModelSerializer):
-    applicant_email = serializers.ReadOnlyField(source='applicant.email')
-    applicant_full_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = TherapistApplication
-        fields = [
-            'id', 'applicant', 'applicant_email', 'applicant_full_name',
-            'license_number', 'license_document', 'id_number', 'id_document',
-            'professional_photo', 'motivation_statement', 'status', 'submitted_at',
-            'reviewed_at', 'reviewer_notes', 'specializations',
-            'license_credentials', 'approach_modalities', 'languages_spoken',
-            'client_focus', 'insurance_accepted',
-            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
-            'hourly_rate'
-        ]
-        read_only_fields = [
-            'id', 'applicant', 'status', 'submitted_at',
-            'reviewed_at', 'reviewer_notes', 'applicant_email', 'applicant_full_name'
-        ]
-        extra_kwargs = {
-            'license_document': {'required': True},
-            'id_document': {'required': True},
-            'professional_photo': {'required': True},
-            'license_number': {'required': True},
-            'id_number': {'required': True},
-            'motivation_statement': {'required': True},
-            'specializations': {'required': True}, 
-            'years_of_experience': {'required': True}, 
-            'license_credentials': {'required': True},
-            'approach_modalities': {'required': True},
-            'languages_spoken': {'required': True},
-            'client_focus': {'required': True},
-        }
-    
-    def validate(self, attrs):
-        session_modes = attrs.get('session_modes')
-        physical_address = attrs.get('physical_address')
-        if session_modes in ['physical', 'both'] and not physical_address:
-            raise serializers.ValidationError({"physical_address": "Physical address is required if offering in-person sessions."})
-        return attrs
-
-    def get_applicant_full_name(self, obj):
-        return obj.applicant.get_full_name()
-
-class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
-    applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
-    applicant_full_name = serializers.CharField(source='applicant.get_full_name', read_only=True)
-
-    class Meta:
-        model = TherapistApplication
-        fields = [
-            'id', 'applicant', 'applicant_email', 'applicant_full_name',
-            'license_number', 'license_document', 'id_number', 'id_document',
-            'professional_photo', 'motivation_statement', 'status', 'submitted_at',
-            'reviewed_at', 'reviewer_notes', 'specializations',
-            'license_credentials', 'approach_modalities', 'languages_spoken',
-            'client_focus', 'insurance_accepted',
-            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address',
-            'hourly_rate'
-        ]
-        read_only_fields = [
-            'id', 'applicant', 'submitted_at', 'applicant_email', 
-            'applicant_full_name', 'license_number', 'license_document', 
-            'id_number', 'id_document', 'professional_photo', 
-            'motivation_statement', 'specializations',
-            'license_credentials', 'approach_modalities', 'languages_spoken',
-            'client_focus', 'insurance_accepted',
-            'years_of_experience', 'is_free_consultation', 'session_modes', 'physical_address'
-        ]
-
-    def update(self, instance, validated_data):
-        instance.status = validated_data.get('status', instance.status)
-        instance.reviewer_notes = validated_data.get('reviewer_notes', instance.reviewer_notes)
-        instance.reviewed_at = timezone.now()
-        
-        applicant = instance.applicant
-        
-        if instance.status == 'approved':
-            applicant.is_verified = True
-            applicant.is_available = True
-            if not applicant.bio: 
-                applicant.bio = instance.motivation_statement
-            
-            applicant.specializations = instance.specializations
-            applicant.license_credentials = instance.license_credentials
-            applicant.approach_modalities = instance.approach_modalities
-            applicant.languages_spoken = instance.languages_spoken
-            applicant.client_focus = instance.client_focus
-            applicant.insurance_accepted = instance.insurance_accepted
-            applicant.years_of_experience = instance.years_of_experience
-            applicant.is_free_consultation = instance.is_free_consultation 
-            applicant.session_modes = instance.session_modes 
-            applicant.physical_address = instance.physical_address 
-
-            applicant.save()
-        else: 
-            if applicant.is_verified:
-                applicant.is_verified = False
-                applicant.is_available = False
-                applicant.save()
-                
-        instance.save()
-        return instance
-
-class PaymentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Payment
-        fields = ['id', 'client', 'therapist', 'amount', 'payment_date', 'status', 'transaction_id', 'session_request']
-        read_only_fields = ['id', 'client', 'payment_date', 'status', 'transaction_id', 'session_request']
-
-# Views
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_staff and request.user.is_superuser
@@ -592,18 +311,18 @@ class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
             user.languages_spoken = instance.languages_spoken
             user.client_focus = instance.client_focus
             user.insurance_accepted = instance.insurance_accepted
-            user.is_free_consultation = instance.is_free_consultation 
-            user.session_modes = instance.session_modes 
-            user.physical_address = instance.physical_address 
+            user.is_free_consultation = instance.is_free_consultation
+            user.session_modes = instance.session_modes
+            user.physical_address = instance.physical_address
 
             if instance.professional_photo:
                 user.profile_picture = instance.professional_photo
-            
+
             if not instance.is_free_consultation and instance.hourly_rate is not None:
                 user.hourly_rate = instance.hourly_rate
             elif instance.is_free_consultation:
                 user.hourly_rate = None
-            
+
             user.save()
         else:
             user_applicant = instance.applicant
@@ -880,27 +599,59 @@ class PaymentCreateView(generics.CreateAPIView):
         amount = request.data.get('amount')
         mpesa_phone_number = request.data.get('mpesa_phone_number')
 
-        if not therapist_id or not amount:
-            return Response({"error": "Therapist ID and amount are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not therapist_id or not amount or not mpesa_phone_number:
+            return Response({"error": "Therapist ID, amount, and M-Pesa phone number are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
         except User.DoesNotExist:
             return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
 
-        payment_data = {
-            'client': request.user.id,
-            'therapist': therapist.id,
-            'amount': amount,
-            'status': 'completed',
-            'transaction_id': f"Mpesa-{timezone.now().timestamp()}"
-        }
+        # Validate phone number format
+        if not mpesa_phone_number.startswith('254') or not mpesa_phone_number[3:].isdigit() or len(mpesa_phone_number) != 12:
+            return Response({"error": "Invalid M-Pesa phone number format. Must start with '254' and be 12 digits long (e.g., 254712345678)."}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = self.get_serializer(data=payment_data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        # Ensure amount is an integer or can be converted to one for M-Pesa
+        try:
+            amount_int = int(float(amount))
+            if amount_int <= 0:
+                raise ValueError("Amount must be a positive number.")
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid amount. Must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"message": "Payment simulated successfully! You can now request a session.", "payment_status": "completed"}, status=status.HTTP_201_CREATED)
+        # Initiate STK Push
+        callback_url = f"{settings.MPESA_STK_CALLBACK_URL}"
+        account_reference = f"TherapySession_{self.request.user.id}_{therapist.id}_{timezone.now().timestamp()}"
+        transaction_desc = f"Payment for session with {therapist.first_name} {therapist.last_name}"
+
+        stk_response = initiate_stk_push(
+            phone_number=mpesa_phone_number,
+            amount=amount_int,
+            account_reference=account_reference,
+            transaction_desc=transaction_desc,
+            callback_url=callback_url
+        )
+
+        if stk_response["success"]:
+            #pending Payment record in your database
+            payment_data = {
+                'client': self.request.user.id,
+                'therapist': therapist.id,
+                'amount': amount_int,
+                'status': 'pending',
+                'transaction_id': stk_response.get('merchant_request_id'),
+                'checkout_request_id': stk_response.get('checkout_request_id'),
+            }
+            serializer = self.get_serializer(data=payment_data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response({
+                "message": "M-Pesa STK Push initiated. Please check your phone to complete the payment.",
+                "checkout_request_id": stk_response.get('checkout_request_id')
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": stk_response["message"]}, status=status.HTTP_400_BAD_REQUEST)
 
 class ClientPaymentStatusView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -923,3 +674,68 @@ class ClientPaymentStatusView(generics.RetrieveAPIView):
         ).exists()
 
         return Response({"has_paid": has_paid})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def MpesaCallbackView(request):
+    """
+    Handles M-Pesa STK Push callbacks.
+    """
+    print("M-Pesa Callback received!")
+    print(f"Request data: {request.data}")
+
+    try:
+        body = request.data.get('Body')
+        stk_callback = body.get('stkCallback')
+
+        if not stk_callback:
+            print("Invalid M-Pesa callback format: missing stkCallback.")
+            return Response({"message": "Invalid M-Pesa callback format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        merchant_request_id = stk_callback.get('MerchantRequestID')
+        checkout_request_id = stk_callback.get('CheckoutRequestID')
+        result_code = stk_callback.get('ResultCode')
+        result_desc = stk_callback.get('ResultDesc')
+
+        callback_metadata = stk_callback.get('CallbackMetadata', {}).get('Item', [])
+
+        mpesa_receipt_number = None
+        amount = None
+        phone_number = None
+
+        for item in callback_metadata:
+            if item.get('Name') == 'MpesaReceiptNumber':
+                mpesa_receipt_number = item.get('Value')
+            elif item.get('Name') == 'Amount':
+                amount = item.get('Value')
+            elif item.get('Name') == 'PhoneNumber':
+                phone_number = item.get('Value')
+
+        print(f"Callback Details: MerchantRequestID={merchant_request_id}, CheckoutRequestID={checkout_request_id}, ResultCode={result_code}, MpesaReceiptNumber={mpesa_receipt_number}")
+
+        try:
+            payment = Payment.objects.get(checkout_request_id=checkout_request_id)
+        except Payment.DoesNotExist:
+            print(f"Payment not found for CheckoutRequestID: {checkout_request_id}")
+            return Response({"message": "Payment record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if result_code == 0:
+            payment.status = 'completed'
+            payment.mpesa_receipt_number = mpesa_receipt_number
+            payment.transaction_id = mpesa_receipt_number
+            payment.save()
+            print(f"Payment for {checkout_request_id} updated to 'completed'.")
+            return Response({"message": "Payment successful and updated."}, status=status.HTTP_200_OK)
+        else:
+            payment.status = 'failed'
+            payment.reviewer_notes = result_desc
+            payment.save()
+            print(f"Payment for {checkout_request_id} updated to 'failed'. Reason: {result_desc}")
+            return Response({"message": "Payment failed or cancelled."}, status=status.HTTP_200_OK)
+
+    except json.JSONDecodeError as e:
+        print(f"JSON decoding error in M-Pesa callback: {e}")
+        return Response({"message": "Invalid JSON format."}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        print(f"Unexpected error in M-Pesa callback: {e}")
+        return Response({"message": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
