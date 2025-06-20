@@ -611,7 +611,7 @@ class PaymentCreateView(generics.CreateAPIView):
         if not mpesa_phone_number.startswith('254') or not mpesa_phone_number[3:].isdigit() or len(mpesa_phone_number) != 12:
             return Response({"error": "Invalid M-Pesa phone number format. Must start with '254' and be 12 digits long (e.g., 254712345678)."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Ensure amount is an integer or can be converted to one for M-Pesa
+      
         try:
             amount_int = int(float(amount))
             if amount_int <= 0:
@@ -633,7 +633,7 @@ class PaymentCreateView(generics.CreateAPIView):
         )
 
         if stk_response["success"]:
-            #pending Payment record in your database
+            #pending Payment record in database
             payment_data = {
                 'client': self.request.user.id,
                 'therapist': therapist.id,

@@ -434,7 +434,7 @@ export default function TherapistDetail() {
           />
           <TextField
             margin="dense"
-            label="Mpesa Phone Number (e.g., 0712345678)"
+            label="Mpesa Phone Number (e.g., 254712345678)"
             type="tel"
             fullWidth
             variant="outlined"
