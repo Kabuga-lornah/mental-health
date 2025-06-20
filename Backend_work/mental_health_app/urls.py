@@ -1,19 +1,25 @@
+# File: Backend_work/mental_health_app/urls.py
+
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, LoginView, UserView, JournalEntryView, JournalEntryDetailView,
     TherapistListView, SessionRequestCreateView, TherapistSessionRequestListView,
-    SessionRequestUpdateView, ClientSessionRequestListView, 
+    SessionRequestUpdateView, ClientSessionRequestListView,
     TherapistApplicationCreateView,
     MyTherapistApplicationView,
     AdminTherapistApplicationListView, AdminTherapistApplicationDetailView,
     TherapistSessionListView,
-    SessionCreateFromRequestView,
+    TherapistSessionCreateView,
     SessionDetailUpdateView,
     ClientSessionListView,
-    TherapistDetailView, 
+    TherapistDetailView,
     PaymentCreateView,
     ClientPaymentStatusView,
+    # Import the new views here
+    TherapistAvailabilityListCreateView,
+    TherapistAvailabilityDetailView,
+    TherapistAvailableSlotsView
 )
 
 urlpatterns = [
@@ -35,9 +41,18 @@ urlpatterns = [
     path('admin/therapist-applications/', AdminTherapistApplicationListView.as_view(), name='admin-therapist-applications-list'),
     path('admin/therapist-applications/<int:pk>/', AdminTherapistApplicationDetailView.as_view(), name='admin-therapist-applications-detail'),
 
-    # SESSION REQUESTS (from clients to therapists)
+    # THERAPIST & SESSION RELATED ENDPOINTS
     path('therapists/', TherapistListView.as_view(), name='therapist-list'),
-    path('therapists/<int:pk>/', TherapistDetailView.as_view(), name='therapist-detail'), 
+    path('therapists/<int:pk>/', TherapistDetailView.as_view(), name='therapist-detail'),
+
+    # NEW: Therapist Availability Management (for therapists to set their schedule)
+    path('therapists/me/availability/', TherapistAvailabilityListCreateView.as_view(), name='therapist-availability-list-create'),
+    path('therapists/me/availability/<int:pk>/', TherapistAvailabilityDetailView.as_view(), name='therapist-availability-detail'),
+
+    # NEW: Client-facing endpoint to get available slots for a therapist
+    path('therapists/<int:therapist_id>/available-slots/', TherapistAvailableSlotsView.as_view(), name='therapist-available-slots'),
+
+    # SESSION REQUESTS (from clients to therapists)
     path('session-requests/', SessionRequestCreateView.as_view(), name='session-request-create'),
     path('therapist/session-requests/', TherapistSessionRequestListView.as_view(), name='therapist-session-requests'),
     path('client/session-requests/', ClientSessionRequestListView.as_view(), name='client-session-requests'),
@@ -45,10 +60,10 @@ urlpatterns = [
 
     # GET /api/therapist/sessions/ -> Lists all sessions for the therapist
     path('therapist/sessions/', TherapistSessionListView.as_view(), name='therapist-session-list'),
-    
+
     # POST /api/therapist/sessions/create/ -> Creates a new session from a request
-    path('therapist/sessions/create/', SessionCreateFromRequestView.as_view(), name='session-create-from-request'),
-    
+    path('therapist/sessions/create/', TherapistSessionCreateView.as_view(), name='session-create-from-request'),
+
     # PATCH /api/therapist/sessions/<id>/ -> Updates a session (add notes, complete)
     path('therapist/sessions/<int:pk>/', SessionDetailUpdateView.as_view(), name='session-detail-update'),
 

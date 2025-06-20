@@ -28,190 +28,205 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import DatePicker from 'react-datepicker'; // Import react-datepicker
+import 'react-datepicker/dist/react-datepicker.css'; // Import react-datepicker styles
+import { format, addDays } from 'date-fns'; // Import date-fns utilities
 
 export default function TherapistDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, token } = useAuth();
+  const { user, token } = useAuth(); // Assuming 'token' contains the access token directly from AuthContext
   const [therapist, setTherapist] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [openRequestModal, setOpenRequestModal] = useState(false);
-  const [requestMessage, setRequestMessage] = useState('');
-  const [requestedDate, setRequestedDate] = useState('');
-  const [requestedTime, setRequestedTime] = useState('');
-  const [sessionType, setSessionType] = useState('online');
+
+  // New states for scheduling
+  const [selectedDate, setSelectedDate] = useState(null); // Date selected by user in calendar
+  const [availableSlots, setAvailableSlots] = useState({}); // { 'YYYY-MM-DD': [{start_time: 'HH:MM', end_time: 'HH:MM', duration_minutes: N}] }
+  const [selectedSlot, setSelectedSlot] = useState(null); // The actual slot object selected {date: 'YYYY-MM-DD', start_time: 'HH:MM', end_time: 'HH:MM'}
+  const [message, setMessage] = useState(''); // Message to therapist
+
+  // New states for payment and session request flow
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [currentSessionRequestId, setCurrentSessionRequestId] = useState(null); // ID of the created SessionRequest
+
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-  const [openPaymentModal, setOpenPaymentModal] = useState(false);
-  const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [hasPaidForTherapist, setHasPaidForTherapist] = useState(false);
 
-  const checkPaymentStatus = useCallback(async (therapistId) => {
-    try {
-      const response = await axios.get(`http://localhost:8000/api/payments/status/${therapistId}/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setHasPaidForTherapist(response.data.has_paid);
-    } catch (err) {
-      console.error("Error checking payment status:", err);
-      setHasPaidForTherapist(false);
-    }
-  }, [token]);
+  // Removed old requestedDate, requestedTime, openRequestModal, paymentAmount (derived from therapist.hourly_rate), handleSubmitSessionRequest, handleSubmitPayment
 
-  const fetchTherapistDetails = useCallback(async () => {
+  const fetchTherapistDetailsAndAvailability = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`http://localhost:8000/api/therapists/${id}/`, {
+      // 1. Fetch therapist details
+      const therapistResponse = await axios.get(`http://localhost:8000/api/therapists/${id}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      setTherapist(response.data);
-      console.log('Therapist Details Fetched:', response.data);
-      console.log('Therapist is_free_consultation:', response.data.is_free_consultation);
-      console.log('Therapist hourly_rate:', response.data.hourly_rate);
+      setTherapist(therapistResponse.data);
 
-      if (!response.data.is_free_consultation && parseFloat(response.data.hourly_rate) > 0) {
-        await checkPaymentStatus(response.data.id);
-      } else {
-        setHasPaidForTherapist(true);
-      }
+      // 2. Fetch therapist availability for a range (e.g., next 60 days)
+      const today = new Date();
+      const futureDate = addDays(today, 60); // Fetch for the next 60 days
+
+      const formattedToday = format(today, 'yyyy-MM-dd');
+      const formattedFutureDate = format(futureDate, 'yyyy-MM-dd');
+
+      const availabilityResponse = await axios.get(`http://localhost:8000/api/therapists/${id}/available-slots/?start_date=${formattedToday}&end_date=${formattedFutureDate}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAvailableSlots(availabilityResponse.data); // Store available slots grouped by date
+
     } catch (err) {
-      console.error("Error fetching therapist details:", err);
-      setError("Failed to load therapist details. Please try again later.");
+      console.error("Error fetching therapist details or availability:", err.response?.data || err.message);
+      setError("Failed to load therapist details or availability. Please ensure the backend is running and the therapist ID is valid.");
     } finally {
       setLoading(false);
     }
-  }, [id, token, checkPaymentStatus]);
+  }, [id, token]);
 
   useEffect(() => {
     if (user && token && id) {
-      fetchTherapistDetails();
+      fetchTherapistDetailsAndAvailability();
     }
-  }, [user, token, id, fetchTherapistDetails]);
+  }, [user, token, id, fetchTherapistDetailsAndAvailability]);
 
-  const handleRequestSessionClick = () => {
-    console.log('--- Request Session Click Diagnostics ---');
-    console.log('Therapist object:', therapist);
-    console.log('is_free_consultation:', therapist?.is_free_consultation);
-    console.log('hourly_rate:', therapist?.hourly_rate);
-    console.log('hasPaidForTherapist state:', hasPaidForTherapist);
-    console.log('Condition for Payment Modal:',
-      therapist && !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0 && !hasPaidForTherapist);
-    console.log('---------------------------------------');
-
-    if (therapist && !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0 && !hasPaidForTherapist) {
-      setOpenPaymentModal(true);
-      setPaymentAmount(parseFloat(therapist.hourly_rate).toFixed(2));
-    } else {
-      setOpenRequestModal(true);
-      if (therapist?.session_modes === 'online' || therapist?.session_modes === 'both') {
-        setSessionType('online');
-      } else if (therapist?.session_modes === 'physical') {
-        setSessionType('physical');
-      }
-    }
-  };
-
-  const handleCloseRequestModal = () => {
-    setOpenRequestModal(false);
-    setRequestMessage('');
-    setRequestedDate('');
-    setRequestedTime('');
-    setSessionType('online');
-  };
 
   const handleClosePaymentModal = () => {
-    setOpenPaymentModal(false);
+    setShowPaymentModal(false);
     setMpesaPhoneNumber('');
-    setPaymentAmount('');
-    setError(null);
-  };
-
-  const handleSubmitPayment = async () => {
-    try {
-      if (!user) throw new Error("You must be logged in to make a payment.");
-      if (!therapist) throw new Error("Therapist data not loaded.");
-      if (!paymentAmount || parseFloat(paymentAmount) <= 0) throw new Error("Please enter a valid amount.");
-
-      const payload = {
-        therapist: therapist.id,
-        amount: parseFloat(paymentAmount),
-        mpesa_phone_number: mpesaPhoneNumber,
-      };
-
-      await axios.post('http://localhost:8000/api/payments/initiate/', payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      setSnackbarMessage("Payment successful! You can now request a session.");
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-      setHasPaidForTherapist(true);
-      handleClosePaymentModal();
-    } catch (err) {
-      console.error("Error processing payment:", err.response?.data || err.message);
-      setSnackbarMessage(err.response?.data?.error || err.message || "Failed to process payment.");
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-    }
-  };
-
-  const handleSubmitSessionRequest = async () => {
-    try {
-      if (!user) throw new Error("You must be logged in to request a session.");
-      if (!therapist) throw new Error("Therapist data not loaded.");
-      if (!requestedDate || !requestedTime) throw new Error("Please select a preferred date and time.");
-
-      const payload = {
-        therapist: therapist.id,
-        message: requestMessage,
-        requested_date: requestedDate,
-        requested_time: requestedTime,
-        status: 'pending',
-        session_type: sessionType,
-      };
-
-      await axios.post('http://localhost:8000/api/session-requests/', payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      setSnackbarMessage(`Session request sent to ${therapist.full_name}!`);
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-      handleCloseRequestModal();
-      await checkPaymentStatus(therapist.id);
-    } catch (err) {
-      console.error("Full error object on session request:", err);
-      console.error("Backend response data for 400 error:", err.response?.data);
-      console.error("Backend response status for 400 error:", err.response?.status);
-      
-      setSnackbarMessage(
-        err.response?.data?.detail
-          ? (Array.isArray(err.response.data.detail) ? err.response.data.detail.join(', ') : err.response.data.detail)
-          : err.response?.data?.therapist?.[0] || err.message || "Failed to send session request."
-      );
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-    }
+    // Optionally, clear currentSessionRequestId if the payment flow is cancelled entirely
   };
 
   const handleSnackbarClose = (event, reason) => {
     if (reason === 'clickaway') return;
     setSnackbarOpen(false);
   };
+
+  // New function to handle the initial session request (before payment)
+  const handleSessionRequest = async () => {
+    if (!selectedSlot) {
+      setSnackbarMessage("Please select an available time slot first.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      return;
+    }
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    setPaymentProcessing(true); // Indicate that a request is being processed
+    setSnackbarMessage('Creating session request...');
+    setSnackbarSeverity('info');
+    setSnackbarOpen(true);
+    setError(null);
+
+    const requestData = {
+      therapist: id,
+      requested_date: selectedSlot.date,
+      requested_time: selectedSlot.start_time,
+      message: message,
+      session_duration: selectedSlot.duration_minutes || 120, // Send the actual duration
+      // status and is_paid are set by backend default
+    };
+
+    try {
+      const response = await axios.post('http://localhost:8000/api/session-requests/', requestData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setCurrentSessionRequestId(response.data.session_request_id);
+
+      if (response.data.is_free_consultation) {
+        setSnackbarMessage("Session request submitted for free consultation. Therapist will review.");
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        // Optionally redirect or clear form after a short delay
+        setTimeout(() => {
+          navigate('/client/session-requests/'); // Redirect to client's session requests
+        }, 2000);
+      } else {
+        // For paid sessions, proceed to show the M-Pesa payment modal
+        setSnackbarMessage("Session request created. Proceeding to payment.");
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        setShowPaymentModal(true);
+      }
+
+    } catch (err) {
+      console.error("Error creating session request:", err.response?.data || err);
+      const errorMessage = err.response?.data?.detail
+        ? (Array.isArray(err.response.data.detail) ? err.response.data.detail.join(', ') : err.response.data.detail)
+        : "Failed to send session request. Please try again.";
+      setError(errorMessage);
+      setSnackbarMessage(errorMessage);
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
+
+
+  // Function to handle the M-Pesa STK Push initiation
+  const handleInitiatePayment = async () => {
+    setPaymentProcessing(true);
+    setSnackbarMessage('Initiating M-Pesa STK Push...');
+    setSnackbarSeverity('info');
+    setSnackbarOpen(true);
+    setError(null);
+
+    if (!mpesaPhoneNumber || !currentSessionRequestId || !therapist?.id || !therapist?.hourly_rate) {
+      setSnackbarMessage("Missing payment details. Please try again.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      setPaymentProcessing(false);
+      return;
+    }
+
+    const paymentData = {
+      session_request_id: currentSessionRequestId,
+      therapist: therapist.id,
+      amount: parseFloat(therapist.hourly_rate), // Use the therapist's actual hourly rate
+      mpesa_phone_number: mpesaPhoneNumber
+    };
+
+    try {
+      const response = await axios.post('http://localhost:8000/api/payments/initiate/', paymentData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setSnackbarMessage("M-Pesa STK Push initiated. Please check your phone to complete the payment.");
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      setShowPaymentModal(false); // Close payment modal
+      setMpesaPhoneNumber('');
+      setSelectedSlot(null); // Clear selected slot after successful initiation
+      setMessage(''); // Clear message
+
+      // Optionally, redirect the user or prompt them to check session status later
+      setTimeout(() => {
+        navigate('/client/session-requests/'); // Redirect to client's session requests
+      }, 3000);
+
+    } catch (err) {
+      console.error("Error initiating M-Pesa payment:", err.response?.data || err.message);
+      const errorMessage = err.response?.data?.error || "Failed to initiate M-Pesa payment. Please try again.";
+      setError(errorMessage);
+      setSnackbarMessage(errorMessage);
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -252,8 +267,6 @@ export default function TherapistDetail() {
     );
   }
 
-  const isPaidTherapist = !therapist.is_free_consultation && parseFloat(therapist.hourly_rate) > 0;
-  const buttonText = isPaidTherapist && !hasPaidForTherapist ? "Make Payment to Request" : "Request Session";
   const isButtonDisabled = (user && user.is_therapist) || !therapist.is_available;
 
   return (
@@ -279,24 +292,6 @@ export default function TherapistDetail() {
                 size="small"
                 sx={{ mt: 1, px: 1 }}
               />
-              <Button
-                variant="contained"
-                fullWidth
-                sx={{
-                  backgroundColor: '#780000',
-                  '&:hover': { backgroundColor: '#5a0000' },
-                  mt: 3,
-                  py: 1.5,
-                  borderRadius: 2,
-                }}
-                onClick={handleRequestSessionClick}
-                disabled={isButtonDisabled}
-              >
-                {isButtonDisabled ?
-                  (user && user.is_therapist ? "Therapists Cannot Request" : "Therapist Not Available")
-                  : buttonText
-                }
-              </Button>
             </Grid>
 
             <Grid item xs={12} md={8}>
@@ -411,105 +406,146 @@ export default function TherapistDetail() {
               )}
             </Grid>
           </Grid>
+          <Divider sx={{ my: 4 }} /> {/* Separator for booking section */}
+
+          {/* New Booking Section */}
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
+              Book a Session
+            </Typography>
+
+            {therapist.is_free_consultation ? (
+              <Typography variant="body1" sx={{ mb: 2, color: 'green', fontWeight: 'bold' }}>
+                This therapist offers a FREE initial consultation. No payment is required.
+              </Typography>
+            ) : (
+              <Typography variant="body1" sx={{ mb: 2, color: '#780000', fontWeight: 'bold' }}>
+                Session Rate: Ksh {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'} per session
+              </Typography>
+            )}
+
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle1" sx={{ mb: 1, color: '#780000' }}>Select Date:</Typography>
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={(date) => {
+                    setSelectedDate(date);
+                    setSelectedSlot(null); // Reset selected slot when date changes
+                  }}
+                  minDate={new Date()} // Cannot select past dates
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Click to select a date"
+                  customInput={<TextField fullWidth variant="outlined" />}
+                  filterDate={(date) => date.getDay() !== 0 && date.getDay() !== 6} // Example: disable weekends
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle1" sx={{ mb: 1, color: '#780000' }}>Available Time Slots:</Typography>
+                <Paper variant="outlined" sx={{ p: 2, minHeight: 120, maxHeight: 200, overflowY: 'auto', bgcolor: '#fdf8f5' }}>
+                  {selectedDate ? (
+                    (() => {
+                      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+                      const slots = availableSlots[formattedDate];
+                      if (slots && slots.length > 0) {
+                        return (
+                          <Grid container spacing={1}>
+                            {slots.map((slot, index) => (
+                              <Grid item key={index} xs={6}>
+                                <Button
+                                  fullWidth
+                                  variant={selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? 'contained' : 'outlined'}
+                                  onClick={() => setSelectedSlot({ date: formattedDate, start_time: slot.start_time, end_time: slot.end_time, duration_minutes: slot.duration_minutes })}
+                                  sx={{
+                                    borderColor: '#780000',
+                                    color: selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? 'white' : '#780000',
+                                    backgroundColor: selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? '#780000' : 'transparent',
+                                    '&:hover': {
+                                      backgroundColor: '#5a0000',
+                                      color: 'white',
+                                      borderColor: '#5a0000',
+                                    },
+                                    textTransform: 'none',
+                                  }}
+                                >
+                                  {slot.start_time} - {slot.end_time}
+                                </Button>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        );
+                      } else {
+                        return <Typography variant="body2" color="text.secondary">No available slots for this date. Try another date.</Typography>;
+                      }
+                    })()
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">Please select a date to see available slots.</Typography>
+                  )}
+                </Paper>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Message to Therapist (Optional)"
+                  multiline
+                  rows={3}
+                  variant="outlined"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  sx={{ mt: 2 }}
+                />
+              </Grid>
+            </Grid>
+            <Button
+              variant="contained"
+              fullWidth
+              sx={{
+                backgroundColor: '#780000',
+                '&:hover': { backgroundColor: '#5a0000' },
+                mt: 3,
+                py: 1.5,
+                borderRadius: 2,
+              }}
+              onClick={handleSessionRequest}
+              disabled={isButtonDisabled || !selectedSlot || paymentProcessing}
+            >
+              {isButtonDisabled ?
+                (user && user.is_therapist ? "Therapists Cannot Book" : "Therapist Not Available")
+                : (paymentProcessing ? <CircularProgress size={24} color="inherit" /> : 'Request Session')}
+            </Button>
+          </Box>
         </Paper>
       </Container>
 
-      <Dialog open={openPaymentModal} onClose={handleClosePaymentModal}>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Make Payment to {therapist?.full_name}</DialogTitle>
+      {/* Payment Modal */}
+      <Dialog open={showPaymentModal} onClose={handleClosePaymentModal}>
+        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Complete Payment</DialogTitle>
         <DialogContent>
           <Typography variant="body1" sx={{ mb: 2 }}>
-            Please pay KES {therapist?.hourly_rate} to request a session.
+            You are requesting a session with {therapist?.first_name} {therapist?.last_name} on {selectedSlot?.date} at {selectedSlot?.start_time}.
+          </Typography>
+          <Typography variant="body1" sx={{ mb: 2, fontWeight: 'bold' }}>
+            Amount Due: KES {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'}
           </Typography>
           <TextField
             autoFocus
             margin="dense"
-            label="Amount (Ksh)"
-            type="number"
-            fullWidth
-            variant="outlined"
-            value={paymentAmount}
-            onChange={(e) => setPaymentAmount(e.target.value)}
-            sx={{ mb: 2 }}
-            disabled
-          />
-          <TextField
-            margin="dense"
-            label="Mpesa Phone Number (e.g., 254712345678)"
+            label="M-Pesa Phone Number (e.g., 254712345678)"
             type="tel"
             fullWidth
             variant="outlined"
             value={mpesaPhoneNumber}
             onChange={(e) => setMpesaPhoneNumber(e.target.value)}
-            helperText="Enter your Mpesa registered phone number for simulation."
+            helperText="Enter your M-Pesa registered phone number for simulation."
             sx={{ mb: 2 }}
+            disabled={paymentProcessing}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClosePaymentModal} sx={{ color: '#780000' }}>Cancel</Button>
-          <Button onClick={handleSubmitPayment} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>Pay Now (Simulated)</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={openRequestModal} onClose={handleCloseRequestModal}>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Request Session with {therapist?.full_name}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Preferred Date"
-            type="date"
-            fullWidth
-            variant="outlined"
-            InputLabelProps={{ shrink: true }}
-            value={requestedDate}
-            onChange={(e) => setRequestedDate(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Preferred Time"
-            type="time"
-            fullWidth
-            variant="outlined"
-            InputLabelProps={{ shrink: true }}
-            value={requestedTime}
-            onChange={(e) => setRequestedTime(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          {(therapist?.session_modes === 'online' || therapist?.session_modes === 'physical' || therapist?.session_modes === 'both') && (
-            <FormControl component="fieldset" fullWidth sx={{ mb: 2 }}>
-              <FormLabel component="legend">Choose Session Type</FormLabel>
-              <RadioGroup
-                row
-                name="sessionType"
-                value={sessionType}
-                onChange={(e) => setSessionType(e.target.value)}
-              >
-                {therapist.session_modes === 'online' || therapist.session_modes === 'both' ? (
-                  <FormControlLabel value="online" control={<Radio />} label="Online Session" />
-                ) : null}
-                {therapist.session_modes === 'physical' || therapist.session_modes === 'both' ? (
-                  <FormControlLabel value="physical" control={<Radio />} label="Physical Session" />
-                ) : null}
-              </RadioGroup>
-            </FormControl>
-          )}
-
-          <TextField
-            margin="dense"
-            label="Message (Optional)"
-            type="text"
-            fullWidth
-            multiline
-            rows={4}
-            variant="outlined"
-            value={requestMessage}
-            onChange={(e) => setRequestMessage(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseRequestModal} sx={{ color: '#780000' }}>Cancel</Button>
-          <Button onClick={handleSubmitSessionRequest} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>Send Request</Button>
+          <Button onClick={handleClosePaymentModal} sx={{ color: '#780000' }} disabled={paymentProcessing}>Cancel</Button>
+          <Button onClick={handleInitiatePayment} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }} disabled={!mpesaPhoneNumber || paymentProcessing}>
+            {paymentProcessing ? <CircularProgress size={24} color="inherit" /> : 'Pay Now'}
+          </Button>
         </DialogActions>
       </Dialog>
 

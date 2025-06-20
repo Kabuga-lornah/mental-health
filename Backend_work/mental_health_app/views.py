@@ -11,8 +11,11 @@ import requests
 import base64
 from datetime import datetime
 import json
+from datetime import time, timedelta
+from collections import defaultdict
 
-from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment
+# CORRECTED: Ensure TherapistAvailability is imported here
+from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment, TherapistAvailability
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -25,7 +28,9 @@ from .serializers import (
     UserSerializer, RegisterSerializer, LoginSerializer, TherapistSerializer,
     JournalEntrySerializer, JournalListSerializer, SessionRequestSerializer,
     SessionRequestUpdateSerializer, SessionSerializer, TherapistApplicationSerializer,
-    TherapistApplicationAdminSerializer, PaymentSerializer
+    TherapistApplicationAdminSerializer, PaymentSerializer,
+    # CORRECTED: Ensure TherapistAvailabilitySerializer is imported here
+    TherapistAvailabilitySerializer
 )
 
 def generate_mpesa_access_token():
@@ -362,20 +367,113 @@ class SessionRequestCreateView(generics.CreateAPIView):
     serializer_class = SessionRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        therapist_id = self.request.data.get('therapist')
+    # Helper function to check if a slot is available (re-using logic from TherapistAvailableSlotsView)
+    def _is_slot_available(self, therapist, requested_date, requested_time, session_duration_minutes): # ADDED session_duration_minutes
+        day_of_week = requested_date.strftime('%A')
+        availability = TherapistAvailability.objects.filter(
+            therapist=therapist, day_of_week=day_of_week
+        ).first()
+
+        if not availability:
+            print(f"DEBUG: Slot check - No availability found for {day_of_week}")
+            return False, "Therapist not available on this day."
+
+        # Convert times to datetime objects for comparison
+        slot_start_dt = datetime.combine(requested_date, requested_time)
+        slot_end_dt = slot_start_dt + timedelta(minutes=session_duration_minutes) # Use passed duration
+        working_start_dt = datetime.combine(requested_date, availability.start_time)
+        working_end_dt = datetime.combine(requested_date, availability.end_time)
+
+        # Check if requested slot is within working hours
+        if not (working_start_dt <= slot_start_dt and slot_end_dt <= working_end_dt):
+            print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} outside working hours {working_start_dt.time()}-{working_end_dt.time()}")
+            return False, "Requested slot is outside therapist's working hours."
+
+        # Check for breaks
+        if availability.break_start_time and availability.break_end_time:
+            break_start_dt = datetime.combine(requested_date, availability.break_start_time)
+            break_end_dt = datetime.combine(requested_date, availability.break_end_time)
+            if not (slot_end_dt <= break_start_dt or slot_start_dt >= break_end_dt):
+                print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} overlaps with break {break_start_dt.time()}-{break_end_dt.time()}")
+                return False, "Requested slot overlaps with therapist's break."
+
+        # Check for existing scheduled sessions (booked slots)
+        scheduled_sessions_on_date = Session.objects.filter(
+            therapist=therapist,
+            session_date=requested_date
+        ).values('session_time', 'duration_minutes') # Use 'duration_minutes' here
+
+        # For pending SessionRequests that are paid
+        paid_pending_requests_on_date = SessionRequest.objects.filter(
+            therapist=therapist,
+            status__in=['pending', 'accepted'], # Also consider 'accepted' as they block slots
+            is_paid=True,
+            requested_date=requested_date
+        ).values('requested_time', 'session_duration')
+
+
+        for session in scheduled_sessions_on_date:
+            booked_start_time = session['session_time']
+            booked_duration = session.get('duration_minutes', 120) # Get duration from session object, default to 120
+            booked_start_dt = datetime.combine(requested_date, booked_start_time)
+            booked_end_dt = booked_start_dt + timedelta(minutes=booked_duration)
+
+            if not (slot_end_dt <= booked_start_dt or slot_start_dt >= booked_end_dt):
+                print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} conflicts with scheduled session {booked_start_dt.time()}-{booked_end_dt.time()}")
+                return False, "Requested slot is already booked."
+
+        for req in paid_pending_requests_on_date:
+            booked_start_time = req['requested_time']
+            booked_duration = req.get('session_duration', 120) # Get duration from request object, default to 120
+            booked_start_dt = datetime.combine(requested_date, booked_start_time)
+            booked_end_dt = booked_start_dt + timedelta(minutes=booked_duration)
+
+            if not (slot_end_dt <= booked_start_dt or slot_start_dt >= booked_end_dt):
+                print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} conflicts with paid pending request {booked_start_dt.time()}-{booked_end_dt.time()}")
+                return False, "Requested slot is currently pending payment confirmation for another user."
+
+
+        # Check if the slot is in the future
+        # Using timezone.now() for comparison
+        if slot_start_dt <= timezone.now():
+            print(f"DEBUG: Slot check - Slot {slot_start_dt} is in the past compared to {timezone.now()}")
+            return False, "Cannot book a session in the past or current time."
+
+        print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} is AVAILABLE.")
+        return True, "Slot is available."
+
+
+    def create(self, request, *args, **kwargs):
+        therapist_id = request.data.get('therapist')
+        requested_date_str = request.data.get('requested_date')
+        requested_time_str = request.data.get('requested_time')
+        session_duration = request.data.get('session_duration') # Retrieve duration from request data
+
+        if not therapist_id or not requested_date_str or not requested_time_str or not session_duration:
+            return Response({"error": "Therapist, requested date, time, and session duration are required."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
+            requested_date = datetime.strptime(requested_date_str, '%Y-%m-%d').date()
+            requested_time = datetime.strptime(requested_time_str, '%H:%M').time()
+            session_duration = int(session_duration)
         except User.DoesNotExist:
-            raise serializers.ValidationError(
-                {"therapist": "Invalid therapist ID, user is not a verified therapist, or does not exist."}
-            )
+            return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError:
+            return Response({"error": "Invalid date, time, or duration format. Use '%Y-%m-%d', '%H:%M', and integer for duration."}, status=status.HTTP_400_BAD_REQUEST)
+
 
         if self.request.user == therapist:
             raise serializers.ValidationError(
                 {"therapist": "You cannot request a session with yourself."}
             )
 
+        # 1. Validate slot availability using the new logic
+        is_available, availability_message = self._is_slot_available(therapist, requested_date, requested_time, session_duration) # Pass session_duration
+        if not is_available:
+            return Response({"detail": availability_message}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Check for existing pending/active requests from the client (unchanged)
         existing_request = SessionRequest.objects.filter(
             client=self.request.user,
             status__in=['pending', 'accepted']
@@ -387,65 +485,70 @@ class SessionRequestCreateView(generics.CreateAPIView):
         ).exists()
 
         if existing_request or existing_session:
-            raise serializers.ValidationError(
-                {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."}
+            return Response(
+                {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
-            payment = Payment.objects.filter(
-                client=self.request.user,
-                therapist=therapist,
-                status='completed',
-                session_request__isnull=True
-            ).first()
+        # 3. Create SessionRequest (status='pending', is_paid=False initially)
+        # Pass session_duration from request.data to serializer
+        serializer = self.get_serializer(data={
+            'therapist': therapist_id,
+            'requested_date': requested_date_str,
+            'requested_time': requested_time_str,
+            'message': request.data.get('message'),
+            'session_duration': session_duration # Ensure session_duration is passed
+        })
+        serializer.is_valid(raise_exception=True)
+        session_request_instance = serializer.save(client=self.request.user, therapist=therapist, is_paid=False, status='pending')
 
-            if not payment:
-                raise serializers.ValidationError(
-                    {"detail": "Payment required before requesting a session with this therapist."}
-                )
+        # 4. Return success and indicate next step is payment
+        return Response({
+            "message": "Session request created successfully. Proceed to payment to confirm your booking.",
+            "session_request_id": session_request_instance.id,
+            "therapist_hourly_rate": therapist.hourly_rate if not therapist.is_free_consultation else 0,
+            "is_free_consultation": therapist.is_free_consultation
+        }, status=status.HTTP_201_CREATED)
 
-        session_request_instance = serializer.save(client=self.request.user, therapist=therapist)
-
-        if not therapist.is_free_consultation and therapist.hourly_rate and therapist.hourly_rate > 0:
-            payment = Payment.objects.filter(
-                client=self.request.user,
-                therapist=therapist,
-                status='completed',
-                session_request__isnull=True
-            ).first()
-            if payment:
-                payment.session_request = session_request_instance
-                payment.status = 'used'
-                payment.save()
 
 class TherapistSessionCreateView(generics.CreateAPIView):
     serializer_class = SessionRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        if not (self.request.user.is_therapist and self.request.user.is_verified):
-            raise serializers.ValidationError(
-                {"detail": "Only verified therapists can create sessions."}
-            )
+    def create(self, request, *args, **kwargs):
+        request_id = request.data.get('session_request')
+        session_request = get_object_or_404(SessionRequest, id=request_id)
 
-        client_id = self.request.data.get('client')
-        try:
-            client = User.objects.get(id=client_id)
-        except User.DoesNotExist:
-            raise serializers.ValidationError(
-                {"client": "Invalid client ID or client does not exist."}
-            )
+        if request.user != session_request.therapist:
+            return Response({'error': 'You are not authorized to accept this request.'}, status=status.HTTP_403_FORBIDDEN)
 
-        if self.request.user == client:
-            raise serializers.ValidationError(
-                {"client": "You cannot create a session with yourself."}
-            )
+        # Check if the session request is paid for (new check)
+        if not session_request.is_paid:
+            return Response({'error': 'Cannot create a session for an unpaid request.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer.save(
-            client=client,
-            therapist=self.request.user,
-            status='accepted'
-        )
+        if hasattr(session_request, 'session'):
+             return Response({'error': 'A session has already been created for this request.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        session_request.status = 'accepted'
+        session_request.save()
+
+        session_data = {
+            'session_request': session_request.id,
+            'client': session_request.client.id,
+            'therapist': session_request.therapist.id,
+            'session_date': session_request.requested_date,
+            'session_time': session_request.requested_time,
+            'duration_minutes': session_request.session_duration, # Corrected: Pass duration from SessionRequest
+            'session_type': request.data.get('session_type', 'online'),
+            'location': request.data.get('location', None),
+            'zoom_meeting_url': request.data.get('zoom_meeting_url', None)
+        }
+
+        serializer = self.get_serializer(data=session_data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class TherapistSessionRequestListView(generics.ListAPIView):
     serializer_class = SessionRequestSerializer
@@ -456,7 +559,8 @@ class TherapistSessionRequestListView(generics.ListAPIView):
             return SessionRequest.objects.none()
 
         status_filter = self.request.query_params.get('status')
-        queryset = SessionRequest.objects.filter(therapist=self.request.user)
+        # Therapists should only see paid pending/accepted requests
+        queryset = SessionRequest.objects.filter(therapist=self.request.user, is_paid=True)
 
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -513,40 +617,6 @@ class TherapistSessionListView(generics.ListAPIView):
     def get_queryset(self):
         return Session.objects.filter(therapist=self.request.user).order_by('-session_date', '-session_time')
 
-class SessionCreateFromRequestView(generics.CreateAPIView):
-    serializer_class = SessionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def create(self, request, *args, **kwargs):
-        request_id = request.data.get('session_request')
-        session_request = get_object_or_404(SessionRequest, id=request_id)
-
-        if request.user != session_request.therapist:
-            return Response({'error': 'You are not authorized to accept this request.'}, status=status.HTTP_403_FORBIDDEN)
-
-        if hasattr(session_request, 'session'):
-             return Response({'error': 'A session has already been created for this request.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        session_request.status = 'accepted'
-        session_request.save()
-
-        session_data = {
-            'session_request': session_request.id,
-            'client': session_request.client.id,
-            'therapist': session_request.therapist.id,
-            'session_date': session_request.requested_date,
-            'session_time': session_request.requested_time,
-            'session_type': request.data.get('session_type', 'online'),
-            'location': request.data.get('location', None),
-            'zoom_meeting_url': request.data.get('zoom_meeting_url', None)
-        }
-
-        serializer = self.get_serializer(data=session_data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
 class SessionDetailUpdateView(generics.UpdateAPIView):
     serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -595,23 +665,27 @@ class PaymentCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
-        therapist_id = request.data.get('therapist')
-        amount = request.data.get('amount')
+        session_request_id = request.data.get('session_request_id')
         mpesa_phone_number = request.data.get('mpesa_phone_number')
 
-        if not therapist_id or not amount or not mpesa_phone_number:
-            return Response({"error": "Therapist ID, amount, and M-Pesa phone number are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not session_request_id or not mpesa_phone_number:
+            return Response({"error": "Session request ID and M-Pesa phone number are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
-        except User.DoesNotExist:
-            return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
+            # CORRECTED: Ensure status is 'pending' and is_paid is False
+            session_request_obj = SessionRequest.objects.get(id=session_request_id, client=request.user, status='pending', is_paid=False)
+        except SessionRequest.DoesNotExist:
+            return Response({"error": "Session request not found, not pending, or already paid."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Validate phone number format
+        therapist = session_request_obj.therapist
+        amount = therapist.hourly_rate if not therapist.is_free_consultation else 0
+
+        if amount <= 0:
+            return Response({"error": "Payment is not required for this session (free consultation or therapist has no hourly rate)."}, status=status.HTTP_400_BAD_REQUEST)
+
         if not mpesa_phone_number.startswith('254') or not mpesa_phone_number[3:].isdigit() or len(mpesa_phone_number) != 12:
             return Response({"error": "Invalid M-Pesa phone number format. Must start with '254' and be 12 digits long (e.g., 254712345678)."}, status=status.HTTP_400_BAD_REQUEST)
 
-      
         try:
             amount_int = int(float(amount))
             if amount_int <= 0:
@@ -619,10 +693,12 @@ class PaymentCreateView(generics.CreateAPIView):
         except (ValueError, TypeError):
             return Response({"error": "Invalid amount. Must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Initiate STK Push
+        if Payment.objects.filter(session_request=session_request_obj).exists():
+            return Response({"error": "A payment for this session request has already been initiated or completed."}, status=status.HTTP_400_BAD_REQUEST)
+
         callback_url = f"{settings.MPESA_STK_CALLBACK_URL}"
-        account_reference = f"TherapySession_{self.request.user.id}_{therapist.id}_{timezone.now().timestamp()}"
-        transaction_desc = f"Payment for session with {therapist.first_name} {therapist.last_name}"
+        account_reference = f"TherapySession_{request.user.id}_{therapist.id}_{session_request_obj.id}_{timezone.now().timestamp()}"
+        transaction_desc = f"Payment for session request {session_request_obj.id} with {therapist.first_name} {therapist.last_name}"
 
         stk_response = initiate_stk_push(
             phone_number=mpesa_phone_number,
@@ -633,7 +709,6 @@ class PaymentCreateView(generics.CreateAPIView):
         )
 
         if stk_response["success"]:
-            #pending Payment record in database
             payment_data = {
                 'client': self.request.user.id,
                 'therapist': therapist.id,
@@ -641,6 +716,7 @@ class PaymentCreateView(generics.CreateAPIView):
                 'status': 'pending',
                 'transaction_id': stk_response.get('merchant_request_id'),
                 'checkout_request_id': stk_response.get('checkout_request_id'),
+                'session_request': session_request_obj.id
             }
             serializer = self.get_serializer(data=payment_data)
             serializer.is_valid(raise_exception=True)
@@ -648,7 +724,8 @@ class PaymentCreateView(generics.CreateAPIView):
 
             return Response({
                 "message": "M-Pesa STK Push initiated. Please check your phone to complete the payment.",
-                "checkout_request_id": stk_response.get('checkout_request_id')
+                "checkout_request_id": stk_response.get('checkout_request_id'),
+                "session_request_id": session_request_obj.id
             }, status=status.HTTP_200_OK)
         else:
             return Response({"error": stk_response["message"]}, status=status.HTTP_400_BAD_REQUEST)
@@ -658,22 +735,32 @@ class ClientPaymentStatusView(generics.RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         therapist_id = self.kwargs.get('therapist_id')
-        if not therapist_id:
-            return Response({"error": "Therapist ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        session_request_id = request.query_params.get('session_request_id')
 
-        try:
-            therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
-        except User.DoesNotExist:
-            return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
+        if not therapist_id and not session_request_id:
+            return Response({"error": "Therapist ID or Session Request ID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        has_paid = Payment.objects.filter(
-            client=request.user,
-            therapist=therapist,
-            status='completed',
-            session_request__isnull=True
-        ).exists()
+        if session_request_id:
+            try:
+                session_request = SessionRequest.objects.get(id=session_request_id, client=request.user)
+                has_paid = Payment.objects.filter(session_request=session_request, status='completed').exists()
+                return Response({"has_paid": has_paid})
+            except SessionRequest.DoesNotExist:
+                return Response({"error": "Session request not found for current user."}, status=status.HTTP_404_NOT_FOUND)
+        elif therapist_id:
+            try:
+                therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
+            except User.DoesNotExist:
+                return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response({"has_paid": has_paid})
+            has_paid = Payment.objects.filter(
+                client=request.user,
+                therapist=therapist,
+                status='completed',
+                session_request__isnull=True
+            ).exists()
+            return Response({"has_paid": has_paid})
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -725,12 +812,24 @@ def MpesaCallbackView(request):
             payment.transaction_id = mpesa_receipt_number
             payment.save()
             print(f"Payment for {checkout_request_id} updated to 'completed'.")
+
+            if payment.session_request:
+                payment.session_request.is_paid = True
+                payment.session_request.save()
+                print(f"SessionRequest {payment.session_request.id} marked as paid.")
+
             return Response({"message": "Payment successful and updated."}, status=status.HTTP_200_OK)
         else:
             payment.status = 'failed'
             payment.reviewer_notes = result_desc
             payment.save()
             print(f"Payment for {checkout_request_id} updated to 'failed'. Reason: {result_desc}")
+
+            if payment.session_request:
+                payment.session_request.status = 'cancelled'
+                payment.session_request.save()
+                print(f"SessionRequest {payment.session_request.id} cancelled due to payment failure.")
+
             return Response({"message": "Payment failed or cancelled."}, status=status.HTTP_200_OK)
 
     except json.JSONDecodeError as e:
@@ -739,3 +838,189 @@ def MpesaCallbackView(request):
     except Exception as e:
         print(f"Unexpected error in M-Pesa callback: {e}")
         return Response({"message": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TherapistAvailabilityListCreateView(generics.ListCreateAPIView):
+    serializer_class = TherapistAvailabilitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_therapist:
+            return TherapistAvailability.objects.filter(therapist=self.request.user)
+        return TherapistAvailability.objects.none()
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_therapist:
+            raise PermissionDenied("Only therapists can set availability.")
+
+        day_of_week = self.request.data.get('day_of_week')
+        if TherapistAvailability.objects.filter(therapist=self.request.user, day_of_week=day_of_week).exists():
+            raise serializers.ValidationError({"detail": f"Availability for {day_of_week} already exists."})
+
+        serializer.save(therapist=self.request.user)
+
+class TherapistAvailabilityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = TherapistAvailabilitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_therapist:
+            return TherapistAvailability.objects.filter(therapist=self.request.user)
+        return TherapistAvailability.objects.none()
+
+    def perform_update(self, serializer):
+        if not self.request.user.is_therapist:
+            raise PermissionDenied("Only therapists can update availability.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_therapist:
+            raise PermissionDenied("Only therapists can delete availability.")
+        instance.delete()
+
+class TherapistAvailableSlotsView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, therapist_id, *args, **kwargs):
+        print(f"DEBUG: TherapistAvailableSlotsView - Request received for therapist {therapist_id}")
+        try:
+            therapist = User.objects.get(id=therapist_id, is_therapist=True, is_verified=True)
+            print(f"DEBUG: TherapistAvailableSlotsView - Found therapist: {therapist.email}")
+        except User.DoesNotExist:
+            print(f"DEBUG: TherapistAvailableSlotsView - Therapist {therapist_id} not found or not verified.")
+            return Response({"error": "Therapist not found or not verified."}, status=status.HTTP_404_NOT_FOUND)
+
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+
+        if not start_date_str or not end_date_str:
+            print("DEBUG: TherapistAvailableSlotsView - Missing start_date or end_date query parameters.")
+            return Response({"error": "start_date and end_date query parameters are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            print(f"DEBUG: TherapistAvailableSlotsView - Date range: {start_date} to {end_date}")
+        except ValueError:
+            print(f"DEBUG: TherapistAvailableSlotsView - Invalid date format: start={start_date_str}, end={end_date_str}")
+            return Response({"error": "Invalid date format. Use '%Y-%m-%d'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if start_date > end_date:
+            print("DEBUG: TherapistAvailableSlotsView - start_date is after end_date.")
+            return Response({"error": "start_date cannot be after end_date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        today = timezone.now().date()
+        if start_date < today:
+            print(f"DEBUG: TherapistAvailableSlotsView - Adjusted start_date from {start_date} to {today} (current date).")
+            start_date = today
+
+        available_slots = defaultdict(list)
+        therapist_availabilities = TherapistAvailability.objects.filter(therapist=therapist)
+        print(f"DEBUG: TherapistAvailableSlotsView - Number of therapist_availabilities found: {therapist_availabilities.count()}")
+
+        # Get all scheduled sessions for the therapist within the date range
+        scheduled_sessions = Session.objects.filter(
+            therapist=therapist,
+            session_date__range=[start_date, end_date]
+        ).values('session_date', 'session_time', 'duration_minutes') # CORRECTED: Use 'duration_minutes'
+        print(f"DEBUG: TherapistAvailableSlotsView - Scheduled sessions count: {len(scheduled_sessions)}")
+
+        # Also consider pending SessionRequests that have been paid for
+        paid_pending_requests = SessionRequest.objects.filter(
+            therapist=therapist,
+            status__in=['pending', 'accepted'], # Also consider 'accepted' requests as they block slots
+            is_paid=True,
+            requested_date__range=[start_date, end_date]
+        ).values('requested_date', 'requested_time', 'session_duration') # Use 'session_duration'
+        print(f"DEBUG: TherapistAvailableSlotsView - Paid pending requests count: {len(paid_pending_requests)}")
+
+        # Combine scheduled sessions and paid pending requests into unavailable intervals
+        unavailable_intervals = defaultdict(list)
+        for session in scheduled_sessions:
+            session_date = session['session_date']
+            session_start_time = session['session_time']
+            session_duration_minutes = session.get('duration_minutes', 120) # Use actual duration, default to 120
+            dummy_datetime = datetime.combine(session_date, session_start_time)
+            session_end_time = (dummy_datetime + timedelta(minutes=session_duration_minutes)).time()
+            unavailable_intervals[session_date].append((session_start_time, session_end_time))
+            print(f"DEBUG: Unavailable interval (Scheduled Session): {session_date} {session_start_time}-{session_end_time}")
+
+        for req in paid_pending_requests:
+            req_date = req['requested_date']
+            req_start_time = req['requested_time']
+            req_duration_minutes = req.get('session_duration', 120) # Use actual duration, default to 120
+            dummy_datetime = datetime.combine(req_date, req_start_time)
+            req_end_time = (dummy_datetime + timedelta(minutes=req_duration_minutes)).time()
+            unavailable_intervals[req_date].append((req_start_time, req_end_time))
+            print(f"DEBUG: Unavailable interval (Paid Pending Request): {req_date} {req_start_time}-{req_end_time}")
+
+
+        current_date = start_date
+        while current_date <= end_date:
+            day_of_week = current_date.strftime('%A')
+            availability = therapist_availabilities.filter(day_of_week=day_of_week).first()
+            print(f"\n--- Checking {current_date} ({day_of_week}) ---")
+
+            if availability:
+                print(f"DEBUG: Found TherapistAvailability for {day_of_week}: {availability.start_time}-{availability.end_time}, break: {availability.break_start_time}-{availability.break_end_time}, slot_duration: {availability.slot_duration}")
+                working_start = datetime.combine(current_date, availability.start_time)
+                working_end = datetime.combine(current_date, availability.end_time)
+
+                slot_duration_minutes = availability.slot_duration if availability.slot_duration else 120
+                print(f"DEBUG: Calculated slot_duration_minutes: {slot_duration_minutes}")
+
+                current_slot_start = working_start
+                while current_slot_start + timedelta(minutes=slot_duration_minutes) <= working_end:
+                    current_slot_end = current_slot_start + timedelta(minutes=slot_duration_minutes)
+                    print(f"DEBUG: Generating potential slot: {current_slot_start.time()}-{current_slot_end.time()}")
+
+                    # Check for breaks
+                    is_during_break = False
+                    if availability.break_start_time and availability.break_end_time:
+                        break_start_dt = datetime.combine(current_date, availability.break_start_time)
+                        break_end_dt = datetime.combine(current_date, availability.break_end_time)
+
+                        if not (current_slot_end <= break_start_dt or current_slot_start >= break_end_dt):
+                            is_during_break = True
+                            print(f"DEBUG:   - Slot overlaps with break: {break_start_dt.time()}-{break_end_dt.time()}")
+
+                    if not is_during_break:
+                        # Check if slot is already booked or overlaps with a scheduled session/paid pending request
+                        is_booked = False
+                        for booked_start_time, booked_end_time in unavailable_intervals[current_date]:
+                            booked_start_dt = datetime.combine(current_date, booked_start_time)
+                            booked_end_dt = datetime.combine(current_date, booked_end_time)
+
+                            if not (current_slot_end <= booked_start_dt or current_slot_start >= booked_end_dt):
+                                is_booked = True
+                                print(f"DEBUG:   - Slot conflicts with booked interval: {booked_start_dt.time()}-{booked_end_dt.time()}")
+                                break
+
+                        if not is_booked:
+                            # Only add if the slot is in the future relative to current time
+                            now = timezone.now()
+                            slot_full_start_datetime = timezone.make_aware(datetime.combine(current_date, current_slot_start.time()))
+
+                            if slot_full_start_datetime > now:
+                                print(f"DEBUG:   - Adding available slot: {current_slot_start.time()}-{current_slot_end.time()}")
+                                available_slots[current_date.isoformat()].append({
+                                    "start_time": current_slot_start.strftime('%H:%M'),
+                                    "end_time": current_slot_end.strftime('%H:%M'),
+                                    "duration_minutes": slot_duration_minutes
+                                })
+                            else:
+                                print(f"DEBUG:   - Slot {current_slot_start.time()}-{current_slot_end.time()} is in the past/current moment. (Now: {now.time()})")
+                        else:
+                            print(f"DEBUG:   - Slot {current_slot_start.time()}-{current_slot_end.time()} is BOOKED.")
+                    else:
+                        print(f"DEBUG:   - Slot {current_slot_start.time()}-{current_slot_end.time()} is during BREAK.")
+
+                    current_slot_start = current_slot_end
+
+            current_date += timedelta(days=1)
+
+        for date_str in available_slots:
+            available_slots[date_str].sort(key=lambda x: datetime.strptime(x['start_time'], '%H:%M').time())
+
+        print(f"DEBUG: Final available_slots to return: {available_slots}")
+        return Response(available_slots, status=status.HTTP_200_OK)
