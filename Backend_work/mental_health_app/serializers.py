@@ -2,7 +2,6 @@
 # mental_health_app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-# CORRECTED: Ensure TherapistAvailability is imported here
 from .models import JournalEntry, TherapistApplication, SessionRequest, Session, Payment, TherapistAvailability
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -30,7 +29,7 @@ class UserSerializer(serializers.ModelSerializer):
     is_verified = serializers.BooleanField(read_only=True)
     bio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     years_of_experience = serializers.IntegerField(required=False, allow_null=True)
-    specializations = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True) # Added max_length
+    specializations = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True)
     is_available = serializers.BooleanField(required=False, default=False)
     hourly_rate = serializers.DecimalField(
         max_digits=6,
@@ -40,15 +39,13 @@ class UserSerializer(serializers.ModelSerializer):
     )
     profile_picture = serializers.ImageField(required=False, allow_null=True)
 
-    # NEW: Fields for therapist profile details (already existing)
     license_credentials = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     approach_modalities = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     languages_spoken = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     client_focus = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     insurance_accepted = serializers.BooleanField(required=False, default=False)
-    video_introduction_url = serializers.URLField(max_length=500, required=False, allow_null=True, allow_blank=True) # Added max_length
+    video_introduction_url = serializers.URLField(max_length=500, required=False, allow_null=True, allow_blank=True)
 
-    # NEW: Fields for free consultation, session modes, and physical address
     is_free_consultation = serializers.BooleanField(required=False, default=False)
     session_modes = serializers.ChoiceField(choices=User.SESSION_MODES_CHOICES, required=False, allow_null=True)
     physical_address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
@@ -61,10 +58,8 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name', 'last_name', 'phone', 'is_therapist',
             'is_verified', 'bio', 'years_of_experience', 'specializations',
             'is_available', 'hourly_rate', 'profile_picture',
-            # NEW fields (already existing)
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted', 'video_introduction_url',
-            # NEW fields
             'is_free_consultation', 'session_modes', 'physical_address'
         ]
         extra_kwargs = {
@@ -90,12 +85,10 @@ class UserSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"is_available": "Therapists must specify availability."}
                 )
-            # Only validate hourly_rate if not offering free consultation
             if not attrs.get('is_free_consultation') and (attrs.get('hourly_rate') is not None and not isinstance(attrs['hourly_rate'], (int, float))):
                 raise serializers.ValidationError(
                     {"hourly_rate": "Hourly rate must be a number."}
                 )
-            # If session_modes includes 'physical', physical_address is required
             if attrs.get('session_modes') in ['physical', 'both'] and not attrs.get('physical_address'):
                 raise serializers.ValidationError(
                     {"physical_address": "Physical address is required for in-person sessions."}
@@ -166,7 +159,6 @@ class TherapistSerializer(serializers.ModelSerializer):
     Read-only serializer for public therapist profiles.
     """
     full_name = serializers.SerializerMethodField()
-    # Ensure profile_picture returns a full URL
     profile_picture = serializers.SerializerMethodField()
 
     class Meta:
@@ -179,7 +171,6 @@ class TherapistSerializer(serializers.ModelSerializer):
             'client_focus', 'insurance_accepted', 'video_introduction_url',
             'is_free_consultation', 'session_modes', 'physical_address'
         ]
-        # Make all fields read-only as this is for public profile display
         read_only_fields = fields
 
     def get_full_name(self, obj):
@@ -307,7 +298,7 @@ class SessionSerializer(serializers.ModelSerializer):
         model = Session
         fields = [
             'id', 'client', 'therapist', 'session_request', 'session_date', 'session_time',
-            'duration_minutes', # CORRECTED: Ensure duration_minutes is here
+            'duration_minutes',
             'session_type', 'location',
             'status', 'notes', 'key_takeaways', 'recommendations', 'follow_up_required',
             'next_session_date', 'created_at', 'updated_at', 'zoom_meeting_url',
@@ -434,15 +425,16 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     client = serializers.HiddenField(default=serializers.CurrentUserDefault())
-    # Add the M-Pesa specific fields for reading/writing
-    checkout_request_id = serializers.CharField(max_length=100, read_only=True)
-    mpesa_receipt_number = serializers.CharField(max_length=50, read_only=True)
+    
+    # MODIFIED: Removed read_only=True to make these fields writable
+    checkout_request_id = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)
+    mpesa_receipt_number = serializers.CharField(max_length=50, required=False, allow_null=True, allow_blank=True)
+    transaction_id = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True) # MODIFIED: transaction_id writable
 
-    # Modify session_request to be a writable field
     session_request = serializers.PrimaryKeyRelatedField(
-        queryset=SessionRequest.objects.all(), # Ensure it can link to any existing SessionRequest
-        required=False, # This makes the field optional when creating a Payment
-        allow_null=True # Allows the field to be explicitly set to null
+        queryset=SessionRequest.objects.all(),
+        required=False,
+        allow_null=True
     )
 
     class Meta:
@@ -451,13 +443,11 @@ class PaymentSerializer(serializers.ModelSerializer):
             'id', 'client', 'therapist', 'amount', 'payment_date', 'status',
             'transaction_id', 'session_request', 'checkout_request_id', 'mpesa_receipt_number'
         ]
-        # Remove 'session_request' from read_only_fields as it's now writable
+        # MODIFIED: Removed checkout_request_id, mpesa_receipt_number, and transaction_id from read_only_fields
         read_only_fields = [
-            'id', 'payment_date', 'status', 'transaction_id',
-            'checkout_request_id', 'mpesa_receipt_number'
+            'id', 'payment_date', 'status'
         ]
 
-# Add this to mental_health_app/serializers.py
 class TherapistAvailabilitySerializer(serializers.ModelSerializer):
     therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
 

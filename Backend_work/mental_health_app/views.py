@@ -15,9 +15,10 @@ from datetime import datetime
 import json
 from datetime import time, timedelta
 from collections import defaultdict
-import time # <--- ADDED THIS IMPORT FOR TIME.SLEEP
+import time as raw_time # Corrected import for time.sleep
+from django.db import transaction
 
-# CORRECTED: Ensure TherapistAvailability is imported here
+
 from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment, TherapistAvailability
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -32,7 +33,6 @@ from .serializers import (
     JournalEntrySerializer, JournalListSerializer, SessionRequestSerializer,
     SessionRequestUpdateSerializer, SessionSerializer, TherapistApplicationSerializer,
     TherapistApplicationAdminSerializer, PaymentSerializer,
-    # CORRECTED: Ensure TherapistAvailabilitySerializer is imported here
     TherapistAvailabilitySerializer
 )
 
@@ -370,25 +370,21 @@ class SessionRequestCreateView(generics.CreateAPIView):
     serializer_class = SessionRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def _is_slot_available(self, therapist, requested_date, requested_time, session_duration_minutes): # ADDED session_duration_minutes
+    def _is_slot_available(self, therapist, requested_date, requested_time, session_duration_minutes):
         day_of_week = requested_date.strftime('%A')
         availability = TherapistAvailability.objects.filter(
             therapist=therapist, day_of_week=day_of_week
         ).first()
 
-        # Initialize querysets as empty to prevent NameError
         scheduled_sessions_on_date = Session.objects.none()
         paid_pending_requests_on_date = SessionRequest.objects.none()
 
-        # If no specific availability is set, consider a default working day
         if not availability:
             print(f"DEBUG: Slot check - No specific availability found for {day_of_week}. Using default.")
-            # Default working hours: 9 AM to 5 PM, no break, 60-min slots
             default_start_time = time(9, 0)
             default_end_time = time(17, 0)
             default_slot_duration = 60
             
-            # Create a dummy availability object for checks
             class DefaultAvailability:
                 def __init__(self, start, end, duration):
                     self.start_time = start
@@ -398,24 +394,20 @@ class SessionRequestCreateView(generics.CreateAPIView):
                     self.break_end_time = None
             availability = DefaultAvailability(default_start_time, default_end_time, default_slot_duration)
             
-            # Additional check: If default is used, but it's a weekend, return False
             if day_of_week in ['Saturday', 'Sunday']:
                 print(f"DEBUG: Slot check - Default availability for weekend day {day_of_week} is not allowed.")
                 return False, "Therapist is not available on weekends by default."
 
 
-        # Convert times to datetime objects for comparison, making them timezone-aware
         slot_start_dt = timezone.make_aware(datetime.combine(requested_date, requested_time))
-        slot_end_dt = slot_start_dt + timedelta(minutes=session_duration_minutes) # Use passed duration
+        slot_end_dt = slot_start_dt + timedelta(minutes=session_duration_minutes)
         working_start_dt = timezone.make_aware(datetime.combine(requested_date, availability.start_time))
         working_end_dt = timezone.make_aware(datetime.combine(requested_date, availability.end_time))
 
-        # Check if requested slot is within working hours
         if not (working_start_dt <= slot_start_dt and slot_end_dt <= working_end_dt):
             print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} outside working hours {working_start_dt.time()}-{working_end_dt.time()}")
             return False, "Requested slot is outside therapist's working hours."
 
-        # Check for breaks
         if availability.break_start_time and availability.break_end_time:
             break_start_dt = timezone.make_aware(datetime.combine(requested_date, availability.break_start_time))
             break_end_dt = timezone.make_aware(datetime.combine(requested_date, availability.break_end_time))
@@ -423,25 +415,23 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} overlaps with break {break_start_dt.time()}-{break_end_dt.time()}")
                 return False, "Requested slot overlaps with therapist's break."
 
-        # Query for existing scheduled sessions (booked slots)
         scheduled_sessions_on_date = Session.objects.filter(
             therapist=therapist,
             session_date=requested_date
-        ).values('session_time', 'duration_minutes') # Use 'duration_minutes' here
+        ).values('session_date', 'session_time', 'duration_minutes') # Corrected: Added 'session_date'
 
-        # Query for pending SessionRequests that are paid
         paid_pending_requests_on_date = SessionRequest.objects.filter(
             therapist=therapist,
-            status__in=['pending', 'accepted'], # Also consider 'accepted' as they block slots
+            status__in=['pending', 'accepted'],
             is_paid=True,
             requested_date=requested_date
-        ).values('requested_time', 'session_duration')
+        ).values('requested_date', 'requested_time', 'session_duration') # Corrected: Added 'requested_date'
 
 
         for session in scheduled_sessions_on_date:
             booked_start_time = session['session_time']
-            booked_duration = session.get('duration_minutes', 120) # Get duration from session object, default to 120
-            booked_start_dt = timezone.make_aware(datetime.combine(requested_date, booked_start_time))
+            booked_duration = session.get('duration_minutes', 120)
+            booked_start_dt = timezone.make_aware(datetime.combine(session['session_date'], booked_start_time)) # Access 'session_date' here
             booked_end_dt = booked_start_dt + timedelta(minutes=booked_duration)
 
             if not (slot_end_dt <= booked_start_dt or slot_start_dt >= booked_end_dt):
@@ -450,8 +440,8 @@ class SessionRequestCreateView(generics.CreateAPIView):
 
         for req in paid_pending_requests_on_date:
             booked_start_time = req['requested_time']
-            booked_duration = req.get('session_duration', 120) # Get duration from request object, default to 120
-            booked_start_dt = timezone.make_aware(datetime.combine(requested_date, booked_start_time))
+            booked_duration = req.get('session_duration', 120)
+            booked_start_dt = timezone.make_aware(datetime.combine(req['requested_date'], booked_start_time)) # Access 'requested_date' here
             booked_end_dt = booked_start_dt + timedelta(minutes=booked_duration)
 
             if not (slot_end_dt <= booked_start_dt or slot_start_dt >= booked_end_dt):
@@ -459,10 +449,8 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 return False, "Requested slot is currently pending payment confirmation for another user."
 
 
-        # Check if the slot is in the future
-        # Using timezone.now() for comparison
         if slot_start_dt <= timezone.now():
-            print(f"DEBUG: Slot check - Slot {slot_start_dt} is in the past compared to {timezone.now()}") # Corrected logging
+            print(f"DEBUG: Slot check - Slot {slot_start_dt} is in the past compared to {timezone.now()}")
             return False, "Cannot book a session in the past or current time."
 
         print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} is AVAILABLE.")
@@ -473,7 +461,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
         therapist_id = request.data.get('therapist')
         requested_date_str = request.data.get('requested_date')
         requested_time_str = request.data.get('requested_time')
-        session_duration = request.data.get('session_duration') # Retrieve duration from request data
+        session_duration = request.data.get('session_duration')
 
         if not therapist_id or not requested_date_str or not requested_time_str or not session_duration:
             return Response({"error": "Therapist, requested date, time, and session duration are required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -494,12 +482,10 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 {"therapist": "You cannot request a session with yourself."}
             )
 
-        # 1. Validate slot availability using the new logic
-        is_available, availability_message = self._is_slot_available(therapist, requested_date, requested_time, session_duration) # Pass session_duration
+        is_available, availability_message = self._is_slot_available(therapist, requested_date, requested_time, session_duration)
         if not is_available:
             return Response({"detail": availability_message}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Check for existing pending/active requests from the client (unchanged)
         existing_request = SessionRequest.objects.filter(
             client=self.request.user,
             status__in=['pending', 'accepted']
@@ -516,19 +502,16 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 3. Create SessionRequest (status='pending', is_paid=False initially)
-        # Pass session_duration from request.data to serializer
         serializer = self.get_serializer(data={
             'therapist': therapist_id,
             'requested_date': requested_date_str,
             'requested_time': requested_time_str,
             'message': request.data.get('message'),
-            'session_duration': session_duration # Ensure session_duration is passed
+            'session_duration': session_duration
         })
         serializer.is_valid(raise_exception=True)
         session_request_instance = serializer.save(client=self.request.user, therapist=therapist, is_paid=False, status='pending')
 
-        # 4. Return success and indicate next step is payment
         return Response({
             "message": "Session request created successfully. Proceed to payment to confirm your booking.",
             "session_request_id": session_request_instance.id,
@@ -538,7 +521,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
 
 
 class TherapistSessionCreateView(generics.CreateAPIView):
-    serializer_class = SessionRequestSerializer
+    serializer_class = SessionSerializer # <--- MODIFIED: Changed to SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
@@ -548,7 +531,6 @@ class TherapistSessionCreateView(generics.CreateAPIView):
         if request.user != session_request.therapist:
             return Response({'error': 'You are not authorized to accept this request.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Check if the session request is paid for (new check)
         if not session_request.is_paid:
             return Response({'error': 'Cannot create a session for an unpaid request.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -564,7 +546,7 @@ class TherapistSessionCreateView(generics.CreateAPIView):
             'therapist': session_request.therapist.id,
             'session_date': session_request.requested_date,
             'session_time': session_request.requested_time,
-            'duration_minutes': session_request.session_duration, # Corrected: Pass duration from SessionRequest
+            'duration_minutes': session_request.session_duration,
             'session_type': request.data.get('session_type', 'online'),
             'location': request.data.get('location', None),
             'zoom_meeting_url': request.data.get('zoom_meeting_url', None)
@@ -585,7 +567,6 @@ class TherapistSessionRequestListView(generics.ListAPIView):
             return SessionRequest.objects.none()
 
         status_filter = self.request.query_params.get('status')
-        # Therapists should only see paid pending/accepted requests
         queryset = SessionRequest.objects.filter(therapist=self.request.user, is_paid=True)
 
         if status_filter:
@@ -698,7 +679,6 @@ class PaymentCreateView(generics.CreateAPIView):
             return Response({"error": "Session request ID and M-Pesa phone number are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # CORRECTED: Ensure status is 'pending' and is_paid is False
             session_request_obj = SessionRequest.objects.get(id=session_request_id, client=request.user, status='pending', is_paid=False)
         except SessionRequest.DoesNotExist:
             return Response({"error": "Session request not found, not pending, or already paid."}, status=status.HTTP_404_NOT_FOUND)
@@ -746,8 +726,11 @@ class PaymentCreateView(generics.CreateAPIView):
             }
             serializer = self.get_serializer(data=payment_data)
             serializer.is_valid(raise_exception=True)
-            payment_instance = serializer.save() # Capture the saved instance for logging
-            print(f"DEBUG: Payment record created/updated. ID: {payment_instance.id}, CheckoutRequestID: {payment_instance.checkout_request_id}, Status: {payment_instance.status}") #
+            
+            with transaction.atomic():
+                payment_instance = serializer.save()
+                print(f"DEBUG: Payment record created/updated. ID: {payment_instance.id}, CheckoutRequestID: {payment_instance.checkout_request_id}, Status: {payment_instance.status}")
+
 
             return Response({
                 "message": "M-Pesa STK Push initiated. Please check your phone to complete the payment.",
@@ -827,33 +810,27 @@ def MpesaCallbackView(request):
 
         print(f"Callback Details: MerchantRequestID={merchant_request_id}, CheckoutRequestID={checkout_request_id}, ResultCode={result_code}, MpesaReceiptNumber={mpesa_receipt_number}")
 
-        # --- MODIFICATION STARTS HERE (RETRY LOGIC) ---
         payment = None
         max_retries = 5
-        retry_delay_seconds = 1 # Start with 1 second, you can adjust this
+        retry_delay_seconds = 1
 
         for i in range(max_retries):
             try:
-                # Use select_for_update() to lock the row during retrieval to prevent race conditions
-                # (Note: This requires being in an atomic transaction block if used for complex ops)
-                # For simple .get(), it's mostly about ensuring data visibility.
                 payment = Payment.objects.get(checkout_request_id=checkout_request_id)
                 print(f"DEBUG: Found Payment record for CheckoutRequestID: {checkout_request_id} on attempt {i+1}.")
-                break # Found it, exit loop
+                break
             except Payment.DoesNotExist:
                 print(f"DEBUG: Payment not found for CheckoutRequestID: {checkout_request_id}. Retrying in {retry_delay_seconds} second(s)... (Attempt {i+1}/{max_retries})")
-                time.sleep(retry_delay_seconds) # Wait before retrying
+                raw_time.sleep(retry_delay_seconds)
         
         if not payment:
             print(f"ERROR: Payment record still not found after {max_retries} attempts for CheckoutRequestID: {checkout_request_id}")
-            # Log this as a critical error, potentially send an alert
             return Response({"message": "Payment record not found after multiple attempts."}, status=status.HTTP_404_NOT_FOUND)
-        # --- MODIFICATION ENDS HERE ---
 
         if result_code == 0:
             payment.status = 'completed'
             payment.mpesa_receipt_number = mpesa_receipt_number
-            payment.transaction_id = mpesa_receipt_number # MpesaReceiptNumber is often used as the final transaction ID
+            payment.transaction_id = mpesa_receipt_number
             payment.save()
             print(f"Payment for {checkout_request_id} updated to 'completed'.")
 
@@ -865,13 +842,12 @@ def MpesaCallbackView(request):
             return Response({"message": "Payment successful and updated."}, status=status.HTTP_200_OK)
         else:
             payment.status = 'failed'
-            # Assuming 'reviewer_notes' can be used for failure reason, or add a specific 'failure_reason' field
             payment.reviewer_notes = result_desc 
             payment.save()
             print(f"Payment for {checkout_request_id} updated to 'failed'. Reason: {result_desc}")
 
             if payment.session_request:
-                payment.session_request.status = 'cancelled' # Cancel session request if payment fails
+                payment.session_request.status = 'cancelled'
                 payment.session_request.save()
                 print(f"SessionRequest {payment.session_request.id} cancelled due to payment failure.")
 
@@ -963,41 +939,36 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
         therapist_availabilities = TherapistAvailability.objects.filter(therapist=therapist)
         print(f"DEBUG: TherapistAvailableSlotsView - Number of therapist_availabilities found: {therapist_availabilities.count()}")
 
-        # Define default availability if none are explicitly set
-        # This will be used if therapist_availabilities.count() == 0
         default_availabilities_map = {
             'Monday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},
             'Tuesday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},
             'Wednesday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},
             'Thursday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},
             'Friday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},
-            'Saturday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None}, # Add Saturday default
-            'Sunday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},   # Add Sunday default
+            'Saturday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},
+            'Sunday': {'start_time': time(9, 0), 'end_time': time(17, 0), 'slot_duration': 60, 'break_start_time': None, 'break_end_time': None},
         }
 
 
-        # Get all scheduled sessions for the therapist within the date range
         scheduled_sessions = Session.objects.filter(
             therapist=therapist,
             session_date__range=[start_date, end_date]
-        ).values('session_time', 'duration_minutes') # CORRECTED: Use 'duration_minutes'
+        ).values('session_date', 'session_time', 'duration_minutes') # Corrected: Added 'session_date'
         print(f"DEBUG: TherapistAvailableSlotsView - Scheduled sessions count: {len(scheduled_sessions)}")
 
-        # Also consider pending SessionRequests that have been paid for
         paid_pending_requests = SessionRequest.objects.filter(
             therapist=therapist,
-            status__in=['pending', 'accepted'], # Also consider 'accepted' requests as they block slots
+            status__in=['pending', 'accepted'],
             is_paid=True,
             requested_date__range=[start_date, end_date]
-        ).values('requested_time', 'session_duration') # Use 'session_duration'
+        ).values('requested_date', 'requested_time', 'session_duration') # Corrected: Added 'requested_date'
         print(f"DEBUG: TherapistAvailableSlotsView - Paid pending requests count: {len(paid_pending_requests)}")
 
-        # Combine scheduled sessions and paid pending requests into unavailable intervals
         unavailable_intervals = defaultdict(list)
         for session in scheduled_sessions:
             session_date = session['session_date']
             session_start_time = session['session_time']
-            session_duration_minutes = session.get('duration_minutes', 120) # Use actual duration, default to 120
+            session_duration_minutes = session.get('duration_minutes', 120)
             dummy_datetime = timezone.make_aware(datetime.combine(session_date, session_start_time))
             session_end_time = (dummy_datetime + timedelta(minutes=session_duration_minutes)).time()
             unavailable_intervals[session_date].append((session_start_time, session_end_time))
@@ -1006,7 +977,7 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
         for req in paid_pending_requests:
             req_date = req['requested_date']
             req_start_time = req['requested_time']
-            req_duration_minutes = req.get('session_duration', 120) # Use actual duration, default to 120
+            req_duration_minutes = req.get('session_duration', 120)
             dummy_datetime = timezone.make_aware(datetime.combine(req_date, req_start_time))
             req_end_time = (dummy_datetime + timedelta(minutes=req_duration_minutes)).time()
             unavailable_intervals[req_date].append((req_start_time, req_end_time))
@@ -1019,13 +990,11 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
             availability = therapist_availabilities.filter(day_of_week=day_of_week).first()
             print(f"\n--- Checking {current_date} ({day_of_week}) ---")
 
-            # Use explicit availability if found, otherwise use default
             current_day_availability = None
             if availability:
                 current_day_availability = availability
                 print(f"DEBUG: Found explicit TherapistAvailability for {day_of_week}: {availability.start_time}-{availability.end_time}, break: {availability.break_start_time}-{availability.break_end_time}, slot_duration: {availability.slot_duration}")
             elif day_of_week in default_availabilities_map:
-                # Create a temporary object from default map for consistent access
                 class TempAvailability:
                     def __init__(self, data):
                         self.start_time = data['start_time']
@@ -1038,12 +1007,12 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
             else:
                 print(f"DEBUG: No TherapistAvailability found for {day_of_week} on {current_date}, and no default for this day.")
                 current_date += timedelta(days=1)
-                continue # Skip to next day if no availability (explicit or default)
+                continue
 
             working_start = timezone.make_aware(datetime.combine(current_date, current_day_availability.start_time))
             working_end = timezone.make_aware(datetime.combine(current_date, current_day_availability.end_time))
 
-            slot_duration_minutes = current_day_availability.slot_duration if current_day_availability.slot_duration else 60 # Default to 60 if not set
+            slot_duration_minutes = current_day_availability.slot_duration if current_day_availability.slot_duration else 60
             print(f"DEBUG: Calculated slot_duration_minutes: {slot_duration_minutes}")
 
             current_slot_start = working_start
@@ -1051,7 +1020,6 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
                 current_slot_end = current_slot_start + timedelta(minutes=slot_duration_minutes)
                 print(f"DEBUG: Generating potential slot: {current_slot_start.time()}-{current_slot_end.time()}")
 
-                # Check for breaks
                 is_during_break = False
                 if current_day_availability.break_start_time and current_day_availability.break_end_time:
                     break_start_dt = timezone.make_aware(datetime.combine(current_date, current_day_availability.break_start_time))
@@ -1062,7 +1030,6 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
                         print(f"DEBUG:   - Slot overlaps with break: {break_start_dt.time()}-{break_end_dt.time()}")
 
                 if not is_during_break:
-                    # Check if slot is already booked or overlaps with a scheduled session/paid pending request
                     is_booked = False
                     for booked_start_time, booked_end_time in unavailable_intervals[current_date]:
                         booked_start_dt = timezone.make_aware(datetime.combine(current_date, booked_start_time))
@@ -1074,7 +1041,6 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
                             break
 
                     if not is_booked:
-                        # Only add if the slot is in the future relative to current time
                         now = timezone.now()
                         slot_full_start_datetime = timezone.make_aware(datetime.combine(current_date, current_slot_start.time()))
 
