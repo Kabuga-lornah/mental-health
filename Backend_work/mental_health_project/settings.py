@@ -159,5 +159,4 @@ MPESA_PASSKEY = os.getenv('MPESA_PASSKEY', '')
 MPESA_ENVIRONMENT = os.getenv('MPESA_ENVIRONMENT', 'sandbox')  
 MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke' if MPESA_ENVIRONMENT == 'sandbox' else 'https://api.safaricom.co.ke'
 
-MPESA_STK_CALLBACK_URL = os.getenv('MPESA_STK_CALLBACK_URL', 'https://yourdomain.com/api/mpesa/callback/')
-
+MPESA_STK_CALLBACK_URL = "https://7773-105-163-157-30.ngrok-free.app/api/mpesa/callback/"

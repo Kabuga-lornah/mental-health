@@ -1,4 +1,4 @@
-# File: Backend_work/mental_health_app/models.py
+# Backend_work/mental_health_app/models.py
 # Add the following imports if not already present
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -204,7 +204,7 @@ class SessionRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     session_duration = models.PositiveIntegerField(
-        default=60,
+        default=120, # Changed default from 60 to 120
         help_text="Duration in minutes"
     )
     session_notes = models.TextField(blank=True, null=True)
@@ -230,7 +230,7 @@ class Session(models.Model):
 
     session_date = models.DateField()
     session_time = models.TimeField()
-    duration_minutes = models.PositiveIntegerField(default=120, help_text="Duration of the session in minutes") # CORRECTED LINE
+    duration_minutes = models.PositiveIntegerField(default=120, help_text="Duration of the session in minutes") # This was already 120, no change needed here.
     session_type = models.CharField(max_length=50, default='online')
     location = models.CharField(max_length=255, blank=True, null=True)
     zoom_meeting_url = models.URLField(max_length=500, blank=True, null=True, help_text="Zoom meeting URL for online sessions")
@@ -300,7 +300,7 @@ class TherapistAvailability(models.Model):
     break_start_time = models.TimeField(null=True, blank=True, help_text="Start of an optional break (e.g., lunch)")
     break_end_time = models.TimeField(null=True, blank=True, help_text="End of an optional break (e.g., lunch)")
     slot_duration = models.PositiveIntegerField(
-        default=60,
+        default=120, # Changed default from 60 to 120
         help_text="Duration of each bookable session slot in minutes (e.g., 60 for 1-hour sessions)"
     )
 

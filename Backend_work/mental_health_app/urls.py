@@ -19,7 +19,8 @@ from .views import (
     # Import the new views here
     TherapistAvailabilityListCreateView,
     TherapistAvailabilityDetailView,
-    TherapistAvailableSlotsView
+    TherapistAvailableSlotsView,
+    MpesaCallbackView # <--- ADDED THIS LINE
 )
 
 urlpatterns = [
@@ -73,4 +74,7 @@ urlpatterns = [
     # NEW: Payment Endpoints
     path('payments/initiate/', PaymentCreateView.as_view(), name='payment-initiate'),
     path('payments/status/<int:therapist_id>/', ClientPaymentStatusView.as_view(), name='client-payment-status'),
+
+    # NEW: M-Pesa Callback Endpoint - THIS IS THE CRUCIAL ADDITION
+    path('mpesa/callback/', MpesaCallbackView, name='mpesa_callback'), # <--- ADDED THIS LINE
 ]
