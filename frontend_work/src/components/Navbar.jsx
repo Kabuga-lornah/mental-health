@@ -27,6 +27,8 @@ export default function Navbar() {
     navigate("/");
   };
 
+  // If the user is a therapist, this Navbar component should not render.
+  // The AppNavbar component in App.jsx will handle rendering TherapistNavbar instead.
   if (user && user.is_therapist) {
     return null; 
   }
@@ -58,15 +60,11 @@ export default function Navbar() {
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           {user ? (
             <>
-              {/* Added Dashboard link */}
+              {/* Main navigation links for logged-in users */}
               <Button component={Link} to="/dashboard" sx={{ color: "#fefae0" }}>
                 Dashboard
               </Button>
-              {/* Existing Home link, you might consider removing or redirecting if Dashboard is the primary user landing */}
-              <Button component={Link} to="/homepage" sx={{ color: "#fefae0" }}>
-                Home
-              </Button>
-
+              
               <Button component={Link} to="/find-therapist" sx={{ color: "#fefae0" }}>
                 Find a Therapist
               </Button>
@@ -75,8 +73,15 @@ export default function Navbar() {
                 Start Journaling
               </Button>
 
+              {/* NEW: Button for Meditation & Mindfulness */}
+              <Button component={Link} to="/meditation" sx={{ color: "#fefae0" }}>
+                Meditation
+              </Button>
+
+              {/* User Profile Menu */}
               <IconButton onClick={handleMenuOpen} size="small">
                 <Avatar src={user.photo} sx={{ bgcolor: "#fefae0", color: "#780000" }}>
+                  {/* Display first initial if no photo */}
                   {!user.photo && user.first_name?.charAt(0)}
                 </Avatar>
               </IconButton>
@@ -105,9 +110,13 @@ export default function Navbar() {
             </>
           ) : (
             <>
+              {/* Buttons for logged-out users */}
               <Button component={Link} to="/login" sx={{ backgroundColor: "#fefae0", color: "#780000", "&:hover": { backgroundColor: "white"}}}>
                 Login
               </Button>
+              {/* <Button component={Link} to="/register" sx={{ backgroundColor: "#fefae0", color: "#780000", "&:hover": { backgroundColor: "white"}}}>
+                Register
+              </Button> */}
             </>
           )}
         </Box>

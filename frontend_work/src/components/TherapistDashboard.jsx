@@ -562,7 +562,7 @@ const TherapistDashboard = () => {
                 value={dayOfWeek}
                 onChange={(e) => setDayOfWeek(e.target.value)}
                 label="Day of Week"
-                disabled={!!editingAvailability} // Disable day selection when editing existing entry
+                disabled={!!editingAvailability} 
               >
                 {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
                   <MenuItem key={day} value={day}>{day}</MenuItem>

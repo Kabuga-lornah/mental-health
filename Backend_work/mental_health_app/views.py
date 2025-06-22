@@ -1,5 +1,4 @@
-# File: Backend_work/mental_health_app/views.py
-
+# Backend_work/mental_health_app/views.py
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -510,10 +509,19 @@ class SessionRequestCreateView(generics.CreateAPIView):
             'session_duration': session_duration
         })
         serializer.is_valid(raise_exception=True)
-        session_request_instance = serializer.save(client=self.request.user, therapist=therapist, is_paid=False, status='pending')
+        
+        # --- MODIFICATION START ---
+        # Set is_paid to True immediately if it's a free consultation
+        is_paid_status = False
+        if therapist.is_free_consultation:
+            is_paid_status = True
+            print(f"DEBUG: Free consultation detected for therapist {therapist.id}. Setting is_paid=True for session request.")
+
+        session_request_instance = serializer.save(client=self.request.user, therapist=therapist, is_paid=is_paid_status, status='pending')
+        # --- MODIFICATION END ---
 
         return Response({
-            "message": "Session request created successfully. Proceed to payment to confirm your booking.",
+            "message": "Session request created successfully. Proceed to payment to confirm your booking." if not is_paid_status else "Session request submitted for free consultation. Therapist will review.",
             "session_request_id": session_request_instance.id,
             "therapist_hourly_rate": therapist.hourly_rate if not therapist.is_free_consultation else 0,
             "is_free_consultation": therapist.is_free_consultation
@@ -580,7 +588,15 @@ class ClientSessionRequestListView(generics.ListAPIView):
 
     def get_queryset(self):
         status_filter = self.request.query_params.get('status')
-        queryset = SessionRequest.objects.filter(client=self.request.user)
+        # --- MODIFICATION START ---
+        # Only show requests if they are paid or if the therapist offers free consultation.
+        # This implicitly means, if the session is not free and not paid, it won't show here.
+        queryset = SessionRequest.objects.filter(
+            client=self.request.user
+        ).filter(
+            Q(is_paid=True) | Q(therapist__is_free_consultation=True)
+        )
+        # --- MODIFICATION END ---
 
         if status_filter:
             queryset = queryset.filter(status=status_filter)

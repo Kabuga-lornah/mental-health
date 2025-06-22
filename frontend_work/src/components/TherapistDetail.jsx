@@ -1,3 +1,4 @@
+// frontend_work/src/components/TherapistDetail.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
@@ -147,10 +148,9 @@ export default function TherapistDetail() {
         setSnackbarMessage("Session request submitted for free consultation. Therapist will review.");
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
-        // Optionally redirect or clear form after a short delay
-        setTimeout(() => {
-          navigate('/client/session-requests/'); // Redirect to client's session requests
-        }, 2000);
+        // --- MODIFICATION START ---
+        navigate('/dashboard'); // Redirect to dashboard for free consultations
+        // --- MODIFICATION END ---
       } else {
         // For paid sessions, proceed to show the M-Pesa payment modal
         setSnackbarMessage("Session request created. Proceeding to payment.");
@@ -210,10 +210,12 @@ export default function TherapistDetail() {
       setSelectedSlot(null); // Clear selected slot after successful initiation
       setMessage(''); // Clear message
 
-      // Optionally, redirect the user or prompt them to check session status later
+      // --- MODIFICATION START ---
+      // Redirect to dashboard after payment initiation
       setTimeout(() => {
-        navigate('/client/session-requests/'); // Redirect to client's session requests
+        navigate('/dashboard'); // Redirect to client's dashboard
       }, 3000);
+      // --- MODIFICATION END ---
 
     } catch (err) {
       console.error("Error initiating M-Pesa payment:", err.response?.data || err.message);

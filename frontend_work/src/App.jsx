@@ -15,6 +15,7 @@ import AdminDashboard from "./components/Admin";
 import AdminNavbar from "./components/AdminNavbar"; // IMPORT THE NEW ADMIN NAVBAR
 import Footer from "./components/Footer";
 import TherapistDetail from "./components/TherapistDetail"; // NEW: Import TherapistDetail component
+import Meditation from "./components/Meditation"; // NEW: Import Meditation component
 
 // A component to render the correct Navbar based on user role
 const AppNavbar = () => {
@@ -70,7 +71,7 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/find-therapist" element={<ProtectedRoute><FindTherapist /></ProtectedRoute>} />
           <Route path="/therapists/:id" element={<ProtectedRoute><TherapistDetail /></ProtectedRoute>} /> {/* NEW ROUTE */}
-
+          <Route path="/meditation" element={<ProtectedRoute><Meditation /></ProtectedRoute>} /> {/* NEW: Meditation Route */}
 
           {/* Therapist-related Routes */}
           {/* Therapist application form - accessible to logged-in users who intend to be therapists */}
