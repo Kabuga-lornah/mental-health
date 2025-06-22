@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.conf import settings
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -312,3 +313,28 @@ class TherapistAvailability(models.Model):
     def __str__(self):
         # Corrected __str__ method for TherapistAvailability
         return f"{self.therapist.get_full_name()} - {self.day_of_week}: {self.start_time}-{self.end_time}"
+    
+
+class ChatMessage(models.Model):
+    """
+    Model to store individual chat messages between users.
+    """
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='sent_chat_messages', on_delete=models.CASCADE)
+    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='received_chat_messages', on_delete=models.CASCADE, null=True, blank=True)
+    # A room_name can be used to identify a specific chat session or direct message pair
+    room_name = models.CharField(max_length=255, null=True, blank=True)
+    message_content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['timestamp'] # Order messages by time
+        verbose_name = "Chat Message"
+        verbose_name_plural = "Chat Messages"
+
+    def __str__(self):
+        if self.receiver:
+            return f"Chat from {self.sender.email} to {self.receiver.email} at {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+        elif self.room_name:
+            return f"Chat in room '{self.room_name}' from {self.sender.email} at {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+        else:
+            return f"Chat message from {self.sender.email} at {self.timestamp.strftime('%Y-%m-%d %H:%M')}"

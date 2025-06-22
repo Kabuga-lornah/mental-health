@@ -7,8 +7,18 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 import json
+from .models import ChatMessage 
 
 User = get_user_model()
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender_email = serializers.ReadOnlyField(source='sender.email')
+    receiver_email = serializers.ReadOnlyField(source='receiver.email')
+
+    class Meta:
+        model = ChatMessage
+        fields = ['id', 'sender', 'sender_email', 'receiver', 'receiver_email', 'room_name', 'message_content', 'timestamp']
+        read_only_fields = ['sender', 'timestamp']
 
 class UserSerializer(serializers.ModelSerializer):
     """

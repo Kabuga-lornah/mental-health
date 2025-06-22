@@ -45,7 +45,7 @@ export default function AIChatbot() {
         },
       };
 
-      const apiKey = ""; 
+      const apiKey = "AIzaSyA2YJJIC2WI_7JV3nPWBmBXmRXtGy8DxLE"; 
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {

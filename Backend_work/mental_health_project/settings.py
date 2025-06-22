@@ -1,3 +1,5 @@
+# Backend_work/mental_health_project/settings.py
+
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
@@ -27,6 +29,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'channels', 
 ]
 
 MIDDLEWARE = [
@@ -87,6 +90,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mental_health_project.wsgi.application'
 
+# ASGI Application for Channels (WebSockets)
+ASGI_APPLICATION = 'mental_health_project.asgi.application' 
+
+# Channel Layer Configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.pubsub.RedisPubSubChannelLayer',
+        'CONFIG': {
+          
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+
 if 'DATABASE_URL' in os.environ:
     DATABASES = {
         'default': dj_database_url.config(conn_max_age=600)
@@ -140,7 +158,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
-AUTH_USER_MODEL = 'mental_health_app.User'
+AUTH_USER_MODEL = 'mental_health_app.User' 
 
 cloudinary.config(
     cloud_name=os.environ['CLOUDINARY_CLOUD_NAME'],
@@ -156,7 +174,7 @@ MPESA_CONSUMER_KEY = os.getenv('MPESA_CONSUMER_KEY', '')
 MPESA_CONSUMER_SECRET = os.getenv('MPESA_CONSUMER_SECRET', '')
 MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE', '')
 MPESA_PASSKEY = os.getenv('MPESA_PASSKEY', '')
-MPESA_ENVIRONMENT = os.getenv('MPESA_ENVIRONMENT', 'sandbox')  
+MPESA_ENVIRONMENT = os.getenv('MPESA_ENVIRONMENT', 'sandbox')
 MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke' if MPESA_ENVIRONMENT == 'sandbox' else 'https://api.safaricom.co.ke'
 
 MPESA_STK_CALLBACK_URL = "https://7773-105-163-157-30.ngrok-free.app/api/mpesa/callback/"

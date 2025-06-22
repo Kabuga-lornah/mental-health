@@ -30,7 +30,7 @@ import {
   Cancel,
   Refresh,
   EventNote,
-  Recommendations
+  Psychology  // Changed from Recommendations to Psychology
 } from '@mui/icons-material';
 
 const MySessionRequests = () => {
@@ -398,7 +398,12 @@ const MySessionRequests = () => {
 
                       {session.recommendations && (
                         <Alert severity="success" sx={{ mb: 2 }}>
-                          <strong>Recommendations:</strong> {session.recommendations}
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Psychology sx={{ mr: 1, fontSize: 20 }} />
+                            <Box>
+                              <strong>Recommendations:</strong> {session.recommendations}
+                            </Box>
+                          </Box>
                         </Alert>
                       )}
 
@@ -489,6 +494,7 @@ const MySessionRequests = () => {
                   <>
                     <Divider />
                     <ListItem>
+                      <Psychology sx={{ mr: 1, fontSize: 20, color: 'primary.main' }} />
                       <ListItemText
                         primary="Recommendations"
                         secondary={selectedSession.recommendations}
