@@ -1,15 +1,15 @@
-// frontend_work/src/components/Admin.jsx (Conceptual - simplified for illustration)
+// frontend_work/src/components/Admin.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Container, Paper, Grid, Button, CircularProgress,
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Select, MenuItem, FormControl, InputLabel, TextField, Link as MuiLink,
-  Tabs, Tab
+  Tabs, Tab, Chip
 } from '@mui/material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 // Import charting library components (e.g., from Recharts)
 // import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -17,6 +17,7 @@ import { useNavigate, Link } from 'react-router-dom';
 export default function AdminDashboard() {
   const { user, token, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -33,11 +34,12 @@ export default function AdminDashboard() {
   const [journalEntries, setJournalEntries] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null); // For graphs
 
-  // Modals specific to applications (already exists)
+  // Modals specific to applications
   const [openReviewModal, setOpenReviewModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [newStatus, setNewStatus] = useState('');
   const [reviewerNotes, setReviewerNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false); // <--- ADDED: Declare submitting state
 
   // Modals for user/session details
   const [openUserDetailsModal, setOpenUserDetailsModal] = useState(false);
@@ -45,41 +47,96 @@ export default function AdminDashboard() {
 
   // Fetching functions for each data type
   const fetchTherapistApplications = useCallback(async () => {
-    // ... existing implementation for fetching applications
-  }, [user, token]);
+    try {
+      setLoading(true);
+      const response = await axios.get('http://localhost:8000/api/admin/therapist-applications/', { headers: { Authorization: `Bearer ${token}` } });
+      setTherapistApplications(response.data);
+    } catch (err) {
+      console.error("Error fetching therapist applications:", err.response?.data || err);
+      setError("Failed to load therapist applications.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   const fetchUsers = useCallback(async () => {
-    // Implement API call to fetch all users
-    // Example: await axios.get('http://localhost:8000/api/admin/users/', { headers: { Authorization: `Bearer ${token}` } });
-    setUsers(/* fetched data */);
-  }, [user, token]);
+    try {
+      setLoading(true);
+      const response = await axios.get('http://localhost:8000/api/admin/users/', { headers: { Authorization: `Bearer ${token}` } });
+      setUsers(response.data);
+    } catch (err) {
+      console.error("Error fetching users:", err.response?.data || err);
+      setError("Failed to load user data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   const fetchSessions = useCallback(async () => {
-    // Implement API call to fetch all sessions
-    // Example: await axios.get('http://localhost:8000/api/admin/sessions/', { headers: { Authorization: `Bearer ${token}` } });
-    setSessions(/* fetched data */);
-  }, [user, token]);
+    try {
+      setLoading(true);
+      const response = await axios.get('http://localhost:8000/api/admin/sessions/', { headers: { Authorization: `Bearer ${token}` } });
+      setSessions(response.data);
+    } catch (err) {
+      console.error("Error fetching sessions:", err.response?.data || err);
+      setError("Failed to load session data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   const fetchJournalEntries = useCallback(async () => {
-    // Implement API call to fetch all journal entries (if needed for admin oversight)
-    // Example: await axios.get('http://localhost:8000/api/admin/journal-entries/', { headers: { Authorization: `Bearer ${token}` } });
-    setJournalEntries(/* fetched data */);
-  }, [user, token]);
+    try {
+      setLoading(true);
+      const response = await axios.get('http://localhost:8000/api/admin/journal-entries/', { headers: { Authorization: `Bearer ${token}` } });
+      setJournalEntries(response.data);
+    } catch (err) {
+      console.error("Error fetching journal entries:", err.response?.data || err);
+      setError("Failed to load journal entries.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   const fetchAnalyticsData = useCallback(async () => {
-    // Implement API calls for aggregated data for graphs
-    // Example: await axios.get('http://localhost:8000/api/admin/analytics/user-roles/', { headers: { Authorization: `Bearer ${token}` } });
-    // setAnalyticsData({ userRoles: response1.data, sessionsByMonth: response2.data, ... });
-  }, [user, token]);
+    // Analytics endpoints are not yet implemented in the backend.
+    // This function will remain a placeholder.
+    setAnalyticsData(null); // Clear previous analytics data
+    setLoading(false);
+  }, []);
+
+  // Effect to synchronize currentTab with URL path
+  useEffect(() => {
+    const pathToTabMap = {
+      '/admin/applications': 0,
+      '/admin/users': 1,
+      '/admin/sessions': 2,
+      '/admin/journals': 3, // Assuming this is the path for Journal Entries
+      '/admin/analytics': 4,
+      '/admin': 0 // Default dashboard tab
+    };
+
+    const currentPath = location.pathname;
+    const tabIndex = pathToTabMap[currentPath];
+    if (tabIndex !== undefined && tabIndex !== currentTab) {
+      setCurrentTab(tabIndex);
+    }
+  }, [location.pathname, currentTab]);
 
   useEffect(() => {
     if (!authLoading && user && user.is_staff && user.is_superuser) {
-      // Fetch all necessary data when the component mounts or tab changes
-      fetchTherapistApplications();
-      fetchUsers();
-      fetchSessions();
-      fetchJournalEntries();
-      fetchAnalyticsData(); // Fetch data for graphs
+      // Fetch data based on the current tab
+      if (currentTab === 0) {
+        fetchTherapistApplications();
+      } else if (currentTab === 1) {
+        fetchUsers();
+      } else if (currentTab === 2) {
+        fetchSessions();
+      } else if (currentTab === 3) {
+        fetchJournalEntries();
+      } else if (currentTab === 4) {
+        fetchAnalyticsData();
+      }
     } else if (!authLoading && (!user || !user.is_staff || !user.is_superuser)) {
       setError("Access Denied: You must be an administrator to view this page.");
       setLoading(false);
@@ -89,26 +146,73 @@ export default function AdminDashboard() {
   // Handle tab change
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
+    // Optionally, update the URL to match the tab change for direct linking
+    const tabToPathMap = {
+      0: '/admin/applications',
+      1: '/admin/users',
+      2: '/admin/sessions',
+      3: '/admin/journals',
+      4: '/admin/analytics'
+    };
+    navigate(tabToPathMap[newValue]);
+    setError(null); // Clear any previous errors when changing tabs
   };
 
-  // Snackbar and Modal Handlers (from existing code or new ones for user/session details)
-  const handleSnackbarClose = (event, reason) => { /* ... */ };
-  const handleOpenReviewModal = (application) => { /* ... */ };
-  const handleCloseReviewModal = () => { /* ... */ };
-  const handleSaveReview = async () => { /* ... */ };
+  // Snackbar and Modal Handlers
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') return;
+    setSnackbarOpen(false);
+  };
 
-  // New: Handle User/Session Details Modals
+  const handleOpenReviewModal = (application) => {
+    setSelectedApplication(application);
+    setNewStatus(application.status);
+    setReviewerNotes(application.reviewer_notes || '');
+    setOpenReviewModal(true);
+  };
+
+  const handleCloseReviewModal = () => {
+    setOpenReviewModal(false);
+    setSelectedApplication(null);
+    setNewStatus('');
+    setReviewerNotes('');
+  };
+
+  const handleSaveReview = async () => {
+    if (!selectedApplication) return;
+    setSubmitting(true);
+    try {
+      await axios.patch(`http://localhost:8000/api/admin/therapist-applications/${selectedApplication.id}/`,
+        { status: newStatus, reviewer_notes: reviewerNotes },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSnackbarMessage('Application updated successfully!');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      handleCloseReviewModal();
+      fetchTherapistApplications(); // Refresh the list
+    } catch (err) {
+      console.error("Error updating application:", err.response?.data || err);
+      setSnackbarMessage(err.response?.data?.detail || "Failed to update application.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+
+  // New: Handle User Details Modals
   const handleOpenUserDetailsModal = (userData) => {
-      setSelectedUser(userData);
-      setOpenUserDetailsModal(true);
+    setSelectedUser(userData);
+    setOpenUserDetailsModal(true);
   };
   const handleCloseUserDetailsModal = () => {
-      setSelectedUser(null);
-      setOpenUserDetailsModal(false);
+    setSelectedUser(null);
+    setOpenUserDetailsModal(false);
   };
-  // Similar handlers for session details if needed
 
-  // Conditional rendering for loading and access denied (already exists)
+  // Conditional rendering for loading and access denied
   if (authLoading || loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
@@ -146,7 +250,7 @@ export default function AdminDashboard() {
             <Tab label="Therapist Applications" />
             <Tab label="User Management" />
             <Tab label="Sessions" />
-            <Tab label="Journal Entries" /> {/* Optional, if admin needs to view all journals */}
+            <Tab label="Journal Entries" />
             <Tab label="Analytics" />
           </Tabs>
         </Paper>
@@ -209,19 +313,20 @@ export default function AdminDashboard() {
             <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
               User Management
             </Typography>
-            {/* Display users in a table, allow editing roles, viewing profiles */}
-            {users.length === 0 ? (
-                <Typography>No users found.</Typography>
+            {error ? (
+                <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
+            ) : users.length === 0 ? (
+                <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 2 }}>No users found.</Typography>
             ) : (
                 <TableContainer>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>Email</TableCell>
-                                <TableCell>Name</TableCell>
-                                <TableCell>Role</TableCell>
-                                <TableCell>Verified</TableCell>
-                                <TableCell>Actions</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Email</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Name</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Role</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Verified</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -229,10 +334,23 @@ export default function AdminDashboard() {
                                 <TableRow key={u.id}>
                                     <TableCell>{u.email}</TableCell>
                                     <TableCell>{u.first_name} {u.last_name}</TableCell>
-                                    <TableCell>{u.is_therapist ? 'Therapist' : 'User'} {u.is_staff && u.is_superuser && '(Admin)'}</TableCell>
+                                    <TableCell>
+                                      <Chip 
+                                        label={u.is_superuser ? 'Admin' : (u.is_therapist ? 'Therapist' : 'User')} 
+                                        size="small" 
+                                        color={u.is_superuser ? 'secondary' : (u.is_therapist ? 'primary' : 'default')}
+                                      />
+                                    </TableCell>
                                     <TableCell>{u.is_verified ? 'Yes' : 'No'}</TableCell>
                                     <TableCell>
-                                        <Button size="small" onClick={() => handleOpenUserDetailsModal(u)}>View/Edit</Button>
+                                        <Button 
+                                          size="small" 
+                                          variant="outlined"
+                                          sx={{ borderColor: '#780000', color: '#780000', '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
+                                          onClick={() => handleOpenUserDetailsModal(u)}
+                                        >
+                                          View/Edit
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -249,20 +367,22 @@ export default function AdminDashboard() {
             <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
               All Sessions
             </Typography>
-            {/* Display sessions in a table, filter by status, therapist, client */}
-            {sessions.length === 0 ? (
-                <Typography>No sessions found.</Typography>
+            {error ? (
+                <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
+            ) : sessions.length === 0 ? (
+                <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 2 }}>No sessions found.</Typography>
             ) : (
                 <TableContainer>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>Client</TableCell>
-                                <TableCell>Therapist</TableCell>
-                                <TableCell>Date</TableCell>
-                                <TableCell>Time</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Type</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Client</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Therapist</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Date</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Time</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Duration (min)</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Status</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Type</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -272,7 +392,14 @@ export default function AdminDashboard() {
                                     <TableCell>{s.therapist_name}</TableCell>
                                     <TableCell>{s.session_date}</TableCell>
                                     <TableCell>{s.session_time}</TableCell>
-                                    <TableCell>{s.status}</TableCell>
+                                    <TableCell> {s.duration_minutes} </TableCell>
+                                    <TableCell>
+                                      <Chip 
+                                        label={s.status.charAt(0).toUpperCase() + s.status.slice(1)} 
+                                        size="small" 
+                                        color={s.status === 'completed' ? 'success' : 'info'}
+                                      />
+                                    </TableCell>
                                     <TableCell>{s.session_type}</TableCell>
                                 </TableRow>
                             ))}
@@ -283,13 +410,48 @@ export default function AdminDashboard() {
           </Paper>
         )}
 
-        {/* Tab Panel for Journal Entries (Optional) */}
+        {/* Tab Panel for Journal Entries */}
         {currentTab === 3 && (
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
             <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
               All Journal Entries
             </Typography>
-            {/* Display journal entries (e.g., date, mood, user) in a table, allow viewing details */}
+            {error ? (
+                <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
+            ) : journalEntries.length === 0 ? (
+                <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 2 }}>No journal entries found.</Typography>
+            ) : (
+                <TableContainer>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>User Email</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Date</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Mood</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Entry Summary</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Tags</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {journalEntries.map(entry => (
+                                <TableRow key={entry.id}>
+                                    <TableCell>{entry.user_email || entry.user}</TableCell> {/* Use user_email if available, otherwise user ID */}
+                                    <TableCell>{new Date(entry.date).toLocaleString()}</TableCell>
+                                    <TableCell>{entry.mood}</TableCell>
+                                    <TableCell>{entry.entry.substring(0, 70)}{entry.entry.length > 70 ? '...' : ''}</TableCell>
+                                    <TableCell>
+                                        {entry.tags && entry.tags.length > 0 ? (
+                                            entry.tags.map((tag, idx) => (
+                                                <Chip key={idx} label={tag} size="small" sx={{ mr: 0.5, bgcolor: '#DCC8C8', color: '#333' }} />
+                                            ))
+                                        ) : 'N/A'}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            )}
           </Paper>
         )}
 
@@ -299,7 +461,9 @@ export default function AdminDashboard() {
             <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
               Website Analytics
             </Typography>
-            {/* Render various charts here */}
+            <Typography>
+              This section will display various graphs and detailed statistics related to user activity, session trends, mood patterns, and more once the analytics endpoints are implemented in the backend.
+            </Typography>
             {/* Example: User Role Distribution */}
             {/* {analyticsData?.userRoles && (
               <Box sx={{ height: 300, mb: 4 }}>
@@ -315,7 +479,6 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               </Box>
             )} */}
-            <Typography>Graphs and detailed statistics will be displayed here.</Typography>
           </Paper>
         )}
 
@@ -326,12 +489,86 @@ export default function AdminDashboard() {
           </Alert>
         </Snackbar>
 
-        {/* Review Application Modal (already exists) */}
+        {/* Review Application Modal */}
         <Dialog open={openReviewModal} onClose={handleCloseReviewModal} maxWidth="sm" fullWidth>
-            {/* ... content for reviewing therapist applications */}
+            <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Review Therapist Application</DialogTitle>
+            <DialogContent dividers>
+                {selectedApplication && (
+                    <Box>
+                        <Typography variant="h6" sx={{ mb: 1, color: '#780000' }}>Applicant: {selectedApplication.applicant_full_name}</Typography>
+                        <Typography variant="body2"><strong>Email:</strong> {selectedApplication.applicant_email}</Typography>
+                        <Typography variant="body2"><strong>License Number:</strong> {selectedApplication.license_number}</Typography>
+                        <Typography variant="body2"><strong>ID Number:</strong> {selectedApplication.id_number}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Motivation:</strong> {selectedApplication.motivation_statement}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Specializations:</strong> {selectedApplication.specializations}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Years of Experience:</strong> {selectedApplication.years_of_experience}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>License Credentials:</strong> {selectedApplication.license_credentials}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Approach/Modalities:</strong> {selectedApplication.approach_modalities}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Languages Spoken:</strong> {selectedApplication.languages_spoken}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Client Focus:</strong> {selectedApplication.client_focus}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Insurance Accepted:</strong> {selectedApplication.insurance_accepted ? 'Yes' : 'No'}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Free Consultation:</strong> {selectedApplication.is_free_consultation ? 'Yes' : 'No'}</Typography>
+                        {!selectedApplication.is_free_consultation && selectedApplication.hourly_rate && (
+                            <Typography variant="body2" sx={{ mt: 1 }}><strong>Hourly Rate:</strong> Ksh {parseFloat(selectedApplication.hourly_rate).toFixed(2)}</Typography>
+                        )}
+                        <Typography variant="body2" sx={{ mt: 1 }}><strong>Session Modes:</strong> {selectedApplication.session_modes}</Typography>
+                        {selectedApplication.physical_address && (
+                            <Typography variant="body2" sx={{ mt: 1 }}><strong>Physical Address:</strong> {selectedApplication.physical_address}</Typography>
+                        )}
+
+
+                        <Typography variant="body2" sx={{ mt: 2 }}>
+                            <strong>License Document:</strong>{' '}
+                            {selectedApplication.license_document ? (
+                                <MuiLink href={selectedApplication.license_document} target="_blank" rel="noopener">View Document</MuiLink>
+                            ) : 'N/A'}
+                        </Typography>
+                        <Typography variant="body2">
+                            <strong>ID Document:</strong>{' '}
+                            {selectedApplication.id_document ? (
+                                <MuiLink href={selectedApplication.id_document} target="_blank" rel="noopener">View Document</MuiLink>
+                            ) : 'N/A'}
+                        </Typography>
+                        <Typography variant="body2">
+                            <strong>Professional Photo:</strong>{' '}
+                            {selectedApplication.professional_photo ? (
+                                <MuiLink href={selectedApplication.professional_photo} target="_blank" rel="noopener">View Photo</MuiLink>
+                            ) : 'N/A'}
+                        </Typography>
+
+
+                        <FormControl fullWidth sx={{ mt: 3, mb: 2 }}>
+                            <InputLabel>Application Status</InputLabel>
+                            <Select
+                                value={newStatus}
+                                label="Application Status"
+                                onChange={(e) => setNewStatus(e.target.value)}
+                            >
+                                <MenuItem value="pending">Pending Review</MenuItem>
+                                <MenuItem value="approved">Approved</MenuItem>
+                                <MenuItem value="rejected">Rejected</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            fullWidth
+                            label="Reviewer Notes (Optional)"
+                            multiline
+                            rows={3}
+                            value={reviewerNotes}
+                            onChange={(e) => setReviewerNotes(e.target.value)}
+                        />
+                    </Box>
+                )}
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={handleCloseReviewModal} sx={{ color: '#780000' }}>Cancel</Button>
+                <Button onClick={handleSaveReview} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }} disabled={submitting}>
+                    {submitting ? <CircularProgress size={24} color="inherit" /> : 'Save Review'}
+                </Button>
+            </DialogActions>
         </Dialog>
 
-        {/* New: User Details/Edit Modal (example) */}
+        {/* New: User Details/Edit Modal */}
         <Dialog open={openUserDetailsModal} onClose={handleCloseUserDetailsModal} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>User Details</DialogTitle>
             <DialogContent dividers>
@@ -339,9 +576,30 @@ export default function AdminDashboard() {
                     <Box>
                         <Typography variant="body1"><strong>Name:</strong> {selectedUser.first_name} {selectedUser.last_name}</Typography>
                         <Typography variant="body1"><strong>Email:</strong> {selectedUser.email}</Typography>
-                        <Typography variant="body1"><strong>Role:</strong> {selectedUser.is_therapist ? 'Therapist' : 'User'}</Typography>
-                        <Typography variant="body1"><strong>Verified:</strong> {selectedUser.is_verified ? 'Yes' : 'No'}</Typography>
-                        {/* Add fields for editing role, verification status, etc. */}
+                        <Typography variant="body1"><strong>Phone:</strong> {selectedUser.phone || 'N/A'}</Typography>
+                        <Typography variant="body1"><strong>Is Therapist:</strong> {selectedUser.is_therapist ? 'Yes' : 'No'}</Typography>
+                        <Typography variant="body1"><strong>Is Verified:</strong> {selectedUser.is_verified ? 'Yes' : 'No'}</Typography>
+                        <Typography variant="body1"><strong>Is Staff:</strong> {selectedUser.is_staff ? 'Yes' : 'No'}</Typography>
+                        <Typography variant="body1"><strong>Is Superuser:</strong> {selectedUser.is_superuser ? 'Yes' : 'No'}</Typography>
+                        {selectedUser.is_therapist && (
+                            <Box sx={{ mt: 2, borderTop: '1px solid #eee', pt: 2 }}>
+                                <Typography variant="h6" sx={{ color: '#780000', mb: 1 }}>Therapist Details</Typography>
+                                <Typography variant="body2"><strong>Bio:</strong> {selectedUser.bio || 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>Years of Experience:</strong> {selectedUser.years_of_experience || 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>Specializations:</strong> {selectedUser.specializations || 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>Hourly Rate:</strong> {selectedUser.hourly_rate ? `Ksh ${parseFloat(selectedUser.hourly_rate).toFixed(2)}` : 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>License Credentials:</strong> {selectedUser.license_credentials || 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>Approach Modalities:</strong> {selectedUser.approach_modalities || 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>Languages Spoken:</strong> {selectedUser.languages_spoken || 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>Client Focus:</strong> {selectedUser.client_focus || 'N/A'}</Typography>
+                                <Typography variant="body2"><strong>Insurance Accepted:</strong> {selectedUser.insurance_accepted ? 'Yes' : 'No'}</Typography>
+                                <Typography variant="body2"><strong>Free Consultation:</strong> {selectedUser.is_free_consultation ? 'Yes' : 'No'}</Typography>
+                                <Typography variant="body2"><strong>Session Modes:</strong> {selectedUser.session_modes || 'N/A'}</Typography>
+                                {selectedUser.physical_address && <Typography variant="body2"><strong>Physical Address:</strong> {selectedUser.physical_address}</Typography>}
+                                {selectedUser.profile_picture && <Typography variant="body2"><strong>Profile Picture:</strong> <MuiLink href={selectedUser.profile_picture} target="_blank" rel="noopener">View</MuiLink></Typography>}
+
+                            </Box>
+                        )}
                     </Box>
                 )}
             </DialogContent>

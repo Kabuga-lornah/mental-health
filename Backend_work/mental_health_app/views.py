@@ -18,7 +18,7 @@ import time as raw_time # Corrected import for time.sleep
 from django.db import transaction
 
 
-from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment, TherapistAvailability
+from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment, TherapistAvailability, ChatMessage
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -32,7 +32,7 @@ from .serializers import (
     JournalEntrySerializer, JournalListSerializer, SessionRequestSerializer,
     SessionRequestUpdateSerializer, SessionSerializer, TherapistApplicationSerializer,
     TherapistApplicationAdminSerializer, PaymentSerializer,
-    TherapistAvailabilitySerializer
+    TherapistAvailabilitySerializer, ChatMessageSerializer
 )
 
 def generate_mpesa_access_token():
@@ -241,6 +241,25 @@ class UserView(generics.RetrieveUpdateAPIView):
             serializer.save(profile_picture=self.request.FILES['profile_picture'])
         else:
             serializer.save()
+
+# New Admin Views
+class AdminUserListView(generics.ListAPIView):
+    serializer_class = UserSerializer  # Using UserSerializer for full user details
+    permission_classes = [IsAdminUser]
+    queryset = User.objects.all().order_by('email') # Order for consistent display
+    def get_serializer_context(self):
+        return {'request': self.request}
+
+class AdminSessionListView(generics.ListAPIView):
+    serializer_class = SessionSerializer
+    permission_classes = [IsAdminUser]
+    queryset = Session.objects.all().order_by('-session_date', '-session_time')
+
+class AdminJournalEntryListView(generics.ListAPIView):
+    serializer_class = JournalEntrySerializer
+    permission_classes = [IsAdminUser]
+    queryset = JournalEntry.objects.all().order_by('-date')
+
 
 class JournalEntryView(generics.ListCreateAPIView):
     serializer_class = JournalEntrySerializer

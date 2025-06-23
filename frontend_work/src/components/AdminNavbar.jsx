@@ -1,3 +1,4 @@
+// frontend_work/src/components/AdminNavbar.jsx
 import React from 'react';
 import {
   Drawer,
@@ -10,28 +11,28 @@ import {
   CssBaseline,
   Typography,
   Toolbar,
-  AppBar, // We'll still use a small AppBar for a "menu" icon to open/close the drawer
+  AppBar,
   IconButton,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
   Assignment as AssignmentIcon,
-  CalendarMonth as CalendarMonthIcon, // For Sessions
+  CalendarMonth as CalendarMonthIcon,
   Analytics as AnalyticsIcon,
   Logout as LogoutIcon,
-  Menu as MenuIcon, // Icon for opening the drawer
-  Book as BookIcon, // For Journal Entries
+  Menu as MenuIcon,
+  Book as BookIcon,
 } from '@mui/icons-material';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const drawerWidth = 240; // Define the width of your vertical navbar
+const drawerWidth = 240;
 
 export default function AdminNavbar({ children }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const [mobileOpen, setMobileOpen] = React.useState(false); // For responsive drawer
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const [isClosing, setIsClosing] = React.useState(false);
 
   const handleDrawerClose = () => {
@@ -67,8 +68,8 @@ export default function AdminNavbar({ children }) {
           { text: 'Therapist Applications', icon: <AssignmentIcon />, path: '/admin/applications' },
           { text: 'User Management', icon: <PeopleIcon />, path: '/admin/users' },
           { text: 'Sessions', icon: <CalendarMonthIcon />, path: '/admin/sessions' },
-          { text: 'Journal Entries', icon: <BookIcon />, path: '/admin/journals' }, // New path
-          { text: 'Analytics', icon: <AnalyticsIcon />, path: '/admin/analytics' }, // New path
+          { text: 'Journal Entries', icon: <BookIcon />, path: '/admin/journals' },
+          { text: 'Analytics', icon: <AnalyticsIcon />, path: '/admin/analytics' },
         ].map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
@@ -94,7 +95,7 @@ export default function AdminNavbar({ children }) {
           </ListItem>
         ))}
       </List>
-      <Box sx={{ flexGrow: 1 }} /> {/* Pushes logout to bottom */}
+      <Box sx={{ flexGrow: 1 }} />
       <List>
         <ListItem disablePadding>
           <ListItemButton onClick={handleLogout}>
@@ -116,8 +117,8 @@ export default function AdminNavbar({ children }) {
         sx={{
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           ml: { sm: `${drawerWidth}px` },
-          backgroundColor: '#780000', // Keep a top bar for the menu icon on small screens
-          display: { sm: 'none' } // Hide on larger screens when drawer is always open
+          backgroundColor: '#780000',
+          display: { sm: 'none' }
         }}
       >
         <Toolbar>
@@ -140,14 +141,13 @@ export default function AdminNavbar({ children }) {
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
         aria-label="mailbox folders"
       >
-        {/* The implementation can be swapped with js to avoid SEO duplication of the drawer. */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onTransitionEnd={handleDrawerTransitionEnd}
           onClose={handleDrawerClose}
           ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
+            keepMounted: true,
           }}
           sx={{
             display: { xs: 'block', sm: 'none' },
@@ -172,11 +172,12 @@ export default function AdminNavbar({ children }) {
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: { xs: '64px', sm: '0px' } // Adjust content margin for top app bar on mobile
+          // Updated width and added marginLeft for larger screens
+          width: { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` },
+          ml: { sm: `${drawerWidth}px` }, // This pushes the content to the right
+          mt: { xs: '64px', sm: '0px' }
         }}
       >
-        {/* Children (e.g., Admin.jsx content) will be rendered here */}
         {children}
       </Box>
     </Box>
