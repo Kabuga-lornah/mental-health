@@ -5,25 +5,25 @@ import {
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   Select, MenuItem, FormControl, InputLabel, TextField, Chip,
   RadioGroup, FormControlLabel, Radio, FormLabel, Divider,
-  Card, CardContent, CardActions, IconButton, Collapse, Grid, // Added Grid import
+  Card, CardContent, CardActions, IconButton, Collapse, Grid,
   List, ListItem, ListItemText, ListItemSecondaryAction
 } from '@mui/material';
 import {
   VideoCall, LocationOn, ExpandMore, ExpandLess,
   CheckCircle, Cancel, Notes,
-  InfoOutlined, AttachMoney, Category, Psychology // Added missing icon imports
+  InfoOutlined, AttachMoney, Category, Psychology
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { format } from 'date-fns';
 
-const primaryColor = '#4a90e2';
-const secondaryColor = '#50e3c2';
-const accentColor = '#f5a623';
-const textColor = '#333333';
-const lightTextColor = '#666666';
-const borderColor = '#e0e0e0';
-const buttonHoverColor = '#3a7bd5';
+// Define theme colors
+const themePrimaryColor = '#780000'; // Dark red/maroon
+const themeLightBackground = '#fefae0'; // Light cream/yellowish white
+const themeButtonHoverColor = '#5a0000'; // Darker red/maroon for hover
+const themeUserMessageColor = '#DCC8C8'; // Lighter red/pinkish color for user messages
+const themeTextColor = '#333'; // Standard dark text color
+const themeBorderColor = '#e0e0e0'; // Neutral gray for borders
 
 const TherapistDashboard = () => {
   const { user, token, authLoading } = useAuth();
@@ -45,7 +45,7 @@ const TherapistDashboard = () => {
   const [slotDuration, setSlotDuration] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success'); // Still use for internal logic, but won't dictate color directly on Alert
 
   const fetchData = useCallback(async () => {
     try {
@@ -54,30 +54,25 @@ const TherapistDashboard = () => {
         return;
       }
 
-      // CORRECTED: Fetch therapist profile from /api/user/ endpoint
       const profileResponse = await axios.get('http://localhost:8000/api/user/', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Assuming 'profileResponse.data' directly contains the user object
       setTherapistProfile(profileResponse.data);
 
-      // Fetch session requests for the therapist
       const requestsResponse = await axios.get('http://localhost:8000/api/therapist/session-requests/', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSessionRequests(requestsResponse.data);
 
-      // Fetch all sessions for the therapist
       const sessionsResponse = await axios.get('http://localhost:8000/api/therapist/sessions/', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const allSessions = sessionsResponse.data;
-      setScheduledSessions(allSessions.filter(s => s.status === 'scheduled')); // Only 'scheduled'
-      setCompletedSessions(allSessions.filter(s => s.status === 'completed')); // Only 'completed'
+      setScheduledSessions(allSessions.filter(s => s.status === 'scheduled'));
+      setCompletedSessions(allSessions.filter(s => s.status === 'completed'));
 
     } catch (err) {
       console.error("Error fetching dashboard data:", err.response?.data || err);
-      // More specific error for 404 on profile fetch
       if (err.response && err.response.status === 404 && err.config.url.includes('/api/therapists/me/')) {
         setError("Profile data not found at the expected endpoint. Please check API routes.");
       } else {
@@ -121,7 +116,7 @@ const TherapistDashboard = () => {
       setSnackbarMessage(`Request ${status} successfully!`);
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchData(); // Re-fetch data to update lists
+      fetchData();
     } catch (err) {
       console.error("Error updating request:", err.response?.data || err);
       setSnackbarMessage(err.response?.data?.detail || "Failed to update request.");
@@ -140,25 +135,18 @@ const TherapistDashboard = () => {
         return;
       }
 
-      // Check if the request is paid, essential before creating session
       if (!request.is_paid) {
         setSnackbarMessage("Cannot create session: Payment not confirmed for this request.");
         setSnackbarSeverity('error');
         setSnackbarOpen(true);
         return;
       }
-      
-      // Ensure the correct endpoint for creating a session from a request is used
-      // Your urls.py defines 'therapist/sessions/create/' for this purpose
+
       const response = await axios.post('http://localhost:8000/api/therapist/sessions/create/',
         {
-          session_request: request.id, // Pass the session_request ID
-          // The backend view (TherapistSessionCreateView) will pull client, therapist,
-          // requested_date, requested_time, duration_minutes from the session_request
-          // You might send session_type, location, zoom_meeting_url if not implicitly handled
-          session_type: request.session_type || 'online', // Default if not explicitly set in request
+          session_request: request.id,
+          session_type: request.session_type || 'online',
           location: request.location || null,
-          // zoom_meeting_url: ... (if you want to send a default or hardcoded one from frontend)
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -166,7 +154,7 @@ const TherapistDashboard = () => {
       setSnackbarMessage("Session created and request confirmed successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchData(); // Re-fetch data to reflect changes
+      fetchData();
     } catch (err) {
       console.error("Error creating session:", err.response?.data || err);
       const errorMessage = err.response?.data?.detail || "Failed to create session.";
@@ -242,7 +230,7 @@ const TherapistDashboard = () => {
       }
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchAvailability(); // Re-fetch list
+      fetchAvailability();
       handleCloseAvailabilityModal();
     } catch (err) {
       console.error("Error saving availability:", err.response?.data || err);
@@ -258,7 +246,7 @@ const TherapistDashboard = () => {
       setSnackbarMessage("Availability deleted successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchAvailability(); // Re-fetch list
+      fetchAvailability();
     } catch (err) {
       console.error("Error deleting availability:", err.response?.data || err);
       setSnackbarMessage(err.response?.data?.detail || "Failed to delete availability.");
@@ -266,7 +254,7 @@ const TherapistDashboard = () => {
       setSnackbarOpen(true);
     }
   };
-  // Render logic for loading, auth checks, and main content...
+
   if (authLoading || loading) {
     return (
       <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
@@ -287,48 +275,74 @@ const TherapistDashboard = () => {
     );
   }
 
+  // Determine Alert styles based on snackbarSeverity, but use theme colors only
+  const getAlertStyles = (severity) => {
+    const baseStyle = {
+      fontWeight: 'bold',
+    };
+    if (severity === 'error') {
+      return {
+        ...baseStyle,
+        backgroundColor: themePrimaryColor, // Use primary color for errors
+        color: themeLightBackground, // Light text on dark background
+      };
+    } else if (severity === 'success') {
+      return {
+        ...baseStyle,
+        backgroundColor: themePrimaryColor, // Use primary color for success
+        color: themeLightBackground, // Light text on dark background
+      };
+    }
+    // Default for 'warning' or 'info' will also use primary colors
+    return {
+      ...baseStyle,
+      backgroundColor: themePrimaryColor,
+      color: themeLightBackground,
+    };
+  };
+
   return (
-    <Box sx={{ backgroundColor: '#f4f6f8', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ backgroundColor: themeLightBackground, minHeight: '100vh', py: 4 }}>
       <Container maxWidth="lg">
-        <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ color: primaryColor, fontWeight: 'bold', mb: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 4 }}>
           Therapist Dashboard
         </Typography>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Alert severity="error" sx={{ mb: 3 }}> {/* Keep severity for icon, but color overridden by sx below */}
             {error}
           </Alert>
         )}
 
         {/* Profile Summary */}
         {therapistProfile && (
-          <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
-            <Typography variant="h5" sx={{ color: primaryColor, mb: 2, fontWeight: 'bold' }}>
+          <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${themeBorderColor}` }}>
+            <Typography variant="h5" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
               Welcome, Dr. {therapistProfile.first_name} {therapistProfile.last_name}!
             </Typography>
             <Divider sx={{ mb: 2 }} />
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
-                <Typography variant="body1" sx={{ color: lightTextColor }}>
-                  <InfoOutlined sx={{ verticalAlign: 'middle', mr: 1, color: accentColor }} />
+                <Typography variant="body1" sx={{ color: themeTextColor }}>
+                  <InfoOutlined sx={{ verticalAlign: 'middle', mr: 1, color: themePrimaryColor }} />
                   <strong>Status:</strong> {therapistProfile.is_verified ? 'Verified' : 'Pending Verification'}
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="body1" sx={{ color: lightTextColor }}>
-                  <AttachMoney sx={{ verticalAlign: 'middle', mr: 1, color: accentColor }} />
+                <Typography variant="body1" sx={{ color: themeTextColor }}>
+                  <AttachMoney sx={{ verticalAlign: 'middle', mr: 1, color: themePrimaryColor }} />
                   <strong>Hourly Rate:</strong> KES {therapistProfile.hourly_rate || 'N/A'}
                 </Typography>
               </Grid>
               <Grid item xs={12}>
-                <Typography variant="body1" sx={{ color: lightTextColor }}>
-                  <Category sx={{ verticalAlign: 'middle', mr: 1, color: accentColor }} />
+                <Typography variant="body1" sx={{ color: themeTextColor }}>
+                  <Category sx={{ verticalAlign: 'middle', mr: 1, color: themePrimaryColor }} />
                   <strong>Specializations:</strong> {therapistProfile.specializations || 'N/A'}
                 </Typography>
               </Grid>
               <Grid item xs={12}>
-                <Typography variant="body1" sx={{ color: lightTextColor }}>
-                  <Psychology sx={{ verticalAlign: 'middle', mr: 1, color: accentColor }} />
+                <Typography variant="body1" sx={{ color: themeTextColor }}>
+                  <Psychology sx={{ verticalAlign: 'middle', mr: 1, color: themePrimaryColor }} />
                   <strong>Approach & Modalities:</strong> {therapistProfile.approach_modalities || 'N/A'}
                 </Typography>
               </Grid>
@@ -337,15 +351,15 @@ const TherapistDashboard = () => {
         )}
 
         {/* Session Requests */}
-        <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
-          <Typography variant="h6" sx={{ color: primaryColor, mb: 2, fontWeight: 'bold' }}>
+        <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${themeBorderColor}` }}>
+          <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
             New Session Requests
           </Typography>
           {sessionRequests.length === 0 ? (
-            <Typography sx={{ color: lightTextColor }}>No pending session requests.</Typography>
+            <Typography sx={{ color: themeTextColor }}>No pending session requests.</Typography>
           ) : (
             sessionRequests.map((request) => (
-              <Card key={request.id} variant="outlined" sx={{ mb: 2, borderColor: borderColor }}>
+              <Card key={request.id} variant="outlined" sx={{ mb: 2, borderColor: themeBorderColor }}>
                 <CardContent>
                   <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                     Client: {request.client_name}
@@ -363,14 +377,16 @@ const TherapistDashboard = () => {
                     Message: {request.message || 'No message provided.'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Payment Status: {request.is_paid ? <Chip label="Paid" color="success" size="small" /> : <Chip label="Pending Payment" color="warning" size="small" />}
+                    Payment Status: {request.is_paid ?
+                      <Chip label="Paid" sx={{ backgroundColor: themePrimaryColor, color: themeLightBackground }} size="small" /> :
+                      <Chip label="Pending Payment" sx={{ backgroundColor: themeUserMessageColor, color: themeTextColor }} size="small" />} {/* Applied theme colors directly */}
                   </Typography>
                 </CardContent>
                 <CardActions>
                   <Button
                     size="small"
                     startIcon={<CheckCircle />}
-                    sx={{ color: 'green', '&:hover': { backgroundColor: 'rgba(0,128,0,0.05)' } }}
+                    sx={{ color: themePrimaryColor, '&:hover': { backgroundColor: `${themePrimaryColor}10` } }}
                     onClick={() => handleCreateSession(request.id)}
                     disabled={!request.is_paid}
                   >
@@ -379,7 +395,7 @@ const TherapistDashboard = () => {
                   <Button
                     size="small"
                     startIcon={<Cancel />}
-                    sx={{ color: 'red', '&:hover': { backgroundColor: 'rgba(255,0,0,0.05)' } }}
+                    sx={{ color: themePrimaryColor, '&:hover': { backgroundColor: `${themePrimaryColor}10` } }}
                     onClick={() => handleUpdateRequest(request.id, 'rejected')}
                   >
                     Reject
@@ -391,15 +407,15 @@ const TherapistDashboard = () => {
         </Paper>
 
         {/* Scheduled Sessions */}
-        <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
-          <Typography variant="h6" sx={{ color: primaryColor, mb: 2, fontWeight: 'bold' }}>
+        <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${themeBorderColor}` }}>
+          <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
             Scheduled Sessions ({scheduledSessions.length})
           </Typography>
           {scheduledSessions.length === 0 ? (
-            <Typography sx={{ color: lightTextColor }}>No upcoming scheduled sessions.</Typography>
+            <Typography sx={{ color: themeTextColor }}>No upcoming scheduled sessions.</Typography>
           ) : (
             scheduledSessions.map((session) => (
-              <Card key={session.id} variant="outlined" sx={{ mb: 2, borderColor: borderColor }}>
+              <Card key={session.id} variant="outlined" sx={{ mb: 2, borderColor: themeBorderColor }}>
                 <CardContent>
                   <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                     Client: {session.client_name}
@@ -417,14 +433,14 @@ const TherapistDashboard = () => {
                     Session Type: {session.session_type}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Status: <Chip label={session.status} color={session.status === 'scheduled' ? 'info' : 'success'} size="small" />
+                    Status: <Chip label={session.status} sx={{ backgroundColor: themePrimaryColor, color: themeLightBackground }} size="small" /> {/* Applied theme colors directly */}
                   </Typography>
                 </CardContent>
                 <CardActions disableSpacing>
                   <Button
                     size="small"
                     startIcon={<VideoCall />}
-                    sx={{ color: primaryColor, '&:hover': { backgroundColor: 'rgba(74,144,226,0.05)' } }}
+                    sx={{ color: themePrimaryColor, '&:hover': { backgroundColor: `${themePrimaryColor}10` } }}
                     onClick={() => handleJoinSession(session)}
                     disabled={!session.zoom_meeting_url}
                   >
@@ -448,7 +464,6 @@ const TherapistDashboard = () => {
                         "Zoom link will be available closer to the session time."
                       )}
                     </Typography>
-                    {/* Add more session details if needed */}
                   </CardContent>
                 </Collapse>
               </Card>
@@ -457,15 +472,15 @@ const TherapistDashboard = () => {
         </Paper>
 
         {/* Completed Sessions */}
-        <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
-          <Typography variant="h6" sx={{ color: primaryColor, mb: 2, fontWeight: 'bold' }}>
+        <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${themeBorderColor}` }}>
+          <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
             Completed Sessions ({completedSessions.length})
           </Typography>
           {completedSessions.length === 0 ? (
-            <Typography sx={{ color: lightTextColor }}>No completed sessions yet.</Typography>
+            <Typography sx={{ color: themeTextColor }}>No completed sessions yet.</Typography>
           ) : (
             completedSessions.map((session) => (
-              <Card key={session.id} variant="outlined" sx={{ mb: 2, borderColor: borderColor }}>
+              <Card key={session.id} variant="outlined" sx={{ mb: 2, borderColor: themeBorderColor }}>
                 <CardContent>
                   <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                     Client: {session.client_name}
@@ -480,7 +495,7 @@ const TherapistDashboard = () => {
                     Session Type: {session.session_type}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Status: <Chip label="Completed" color="success" size="small" />
+                    Status: <Chip label="Completed" sx={{ backgroundColor: themePrimaryColor, color: themeLightBackground }} size="small" /> {/* Applied theme colors directly */}
                   </Typography>
                   {session.notes && (
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -496,17 +511,17 @@ const TherapistDashboard = () => {
 
         {/* Therapist Availability Section */}
         <Container maxWidth="lg" sx={{ py: 8 }}>
-          <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${borderColor}` }}>
+          <Paper elevation={3} sx={{ p: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${themeBorderColor}` }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" sx={{ color: primaryColor, fontWeight: 'bold' }}>
+              <Typography variant="h6" sx={{ color: themePrimaryColor, fontWeight: 'bold' }}>
                 Manage Your Availability
               </Typography>
               <Button
                 variant="contained"
                 size="small"
                 sx={{
-                  backgroundColor: primaryColor,
-                  '&:hover': { backgroundColor: buttonHoverColor },
+                  backgroundColor: themePrimaryColor,
+                  '&:hover': { backgroundColor: themeButtonHoverColor },
                   fontWeight: 'bold'
                 }}
                 onClick={handleOpenAddAvailabilityModal}
@@ -515,7 +530,7 @@ const TherapistDashboard = () => {
               </Button>
             </Box>
             {availabilities.length === 0 ? (
-              <Typography sx={{ color: lightTextColor }}>No availability set. Add your schedule to start receiving requests.</Typography>
+              <Typography sx={{ color: themeTextColor }}>No availability set. Add your schedule to start receiving requests.</Typography>
             ) : (
               <List>
                 {availabilities.map((avail) => (
@@ -537,10 +552,10 @@ const TherapistDashboard = () => {
                     />
                     <ListItemSecondaryAction>
                       <IconButton edge="end" aria-label="edit" onClick={() => handleOpenEditAvailabilityModal(avail)}>
-                        <Notes sx={{ color: primaryColor }} />
+                        <Notes sx={{ color: themePrimaryColor }} />
                       </IconButton>
                       <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteAvailability(avail.id)}>
-                        <Cancel sx={{ color: 'red' }} />
+                        <Cancel sx={{ color: themePrimaryColor }} />
                       </IconButton>
                     </ListItemSecondaryAction>
                   </ListItem>
@@ -552,7 +567,7 @@ const TherapistDashboard = () => {
 
         {/* Availability Modal (Add/Edit) */}
         <Dialog open={openAvailabilityModal} onClose={handleCloseAvailabilityModal} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ color: primaryColor, fontWeight: 'bold' }}>
+          <DialogTitle sx={{ color: themePrimaryColor, fontWeight: 'bold' }}>
             {editingAvailability ? 'Edit Availability' : 'Add New Availability'}
           </DialogTitle>
           <DialogContent dividers>
@@ -562,7 +577,7 @@ const TherapistDashboard = () => {
                 value={dayOfWeek}
                 onChange={(e) => setDayOfWeek(e.target.value)}
                 label="Day of Week"
-                disabled={!!editingAvailability} 
+                disabled={!!editingAvailability}
               >
                 {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
                   <MenuItem key={day} value={day}>{day}</MenuItem>
@@ -597,19 +612,18 @@ const TherapistDashboard = () => {
             />
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseAvailabilityModal} sx={{ color: primaryColor }}>Cancel</Button>
-            <Button onClick={handleSaveAvailability} variant="contained" sx={{ backgroundColor: primaryColor, '&:hover': { backgroundColor: buttonHoverColor } }}>
+            <Button onClick={handleCloseAvailabilityModal} sx={{ color: themePrimaryColor }}>Cancel</Button>
+            <Button onClick={handleSaveAvailability} variant="contained" sx={{ backgroundColor: themePrimaryColor, '&:hover': { backgroundColor: themeButtonHoverColor } }}>
               {editingAvailability ? 'Save Changes' : 'Add Availability'}
             </Button>
           </DialogActions>
         </Dialog>
 
-
         <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
           <Alert
             onClose={handleSnackbarClose}
-            severity={snackbarSeverity}
-            sx={{ width: '100%' }}
+            severity={snackbarSeverity} // Keep severity for default icon, but colors are overridden
+            sx={{ ...getAlertStyles(snackbarSeverity), width: '100%' }}
           >
             {snackbarMessage}
           </Alert>

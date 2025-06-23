@@ -48,14 +48,16 @@ def generate_mpesa_access_token():
         )
         response.raise_for_status()
         token = response.json()['access_token']
+        print(f"DEBUG: M-Pesa access token generated successfully.")
         return token
     except requests.exceptions.RequestException as e:
-        print(f"Error generating M-Pesa access token: {e}")
+        print(f"ERROR: Error generating M-Pesa access token: {e}")
         return None
 
 def initiate_stk_push(phone_number, amount, account_reference, transaction_desc, callback_url):
     access_token = generate_mpesa_access_token()
     if not access_token:
+        print("ERROR: STK Push failed - No M-Pesa access token.")
         return {"success": False, "message": "Failed to get M-Pesa access token."}
 
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -82,13 +84,17 @@ def initiate_stk_push(phone_number, amount, account_reference, transaction_desc,
         "TransactionDesc": transaction_desc
     }
 
+    print(f"DEBUG: M-Pesa STK Push Payload to be sent: {json.dumps(payload, indent=2)}")
+    print(f"DEBUG: CallBackURL being sent to M-Pesa: {callback_url}")
+
     try:
         response = requests.post(f"{settings.MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest", json=payload, headers=headers, timeout=20)
-        response.raise_for_status()
+        response.raise_for_status() # This will raise HTTPError for 4xx/5xx responses
         response_data = response.json()
-        print(f"STK Push response: {response_data}")
+        print(f"DEBUG: M-Pesa STK Push Raw Response: {json.dumps(response_data, indent=2)}")
 
         if response_data.get('ResponseCode') == '0':
+            print(f"INFO: STK Push initiated successfully for CheckoutRequestID: {response_data.get('CheckoutRequestID')}")
             return {
                 "success": True,
                 "message": "STK Push initiated successfully.",
@@ -96,14 +102,28 @@ def initiate_stk_push(phone_number, amount, account_reference, transaction_desc,
                 "merchant_request_id": response_data.get('MerchantRequestID')
             }
         else:
+            # M-Pesa API returned a non-zero ResponseCode (business logic error from Safaricom)
+            print(f"ERROR: STK Push initiation failed (M-Pesa ResponseCode: {response_data.get('ResponseCode')}): {response_data.get('ResponseDescription', 'No description')}, CustomerMessage: {response_data.get('CustomerMessage', 'No customer message')}")
             return {
                 "success": False,
                 "message": response_data.get('ResponseDescription', 'STK Push initiation failed.'),
                 "error_code": response_data.get('ResponseCode'),
-                "error_message": response_data.get('CustomerMessage')
+                "error_message": response_data.get('CustomerMessage') # This often has the more specific message
             }
+    except requests.exceptions.HTTPError as e:
+        # This catches 4xx/5xx HTTP errors (e.g., 400 Bad Request)
+        print(f"ERROR: HTTP Error initiating STK Push: {e.response.status_code} - {e.response.text}")
+        try:
+            error_details = e.response.json()
+            print(f"ERROR: M-Pesa API Error Details (JSON): {json.dumps(error_details, indent=2)}")
+            # Look for specific error messages like 'errorMessage' or 'DeveloperMessage'
+            return {"success": False, "message": error_details.get('errorMessage', 'STK Push API HTTP error.')}
+        except json.JSONDecodeError:
+            print(f"ERROR: STK Push API returned non-JSON error response: {e.response.text}")
+            return {"success": False, "message": f"STK Push API returned non-JSON error: {e.response.text}"}
     except requests.exceptions.RequestException as e:
-        print(f"Error initiating STK Push: {e}")
+        # This catches network errors, timeouts, etc.
+        print(f"ERROR: Network or other Request Error initiating STK Push: {e}")
         return {"success": False, "message": f"Network or API error: {e}"}
 
 class IsAdminUser(permissions.BasePermission):
@@ -417,20 +437,29 @@ class SessionRequestCreateView(generics.CreateAPIView):
         scheduled_sessions_on_date = Session.objects.filter(
             therapist=therapist,
             session_date=requested_date
-        ).values('session_date', 'session_time', 'duration_minutes') # Corrected: Added 'session_date'
+        ).values('session_date', 'session_time', 'duration_minutes')
 
         paid_pending_requests_on_date = SessionRequest.objects.filter(
             therapist=therapist,
             status__in=['pending', 'accepted'],
             is_paid=True,
             requested_date=requested_date
-        ).values('requested_date', 'requested_time', 'session_duration') # Corrected: Added 'requested_date'
+        ).values('requested_date', 'requested_time', 'session_duration')
 
 
         for session in scheduled_sessions_on_date:
+            session_date_obj = session['session_date']
+            # Ensure session_date_obj is a date object, converting if it's a string
+            if isinstance(session_date_obj, str):
+                try:
+                    session_date_obj = datetime.strptime(session_date_obj, '%Y-%m-%d').date()
+                except ValueError:
+                    print(f"WARNING: Could not parse session_date '{session_date_obj}'. Skipping session.")
+                    continue # Skip this session if date format is unexpected
+
             booked_start_time = session['session_time']
             booked_duration = session.get('duration_minutes', 120)
-            booked_start_dt = timezone.make_aware(datetime.combine(session['session_date'], booked_start_time)) # Access 'session_date' here
+            booked_start_dt = timezone.make_aware(datetime.combine(session_date_obj, booked_start_time))
             booked_end_dt = booked_start_dt + timedelta(minutes=booked_duration)
 
             if not (slot_end_dt <= booked_start_dt or slot_start_dt >= booked_end_dt):
@@ -438,9 +467,18 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 return False, "Requested slot is already booked."
 
         for req in paid_pending_requests_on_date:
+            req_date_obj = req['requested_date']
+            # Ensure req_date_obj is a date object, converting if it's a string
+            if isinstance(req_date_obj, str):
+                try:
+                    req_date_obj = datetime.strptime(req_date_obj, '%Y-%m-%d').date()
+                except ValueError:
+                    print(f"WARNING: Could not parse requested_date '{req_date_obj}'. Skipping request.")
+                    continue # Skip this request if date format is unexpected
+
             booked_start_time = req['requested_time']
             booked_duration = req.get('session_duration', 120)
-            booked_start_dt = timezone.make_aware(datetime.combine(req['requested_date'], booked_start_time)) # Access 'requested_date' here
+            booked_start_dt = timezone.make_aware(datetime.combine(req_date_obj, booked_start_time))
             booked_end_dt = booked_start_dt + timedelta(minutes=booked_duration)
 
             if not (slot_end_dt <= booked_start_dt or slot_start_dt >= booked_end_dt):
@@ -795,14 +833,14 @@ def MpesaCallbackView(request):
     Handles M-Pesa STK Push callbacks.
     """
     print("M-Pesa Callback received!")
-    print(f"Request data: {request.data}")
+    print(f"Request data: {json.dumps(request.data, indent=2)}")
 
     try:
         body = request.data.get('Body')
         stk_callback = body.get('stkCallback')
 
         if not stk_callback:
-            print("Invalid M-Pesa callback format: missing stkCallback.")
+            print("ERROR: Invalid M-Pesa callback format: missing stkCallback.")
             return Response({"message": "Invalid M-Pesa callback format."}, status=status.HTTP_400_BAD_REQUEST)
 
         merchant_request_id = stk_callback.get('MerchantRequestID')
@@ -824,56 +862,64 @@ def MpesaCallbackView(request):
             elif item.get('Name') == 'PhoneNumber':
                 phone_number = item.get('Value')
 
-        print(f"Callback Details: MerchantRequestID={merchant_request_id}, CheckoutRequestID={checkout_request_id}, ResultCode={result_code}, MpesaReceiptNumber={mpesa_receipt_number}")
+        print(f"DEBUG: Callback Details: MerchantRequestID={merchant_request_id}, CheckoutRequestID={checkout_request_id}, ResultCode={result_code}, MpesaReceiptNumber={mpesa_receipt_number}")
 
         payment = None
-        max_retries = 5
-        retry_delay_seconds = 1
-
+        max_retries = 10 # Increased retries
+        retry_delay_seconds = 2 # Increased delay
+        # --- MODIFICATION START ---
+        # Using a transactional atomic block for safety during retries
         for i in range(max_retries):
             try:
-                payment = Payment.objects.get(checkout_request_id=checkout_request_id)
-                print(f"DEBUG: Found Payment record for CheckoutRequestID: {checkout_request_id} on attempt {i+1}.")
-                break
+                with transaction.atomic():
+                    payment = Payment.objects.select_for_update().get(checkout_request_id=checkout_request_id)
+                    print(f"DEBUG: Found Payment record for CheckoutRequestID: {checkout_request_id} on attempt {i+1}.")
+                    break
             except Payment.DoesNotExist:
                 print(f"DEBUG: Payment not found for CheckoutRequestID: {checkout_request_id}. Retrying in {retry_delay_seconds} second(s)... (Attempt {i+1}/{max_retries})")
                 raw_time.sleep(retry_delay_seconds)
+            except Exception as e:
+                print(f"ERROR: Error during payment lookup (attempt {i+1}): {e}")
+                raw_time.sleep(retry_delay_seconds)
+        # --- MODIFICATION END ---
         
         if not payment:
-            print(f"ERROR: Payment record still not found after {max_retries} attempts for CheckoutRequestID: {checkout_request_id}")
-            return Response({"message": "Payment record not found after multiple attempts."}, status=status.HTTP_404_NOT_FOUND)
+            print(f"CRITICAL ERROR: Payment record still not found after {max_retries} attempts for CheckoutRequestID: {checkout_request_id}. Callback cannot be processed.")
+            # It's important to return a non-200 status code here so M-Pesa retries later if possible
+            return Response({"message": "Payment record not found after multiple attempts. Will retry later."}, status=status.HTTP_404_NOT_FOUND)
 
         if result_code == 0:
             payment.status = 'completed'
             payment.mpesa_receipt_number = mpesa_receipt_number
-            payment.transaction_id = mpesa_receipt_number
+            payment.transaction_id = mpesa_receipt_number # Use receipt number as transaction ID for consistency
             payment.save()
-            print(f"Payment for {checkout_request_id} updated to 'completed'.")
+            print(f"INFO: Payment for {checkout_request_id} updated to 'completed'. MpesaReceiptNumber: {mpesa_receipt_number}")
 
             if payment.session_request:
                 payment.session_request.is_paid = True
                 payment.session_request.save()
-                print(f"SessionRequest {payment.session_request.id} marked as paid.")
+                print(f"INFO: SessionRequest {payment.session_request.id} marked as paid.")
 
             return Response({"message": "Payment successful and updated."}, status=status.HTTP_200_OK)
         else:
             payment.status = 'failed'
+            # Safaricom's result_desc and customerMessage can be helpful here
             payment.reviewer_notes = result_desc 
             payment.save()
-            print(f"Payment for {checkout_request_id} updated to 'failed'. Reason: {result_desc}")
+            print(f"WARNING: Payment for {checkout_request_id} updated to 'failed'. ResultCode: {result_code}, Reason: {result_desc}")
 
             if payment.session_request:
-                payment.session_request.status = 'cancelled'
+                payment.session_request.status = 'cancelled' # Cancel session request on payment failure
                 payment.session_request.save()
-                print(f"SessionRequest {payment.session_request.id} cancelled due to payment failure.")
+                print(f"INFO: SessionRequest {payment.session_request.id} cancelled due to payment failure.")
 
-            return Response({"message": "Payment failed or cancelled."}, status=status.HTTP_200_OK)
+            return Response({"message": "Payment failed or cancelled."}, status=status.HTTP_200_OK) # Still 200 OK for M-Pesa to stop retrying
 
     except json.JSONDecodeError as e:
-        print(f"JSON decoding error in M-Pesa callback: {e}")
+        print(f"ERROR: JSON decoding error in M-Pesa callback: {e}. Raw request data: {request.body}")
         return Response({"message": "Invalid JSON format."}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        print(f"Unexpected error in M-Pesa callback: {e}")
+        print(f"CRITICAL ERROR: Unexpected error in M-Pesa callback: {e}")
         return Response({"message": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -969,7 +1015,7 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
         scheduled_sessions = Session.objects.filter(
             therapist=therapist,
             session_date__range=[start_date, end_date]
-        ).values('session_date', 'session_time', 'duration_minutes') # Corrected: Added 'session_date'
+        ).values('session_date', 'session_time', 'duration_minutes')
         print(f"DEBUG: TherapistAvailableSlotsView - Scheduled sessions count: {len(scheduled_sessions)}")
 
         paid_pending_requests = SessionRequest.objects.filter(
@@ -977,7 +1023,7 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
             status__in=['pending', 'accepted'],
             is_paid=True,
             requested_date__range=[start_date, end_date]
-        ).values('requested_date', 'requested_time', 'session_duration') # Corrected: Added 'requested_date'
+        ).values('requested_date', 'requested_time', 'session_duration')
         print(f"DEBUG: TherapistAvailableSlotsView - Paid pending requests count: {len(paid_pending_requests)}")
 
         unavailable_intervals = defaultdict(list)
