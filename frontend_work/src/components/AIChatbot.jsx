@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Box, Button, TextField, Typography, Paper, CircularProgress, IconButton } from '@mui/material';
 import { Close as CloseIcon, Send as SendIcon, Chat as ChatIcon } from '@mui/icons-material';
+import axios from 'axios'; // Import axios
 
 export default function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -34,45 +35,21 @@ export default function AIChatbot() {
     setIsTyping(true);
 
     try {
-      let chatHistory = messages.map(msg => ({ role: msg.type === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
-      chatHistory.push({ role: "user", parts: [{ text: userMessage.text }] });
+      // Prepare chat history to send to backend
+      const chatHistoryForBackend = messages.map(msg => ({ type: msg.type, text: msg.text }));
+      chatHistoryForBackend.push({ type: 'user', text: userMessage.text });
 
-      const payload = {
-        contents: chatHistory,
-        generationConfig: {
-          temperature: 0.7, 
-          maxOutputTokens: 200,
-        },
-      };
-
-      const apiKey = "AIzaSyA2YJJIC2WI_7JV3nPWBmBXmRXtGy8DxLE"; 
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      // Call your new backend endpoint for chat
+      const response = await axios.post('http://localhost:8000/api/ai/chat/', { // NEW ENDPOINT
+        chatHistory: chatHistoryForBackend,
+        currentMessage: userMessage.text,
       });
 
-      const result = await response.json();
-
-      let botResponseText = "Sorry, I couldn't get a response. Please try again.";
-      if (result.candidates && result.candidates.length > 0 &&
-          result.candidates[0].content && result.candidates[0].content.parts &&
-          result.candidates[0].content.parts.length > 0) {
-        botResponseText = result.candidates[0].content.parts[0].text;
-      } else {
-        console.error("Unexpected API response structure:", result);
-      }
-
-      // Add a disclaimer to general mental health advice
-      if (!botResponseText.toLowerCase().includes("mindwell") && !botResponseText.toLowerCase().includes("journaling") && !botResponseText.toLowerCase().includes("platform")) {
-        botResponseText += "\n\n*Please remember I am an AI assistant and not a substitute for professional medical advice or therapy. If you are in crisis, please seek immediate professional help.*";
-      }
+      const botResponseText = response.data.bot_response; // Expect 'bot_response' from your Django view
 
       setMessages((prevMessages) => [...prevMessages, { type: 'bot', text: botResponseText }]);
     } catch (error) {
-      console.error("Error communicating with AI:", error);
+      console.error("Error communicating with AI:", error.response?.data || error);
       setMessages((prevMessages) => [...prevMessages, { type: 'bot', text: "I'm having trouble connecting right now. Please try again later." }]);
     } finally {
       setIsTyping(false);

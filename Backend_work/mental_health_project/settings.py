@@ -178,3 +178,6 @@ MPESA_ENVIRONMENT = os.getenv('MPESA_ENVIRONMENT', 'sandbox')
 MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke' if MPESA_ENVIRONMENT == 'sandbox' else 'https://api.safaricom.co.ke'
 
 MPESA_STK_CALLBACK_URL = "https://natural-explicitly-sawfly.ngrok-free.app/api/mpesa/callback/"
+
+GEMINI_API_KEY='AIzaSyCzfeeSL53b5qVuGp2UyKyWQJ_rctM3Kjc',
+YOUTUBE_API_KEY='AIzaSyAP8LY0p-ah_dXTWxcg81kt63JqmUrVWuw'

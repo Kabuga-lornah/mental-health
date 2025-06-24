@@ -1,3 +1,4 @@
+// frontend_work/src/components/Meditation.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Container, Typography, Paper, Grid,
@@ -59,83 +60,44 @@ function Meditation() {
     setSnackbarOpen(true);
     setAiRecommendation(null);
 
-    const recentJournalContent = journalEntries.slice(0, 5).map(entry => ({
+    // Get recent journal entries to send to the backend AI
+    const recentJournalContent = journalEntries.slice(0, 10).map(entry => ({ // Use up to 10 entries
       date: new Date(entry.date).toLocaleDateString(),
       mood: entry.mood,
       content: entry.entry
     }));
 
-    const moods = recentJournalContent.map(entry => entry.mood).filter(Boolean);
-    let mostFrequentMood = null;
-    if (moods.length > 0) {
-      const moodCounts = moods.reduce((acc, mood) => {
-        acc[mood] = (acc[mood] || 0) + 1;
-        return acc;
-      }, {});
-      mostFrequentMood = Object.keys(moodCounts).reduce((a, b) => moodCounts[a] > moodCounts[b] ? a : b, null);
+    try {
+      const response = await axios.post('http://localhost:8000/api/ai/recommendations/', // NEW ENDPOINT
+        { journal_entries: recentJournalContent },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const data = response.data;
+
+      // Update state with AI-generated recommendation
+      setAiRecommendation({
+        mood_summary: data.mood_summary,
+        recommended_technique_title: data.recommended_technique_title,
+        recommended_technique_explanation: data.recommended_technique_explanation,
+        recommended_technique_reason: data.recommended_technique_reason,
+        recommended_resource_type: data.recommended_resource_type,
+        recommended_resource_title: data.recommended_resource_title,
+        recommended_resource_link_or_id: data.recommended_resource_link_or_id,
+      });
+
+      setSnackbarMessage("AI analysis complete! See your personalized recommendation below.");
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+
+    } catch (error) {
+      console.error("Error fetching AI recommendation:", error.response?.data || error);
+      const errorMessage = error.response?.data?.error || "Failed to get AI recommendation. Please try again later.";
+      setSnackbarMessage(errorMessage);
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      setAiRecommendation(null); // Clear previous recommendation on error
     }
-
-    let simulatedRecommendation = {
-      mood_summary: "Based on your recent entries, your overall mood seems balanced.",
-      recommended_technique_title: "Mindfulness Breathing",
-      recommended_technique_reason: "It's a foundational technique that can help ground you and observe your thoughts without judgment, beneficial for various emotional states.",
-      recommended_resource_type: "none",
-      recommended_resource_title: "No specific resource recommended at this time.",
-      recommended_resource_link_or_id: ""
-    };
-
-    if (mostFrequentMood) {
-      simulatedRecommendation.mood_summary = `Based on your recent entries, you frequently feel: ${mostFrequentMood}.`;
-      switch (mostFrequentMood.toLowerCase()) {
-        case 'stressed':
-        case 'anxious':
-          simulatedRecommendation = {
-            ...simulatedRecommendation,
-            recommended_technique_title: "Guided Meditation for Stress Relief",
-            recommended_technique_reason: "Guided meditations can help you follow along and gently guide your focus away from stressors, promoting deep relaxation.",
-            recommended_resource_type: "youtube",
-            recommended_resource_title: "10-Minute Meditation for Anxiety",
-            recommended_resource_link_or_id: "inpohvC0G0g"
-          };
-          break;
-        case 'sad':
-        case 'lonely':
-          simulatedRecommendation = {
-            ...simulatedRecommendation,
-            recommended_technique_title: "Loving-Kindness Meditation",
-            recommended_technique_reason: "This technique fosters self-compassion and connection, which can be particularly helpful when experiencing feelings of sadness or loneliness.",
-            recommended_resource_type: "none"
-          };
-          break;
-        case 'tired':
-        case 'exhausted':
-          simulatedRecommendation = {
-            ...simulatedRecommendation,
-            recommended_technique_title: "Body Scan Meditation",
-            recommended_technique_reason: "A body scan can help you relax tension in your physical body, preparing you for restful sleep or just deep relaxation.",
-            recommended_resource_type: "youtube",
-            recommended_resource_title: "Relaxing Rain & Thunder Sounds for Sleep",
-            recommended_resource_link_or_id: "Ll_4z5yI9Jg"
-          };
-          break;
-        case 'happy':
-        case 'joyful':
-          simulatedRecommendation = {
-            ...simulatedRecommendation,
-            recommended_technique_title: "Mindfulness Breathing",
-            recommended_technique_reason: "Even when happy, mindfulness breathing can deepen your appreciation for the present moment and maintain a sense of calm and clarity.",
-            recommended_resource_type: "none"
-          };
-          break;
-        default:
-          break;
-      }
-    }
-
-    setAiRecommendation(simulatedRecommendation);
-    setSnackbarMessage("AI analysis complete! See your personalized recommendation below.");
-    setSnackbarSeverity('success');
-    setSnackbarOpen(true);
   };
 
   return (
@@ -223,9 +185,12 @@ function Meditation() {
                 <strong>Technique:</strong> {aiRecommendation.recommended_technique_title}
               </Typography>
               <Typography variant="body2" sx={{ mt: 1 }}>
+                <strong>Explanation:</strong> {aiRecommendation.recommended_technique_explanation}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
                 <strong>Why:</strong> {aiRecommendation.recommended_technique_reason}
               </Typography>
-              {aiRecommendation.recommended_resource_type === 'youtube' && (
+              {aiRecommendation.recommended_resource_type === 'youtube' && aiRecommendation.recommended_resource_link_or_id && (
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="body2" sx={{ mb: 1 }}>
                     <strong>Recommended Video:</strong> {aiRecommendation.recommended_resource_title}
@@ -233,12 +198,17 @@ function Meditation() {
                   <iframe
                     width="100%"
                     height="315"
-                    src={`https://www.youtube.com/embed/${aiRecommendation.recommended_resource_link_or_id}`}
+                    src={`https://www.youtube.com/embed/${aiRecommendation.recommended_resource_link_or_id}`} // Corrected YouTube embed URL format
                     title="YouTube video player"
                     frameBorder="0"
                     allowFullScreen
                   ></iframe>
                 </Box>
+              )}
+               {aiRecommendation.recommended_resource_type === 'none' && (
+                <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic', color: 'text.secondary' }}>
+                  No specific video resource recommended at this time.
+                </Typography>
               )}
             </Box>
           )}

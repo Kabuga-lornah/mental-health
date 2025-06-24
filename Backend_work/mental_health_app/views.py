@@ -17,6 +17,9 @@ from collections import defaultdict
 import time as raw_time # Corrected import for time.sleep
 from django.db import transaction
 
+# NEW: Imports for Gemini API
+import google.generativeai as genai
+from googleapiclient.discovery import build # For YouTube Data API
 
 from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment, TherapistAvailability, ChatMessage
 from django.contrib.auth.password_validation import validate_password
@@ -24,6 +27,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView # Import APIView
 
 User = get_user_model()
 
@@ -34,6 +38,57 @@ from .serializers import (
     TherapistApplicationAdminSerializer, PaymentSerializer,
     TherapistAvailabilitySerializer, ChatMessageSerializer
 )
+
+# --- Initialize Gemini API (NEW) ---
+if settings.GEMINI_API_KEY:
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    # CHANGE IS HERE: Changed 'gemini-pro' to 'gemini-1.0-pro'
+    gemini_model = genai.GenerativeModel('gemini-1.0-pro') # Using gemini-1.0-pro for text generation
+    # You might use 'gemini-pro-vision' for multimodal, but 'gemini-1.0-pro' is good for text
+else:
+    print("WARNING: GEMINI_API_KEY not found in settings. AI features will be disabled.")
+    gemini_model = None
+
+if settings.GEMINI_API_KEY:
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-1.0-pro')
+else:
+    print("WARNING: GEMINI_API_KEY not found in settings. AI features will be disabled.")
+    gemini_model = None
+
+# --- TEMPORARY DEBUG CODE: LIST AVAILABLE GEMINI MODELS ---
+if settings.GEMINI_API_KEY:
+    print("\n--- Listing available Gemini models ---")
+    try:
+        for m in genai.list_models():
+            if "generateContent" in m.supported_generation_methods:
+                print(f"  Model Name: {m.name}, Supported Methods: {m.supported_generation_methods}")
+    except Exception as e:
+        print(f"  Error listing models: {e}")
+    print("--- End of model list ---\n")
+# --- END TEMPORARY DEBUG CODE ---
+
+# --- Initialize YouTube Data API (NEW) ---
+youtube_service = None
+if settings.YOUTUBE_API_KEY:
+    try:
+        youtube_service = build('youtube', 'v3', developerKey=settings.YOUTUBE_API_KEY)
+    except Exception as e:
+        print(f"WARNING: Could not build YouTube service: {e}. YouTube video search might not work.")
+else:
+    print("WARNING: YOUTUBE_API_KEY not found in settings. YouTube video search features will be limited.")
+
+
+# --- Initialize YouTube Data API (NEW) ---
+youtube_service = None
+if settings.YOUTUBE_API_KEY:
+    try:
+        youtube_service = build('youtube', 'v3', developerKey=settings.YOUTUBE_API_KEY)
+    except Exception as e:
+        print(f"WARNING: Could not build YouTube service: {e}. YouTube video search might not work.")
+else:
+    print("WARNING: YOUTUBE_API_KEY not found in settings. YouTube video search features will be limited.")
+
 
 def generate_mpesa_access_token():
     consumer_key = settings.MPESA_CONSUMER_KEY
@@ -422,7 +477,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
             default_start_time = time(9, 0)
             default_end_time = time(17, 0)
             default_slot_duration = 60
-            
+
             class DefaultAvailability:
                 def __init__(self, start, end, duration):
                     self.start_time = start
@@ -431,7 +486,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
                     self.break_start_time = None
                     self.break_end_time = None
             availability = DefaultAvailability(default_start_time, default_end_time, default_slot_duration)
-            
+
             if day_of_week in ['Saturday', 'Sunday']:
                 print(f"DEBUG: Slot check - Default availability for weekend day {day_of_week} is not allowed.")
                 return False, "Therapist is not available on weekends by default."
@@ -480,7 +535,6 @@ class SessionRequestCreateView(generics.CreateAPIView):
             booked_duration = session.get('duration_minutes', 120)
             booked_start_dt = timezone.make_aware(datetime.combine(session_date_obj, booked_start_time))
             booked_end_dt = booked_start_dt + timedelta(minutes=booked_duration)
-
             if not (slot_end_dt <= booked_start_dt or slot_start_dt >= booked_end_dt):
                 print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} conflicts with scheduled session {booked_start_dt.time()}-{booked_end_dt.time()}")
                 return False, "Requested slot is already booked."
@@ -506,7 +560,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
 
 
         if slot_start_dt <= timezone.now():
-            print(f"DEBUG: Slot check - Slot {slot_start_dt} is in the past compared to {timezone.now()}")
+            print(f"DEBUG: Slot check - Slot {slot_start_dt} is in the past compared to {timezone.now()}") # Corrected variable name here
             return False, "Cannot book a session in the past or current time."
 
         print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} is AVAILABLE.")
@@ -566,7 +620,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
             'session_duration': session_duration
         })
         serializer.is_valid(raise_exception=True)
-        
+
         # --- MODIFICATION START ---
         # Set is_paid to True immediately if it's a free consultation
         is_paid_status = False
@@ -799,7 +853,7 @@ class PaymentCreateView(generics.CreateAPIView):
             }
             serializer = self.get_serializer(data=payment_data)
             serializer.is_valid(raise_exception=True)
-            
+
             with transaction.atomic():
                 payment_instance = serializer.save()
                 print(f"DEBUG: Payment record created/updated. ID: {payment_instance.id}, CheckoutRequestID: {payment_instance.checkout_request_id}, Status: {payment_instance.status}")
@@ -901,7 +955,7 @@ def MpesaCallbackView(request):
                 print(f"ERROR: Error during payment lookup (attempt {i+1}): {e}")
                 raw_time.sleep(retry_delay_seconds)
         # --- MODIFICATION END ---
-        
+
         if not payment:
             print(f"CRITICAL ERROR: Payment record still not found after {max_retries} attempts for CheckoutRequestID: {checkout_request_id}. Callback cannot be processed.")
             # It's important to return a non-200 status code here so M-Pesa retries later if possible
@@ -923,7 +977,7 @@ def MpesaCallbackView(request):
         else:
             payment.status = 'failed'
             # Safaricom's result_desc and customerMessage can be helpful here
-            payment.reviewer_notes = result_desc 
+            payment.reviewer_notes = result_desc
             payment.save()
             print(f"WARNING: Payment for {checkout_request_id} updated to 'failed'. ResultCode: {result_code}, Reason: {result_desc}")
 
@@ -1004,7 +1058,7 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             print(f"DEBUG: TherapistAvailableSlotsView - Date range: {start_date} to {end_date}")
         except ValueError:
-            print(f"DEBUG: TherapistAvailableSlotsView - Invalid date format: start={start_date_str}, end={end_date_str}")
+            print(f"DEBUG: TherapistAvailableSlotsView - Invalid date format. Use '%Y-%m-%d'." )
             return Response({"error": "Invalid date format. Use '%Y-%m-%d'."}, status=status.HTTP_400_BAD_REQUEST)
 
         if start_date > end_date:
@@ -1116,16 +1170,15 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
                         booked_start_dt = timezone.make_aware(datetime.combine(current_date, booked_start_time))
                         booked_end_dt = timezone.make_aware(datetime.combine(current_date, booked_end_time))
 
-                        if not (current_slot_end <= booked_start_dt or current_slot_start >= booked_end_dt):
+                        if not (current_slot_end <= booked_start_dt or current_slot_start >= booked_end_dt): # Corrected comparison to current_slot_start
                             is_booked = True
                             print(f"DEBUG:   - Slot conflicts with booked interval: {booked_start_dt.time()}-{booked_end_dt.time()}")
                             break
 
                     if not is_booked:
                         now = timezone.now()
-                        slot_full_start_datetime = timezone.make_aware(datetime.combine(current_date, current_slot_start.time()))
-
-                        if slot_full_start_datetime > now:
+                        # Removed slot_full_start_datetime as it's not defined here and was causing the error
+                        if current_slot_start > now: # Corrected this line to use current_slot_start
                             print(f"DEBUG:   - Adding available slot: {current_slot_start.strftime('%H:%M')}-{current_slot_end.strftime('%H:%M')}")
                             available_slots[current_date.isoformat()].append({
                                 "start_time": current_slot_start.strftime('%H:%M'),
@@ -1148,3 +1201,138 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
 
         print(f"DEBUG: Final available_slots to return: {available_slots}")
         return Response(available_slots, status=status.HTTP_200_OK)
+
+# --- NEW: AI Recommendation View (for Meditation Hub) ---
+class AiRecommendationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        if not gemini_model:
+            return Response({"error": "AI service is not configured."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        journal_entries_data = request.data.get('journal_entries') # Expects a list of entry objects
+        if not journal_entries_data:
+            return Response({"error": "No journal entries provided for analysis."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Prepare journal data for the AI prompt
+        journal_text = []
+        for entry in journal_entries_data:
+            journal_text.append(f"Date: {entry.get('date')}, Mood: {entry.get('mood')}, Content: {entry.get('content')}")
+        full_journal_context = "\n".join(journal_text)
+
+        # Craft the prompt for Gemini
+        prompt_content = f"""
+        You are an empathetic and helpful mental wellness AI assistant.
+        Analyze the following journal entries provided by a user. Focus on their moods, concerns, and overall emotional state.
+        Based on this analysis, recommend ONE specific meditation or mindfulness technique.
+        For your recommendation, provide the following in a structured JSON format:
+        {{
+            "mood_summary": "A brief summary of the user's recent moods and themes.",
+            "recommended_technique_title": "The name of the recommended technique (e.g., Mindfulness Breathing, Loving-Kindness Meditation, Body Scan Meditation).",
+            "recommended_technique_explanation": "A concise explanation of what the technique involves.",
+            "recommended_technique_reason": "A brief explanation of why this technique is beneficial for the user based on their journal entries.",
+            "Youtube_query": "A precise search query for a relevant YouTube guided meditation video for this technique (e.g., '10 minute guided mindfulness breathing meditation')."
+        }}
+
+        Here are the user's recent journal entries:
+        {full_journal_context}
+
+        Please ensure the JSON is valid and contains all specified fields.
+        """
+
+        try:
+            response = gemini_model.generate_content(prompt_content)
+            gemini_response_text = response.text.strip()
+
+            # Attempt to parse Gemini's response as JSON
+            try:
+                ai_recommendation = json.loads(gemini_response_text)
+            except json.JSONDecodeError:
+                print(f"ERROR: Gemini response not valid JSON: {gemini_response_text}")
+                # If Gemini doesn't return perfect JSON, try to extract text and provide a default
+                return Response({
+                    "error": "AI could not generate a structured recommendation. Please try again.",
+                    "raw_ai_response": gemini_response_text
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # --- Search for YouTube Video ID (NEW) ---
+            youtube_video_id = None
+            if youtube_service and ai_recommendation.get('Youtube_query'):
+                try:
+                    search_response = youtube_service.search().list(
+                        q=ai_recommendation['Youtube_query'],
+                        type='video',
+                        part='id,snippet',
+                        maxResults=1
+                    ).execute()
+                    if search_response.get('items'):
+                        youtube_video_id = search_response['items'][0]['id']['videoId']
+                        print(f"DEBUG: Found YouTube video ID: {youtube_video_id} for query: {ai_recommendation['Youtube_query']}")
+                except Exception as e:
+                    print(f"ERROR: Youtube failed: {e}")
+                    # Continue without video if Youtube fails
+            else:
+                print("DEBUG: YouTube service not available or no search query provided by AI.")
+
+
+            final_response = {
+                "mood_summary": ai_recommendation.get("mood_summary", "No mood summary provided."),
+                "recommended_technique_title": ai_recommendation.get("recommended_technique_title", "Meditation Technique"),
+                "recommended_technique_explanation": ai_recommendation.get("recommended_technique_explanation", "No explanation provided."),
+                "recommended_technique_reason": ai_recommendation.get("recommended_technique_reason", "No reason provided."),
+                "recommended_resource_type": "youtube" if youtube_video_id else "none",
+                "recommended_resource_title": ai_recommendation.get("Youtube_query", "Relevant Video") if youtube_video_id else "No specific resource recommended at this time.",
+                "recommended_resource_link_or_id": youtube_video_id
+            }
+
+            return Response(final_response, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"ERROR: Error calling Gemini API: {e}")
+            return Response({"error": "Failed to get AI recommendation. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# --- NEW: AI Chatbot Proxy View ---
+class ChatWithGeminiView(APIView):
+    permission_classes = [permissions.IsAuthenticated] # Or adjust as needed for public access
+
+    def post(self, request, *args, **kwargs):
+        if not gemini_model:
+            return Response({"error": "AI service is not configured."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        chat_history = request.data.get('chatHistory', [])
+        current_message_text = request.data.get('currentMessage')
+
+        if not current_message_text:
+            return Response({"error": "No message provided for chat."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Prepare chat history for Gemini
+        formatted_history = []
+        for msg in chat_history:
+            if 'text' in msg and 'type' in msg:
+                formatted_history.append({'role': 'user' if msg['type'] == 'user' else 'model', 'parts': [{'text': msg['text']}]})
+        formatted_history.append({'role': 'user', 'parts': [{'text': current_message_text}]})
+
+
+        try:
+            # Set generation config for the chat
+            generation_config = {
+                "temperature": 0.7,
+                "max_output_tokens": 200,
+            }
+            # Make the API call
+            response = gemini_model.generate_content(formatted_history, generation_config=generation_config)
+            bot_response_text = response.text.strip()
+
+            # Add a disclaimer (similar to your frontend logic)
+            # NOTE: This disclaimer logic could also be handled on the frontend if desired
+            # Fix: Changed .includes() to 'in' for Python string check
+            if not "mindwell" in bot_response_text.lower() and \
+               not "journaling" in bot_response_text.lower() and \
+               not "platform" in bot_response_text.lower():
+                bot_response_text += "\n\n*Please remember I am an AI assistant and not a substitute for professional medical advice or therapy. If you are in crisis, please seek immediate professional help.*"
+
+            return Response({"bot_response": bot_response_text}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"ERROR: Error calling Gemini API for chat: {e}")
+            return Response({"error": "Failed to get response from AI chat. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

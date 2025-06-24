@@ -20,7 +20,9 @@ from .views import (
     TherapistAvailabilityListCreateView,
     TherapistAvailabilityDetailView,
     TherapistAvailableSlotsView,
-    MpesaCallbackView # <--- ADDED THIS LINE
+    MpesaCallbackView, # <--- ADDED THIS LINE
+    AiRecommendationView, # NEW AI VIEW
+    ChatWithGeminiView # NEW AI CHAT VIEW
 )
 
 urlpatterns = [
@@ -76,5 +78,9 @@ urlpatterns = [
     path('payments/status/<int:therapist_id>/', ClientPaymentStatusView.as_view(), name='client-payment-status'),
 
     # NEW: M-Pesa Callback Endpoint - THIS IS THE CRUCIAL ADDITION
-    path('mpesa/callback/', MpesaCallbackView, name='mpesa_callback'), 
+    path('mpesa/callback/', MpesaCallbackView, name='mpesa_callback'),
+
+    # NEW: AI Endpoints
+    path('ai/recommendations/', AiRecommendationView.as_view(), name='ai-recommendations'),
+    path('ai/chat/', ChatWithGeminiView.as_view(), name='ai-chat'),
 ]
