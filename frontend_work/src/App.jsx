@@ -1,115 +1,141 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+// frontend_work/src/App.jsx
+import React from 'react';
+import { createBrowserRouter, RouterProvider, Outlet, useNavigation, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
-import Dashboard from "./components/Dashboard"; // Assuming this is for regular users
+import Dashboard from "./components/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Homepage from "./components/Homepage";
 import Journal from "./components/Journal";
-import Navbar from "./components/Navbar"; // User Navbar
-import TherapistNavbar from "./components/TherapistNavbar_OLD"; // Assuming this is now the correct Therapist Navbar
+import Navbar from "./components/Navbar";
+import TherapistNavbar from "./components/TherapistNavbar_OLD";
 import TherapistDashboard from "./components/TherapistDashboard";
 import FindTherapist from "./components/FindTherapist";
 import TherapistApplicationForm from "./components/TherapistApplicationForm";
 import AdminDashboard from "./components/Admin";
-import AdminNavbar from "./components/AdminNavbar"; // IMPORT THE NEW ADMIN NAVBAR
+import AdminNavbar from "./components/AdminNavbar";
 import Footer from "./components/Footer";
-import TherapistDetail from "./components/TherapistDetail"; // NEW: Import TherapistDetail component
-import Meditation from "./components/Meditation"; // NEW: Import Meditation component
+import TherapistDetail from "./components/TherapistDetail";
+import Meditation from "./components/Meditation";
+import BreathingLoader from "./components/BreathingLoader";
 
-// A component to render the correct Navbar based on user role
+
 const AppNavbar = () => {
   const { user, loading } = useAuth();
 
-  // Show nothing while authentication state is loading
   if (loading) return null;
 
-  // If user is an admin, render AdminNavbar
   if (user && user.is_staff && user.is_superuser) {
     return <AdminNavbar />;
   }
-  // If user is a therapist (verified or not), render TherapistNavbar
   if (user && user.is_therapist) {
     return <TherapistNavbar />;
   }
-  // Otherwise (regular user, or logged out), render the regular Navbar
   return <Navbar />;
 };
 
-// A specialized ProtectedRoute for Admin access
+
 const AdminProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return null; // Still loading auth state
+    return null;
   }
   
   if (!user || !user.is_staff || !user.is_superuser) {
-    // If not logged in, or not staff/superuser, redirect to login
     return <Navigate to="/login" replace />;
   }
   
   return children;
 };
 
+// This component will house the common layout (Navbar, Footer, and Loader)
+// and render the specific page content via <Outlet />
+function Layout() {
+  const navigation = useNavigation();
+  const { loading: authLoading } = useAuth(); // Get auth loading state
+
+  // Show breathing loader if navigation is loading OR if authentication is still loading
+  const showLoader = navigation.state === "loading" || authLoading;
+
+  return (
+    <>
+      {showLoader && <BreathingLoader />}
+      <AppNavbar />
+      <Outlet /> {/* This is where the routed components will render */}
+      <Footer />
+    </>
+  );
+}
+
+// Define the router configuration
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Layout />, // Use the Layout component as the root element
+    children: [
+      {
+        index: true, // This makes "/" render Homepage
+        element: <Homepage />,
+      },
+      {
+        path: "homepage",
+        element: <Homepage />,
+      },
+      {
+        path: "login",
+        element: <Login />,
+      },
+      {
+        path: "register",
+        element: <Register />,
+      },
+      {
+        path: "journal",
+        element: <ProtectedRoute><Journal /></ProtectedRoute>,
+      },
+      {
+        path: "dashboard",
+        element: <ProtectedRoute><Dashboard /></ProtectedRoute>,
+      },
+      {
+        path: "find-therapist",
+        element: <ProtectedRoute><FindTherapist /></ProtectedRoute>,
+      },
+      {
+        path: "therapists/:id",
+        element: <ProtectedRoute><TherapistDetail /></ProtectedRoute>,
+      },
+      {
+        path: "meditation",
+        element: <ProtectedRoute><Meditation /></ProtectedRoute>,
+      },
+      {
+        path: "therapist-apply",
+        element: <ProtectedRoute><TherapistApplicationForm /></ProtectedRoute>,
+      },
+      {
+        path: "therapist/dashboard",
+        element: <ProtectedRoute><TherapistDashboard /></ProtectedRoute>,
+      },
+      {
+        path: "admin/applications",
+        element: <AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>,
+      },
+      {
+        path: "*", // Catch-all for unmatched routes
+        element: <Navigate to="/" replace />,
+      },
+    ],
+  },
+]);
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        {/* Render the conditional Navbar globally */}
-        <AppNavbar />
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Homepage />} />
-          <Route path="/homepage" element={<Homepage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-
-          {/* User Protected Routes */}
-          <Route path="/journal" element={<ProtectedRoute><Journal /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/find-therapist" element={<ProtectedRoute><FindTherapist /></ProtectedRoute>} />
-          <Route path="/therapists/:id" element={<ProtectedRoute><TherapistDetail /></ProtectedRoute>} /> {/* NEW ROUTE */}
-          <Route path="/meditation" element={<ProtectedRoute><Meditation /></ProtectedRoute>} /> {/* NEW: Meditation Route */}
-
-          {/* Therapist-related Routes */}
-          {/* Therapist application form - accessible to logged-in users who intend to be therapists */}
-          <Route
-            path="/therapist-apply"
-            element={
-              <ProtectedRoute>
-                <TherapistApplicationForm />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Therapist Dashboard - accessible only to therapists (content varies by verification) */}
-          <Route
-            path="/therapist/dashboard"
-            element={
-              <ProtectedRoute>
-                <TherapistDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Admin Protected Route */}
-          <Route
-            path="/admin/applications" // A specific path for the admin dashboard
-            element={
-              <AdminProtectedRoute>
-                <AdminDashboard />
-              </AdminProtectedRoute>
-            }
-          />
-
-          {/* Catch-all route for unmatched paths */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <Footer />
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   );
 }
 
