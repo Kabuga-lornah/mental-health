@@ -190,8 +190,7 @@ class TherapistSerializer(serializers.ModelSerializer):
         if obj.profile_picture:
             request = self.context.get('request')
             if request is not None:
-                return request.build_absolute_uri(obj.profile_picture.url)
-            return obj.profile_picture.url
+                return obj.profile_picture.url
         return None
 
 class JournalEntrySerializer(serializers.ModelSerializer):

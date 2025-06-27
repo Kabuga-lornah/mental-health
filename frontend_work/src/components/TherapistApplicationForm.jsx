@@ -292,6 +292,70 @@ export default function TherapistApplicationForm() {
       py: 8
     }}>
       <Container maxWidth="md">
+        {/* Added introductory content */}
+        <Box sx={{ 
+          mb: 6,
+          textAlign: 'center'
+        }}>
+          <Typography variant="h3" sx={{ 
+            fontWeight: 'bold',
+            color: primaryColor,
+            mb: 3
+          }}>
+            Join Our Team of Professional Therapists
+          </Typography>
+          
+          <Card sx={{ 
+            mb: 4,
+            backgroundColor: 'white',
+            boxShadow: 3,
+            borderLeft: `4px solid ${primaryColor}`
+          }}>
+            <CardContent>
+              <Typography variant="h5" sx={{ 
+                color: primaryColor,
+                mb: 2
+              }}>
+                Why Apply With Us?
+              </Typography>
+              <Typography variant="body1" sx={{ 
+                color: textColor,
+                mb: 2
+              }}>
+                We're committed to connecting qualified therapists with clients who need their expertise. 
+                By joining our platform, you'll gain access to:
+              </Typography>
+              <ul style={{ 
+                textAlign: 'left',
+                color: textColor,
+                paddingLeft: '24px'
+              }}>
+                <li>A growing network of clients seeking professional help</li>
+                <li>Flexible scheduling and session options (online or in-person)</li>
+                <li>Competitive compensation with transparent pricing</li>
+                <li>Professional support and resources</li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Typography variant="h6" sx={{ 
+            color: primaryColor,
+            mb: 2,
+            fontWeight: 'medium'
+          }}>
+            Application Process
+          </Typography>
+          <Typography variant="body1" sx={{ 
+            color: textColor,
+            mb: 4,
+            maxWidth: '800px',
+            mx: 'auto'
+          }}>
+            Please complete the form below with your professional details. Our team reviews each 
+            application carefully to ensure we maintain the highest standards of care.
+          </Typography>
+        </Box>
+
         <Paper elevation={6} sx={{ 
           p: { xs: 2, sm: 4 }, 
           borderRadius: 2,
@@ -665,13 +729,26 @@ export default function TherapistApplicationForm() {
               </Grid>
             </Grid>
 
+            <Box sx={{ 
+              textAlign: 'center',
+              mt: 4,
+              mb: 2
+            }}>
+              <Typography variant="body2" sx={{ 
+                color: lightTextColor,
+                fontStyle: 'italic'
+              }}>
+                By submitting this application, you confirm that all information provided is accurate and complete.
+              </Typography>
+            </Box>
+
             <Button
               type="submit"
               fullWidth
               variant="contained"
               disabled={submitting}
               sx={{ 
-                mt: 4, 
+                mt: 2, 
                 py: 1.5, 
                 fontSize: '1.1rem',
                 backgroundColor: primaryColor,
