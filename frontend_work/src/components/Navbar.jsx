@@ -11,13 +11,25 @@ import {
   MenuItem,
   IconButton
 } from "@mui/material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// Load Cinzel font
+const loadCinzelFont = () => {
+  const link = document.createElement("link");
+  link.href = "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap";
+  link.rel = "stylesheet";
+  document.head.appendChild(link);
+};
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
+
+  useEffect(() => {
+    loadCinzelFont();
+  }, []);
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -27,11 +39,7 @@ export default function Navbar() {
     navigate("/");
   };
 
-  // If the user is a therapist, this Navbar component should not render.
-  // The AppNavbar component in App.jsx will handle rendering TherapistNavbar instead.
-  if (user && user.is_therapist) {
-    return null; 
-  }
+  if (user && user.is_therapist) return null;
 
   return (
     <AppBar
@@ -40,6 +48,7 @@ export default function Navbar() {
         backgroundColor: "#780000",
         boxShadow: "none",
         padding: "0.5rem 0",
+        fontFamily: "'Cinzel', serif", // Global navbar font
       }}
     >
       <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
@@ -48,9 +57,13 @@ export default function Navbar() {
           component={Link}
           to="/"
           sx={{
+            fontFamily: "'Cinzel', serif",
+            fontWeight: 700,
+            fontSize: "2rem",
             color: "#fefae0",
             textDecoration: "none",
-            fontWeight: "bold",
+            letterSpacing: "1px",
+            textTransform: "uppercase",
             "&:hover": { color: "white" },
           }}
         >
@@ -60,28 +73,40 @@ export default function Navbar() {
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           {user ? (
             <>
-              {/* Main navigation links for logged-in users */}
-              <Button component={Link} to="/dashboard" sx={{ color: "#fefae0" }}>
+              <Button
+                component={Link}
+                to="/dashboard"
+                sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
+              >
                 Dashboard
               </Button>
-              
-              <Button component={Link} to="/find-therapist" sx={{ color: "#fefae0" }}>
+
+              <Button
+                component={Link}
+                to="/find-therapist"
+                sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
+              >
                 Find a Therapist
               </Button>
 
-              <Button component={Link} to="/journal" sx={{ color: "#fefae0" }}>
+              <Button
+                component={Link}
+                to="/journal"
+                sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
+              >
                 Start Journaling
               </Button>
 
-              {/* NEW: Button for Meditation & Mindfulness */}
-              <Button component={Link} to="/meditation" sx={{ color: "#fefae0" }}>
+              <Button
+                component={Link}
+                to="/meditation"
+                sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
+              >
                 Meditation
               </Button>
 
-              {/* User Profile Menu */}
               <IconButton onClick={handleMenuOpen} size="small">
                 <Avatar src={user.photo} sx={{ bgcolor: "#fefae0", color: "#780000" }}>
-                  {/* Display first initial if no photo */}
                   {!user.photo && user.first_name?.charAt(0)}
                 </Avatar>
               </IconButton>
@@ -91,33 +116,59 @@ export default function Navbar() {
                 open={open}
                 onClose={handleMenuClose}
                 PaperProps={{
-                  sx: { mt: 1.5, minWidth: 200 },
+                  sx: {
+                    mt: 1.5,
+                    minWidth: 200,
+                    fontFamily: "'Cinzel', serif",
+                  },
                 }}
               >
                 <MenuItem disabled>
                   <strong>{user.first_name} {user.last_name}</strong>
                 </MenuItem>
-                <MenuItem component={Link} to="/profile" onClick={handleMenuClose}>
+                <MenuItem
+                  component={Link}
+                  to="/profile"
+                  onClick={handleMenuClose}
+                  sx={{ fontFamily: "'Cinzel', serif" }}
+                >
                   View Profile
                 </MenuItem>
-                <MenuItem component={Link} to="/profile/photo" onClick={handleMenuClose}>
+                <MenuItem
+                  component={Link}
+                  to="/profile/photo"
+                  onClick={handleMenuClose}
+                  sx={{ fontFamily: "'Cinzel', serif" }}
+                >
                   Upload/Remove Photo
                 </MenuItem>
-                <MenuItem onClick={() => { handleLogout(); handleMenuClose(); }}>
+                <MenuItem
+                  onClick={() => {
+                    handleLogout();
+                    handleMenuClose();
+                  }}
+                  sx={{ fontFamily: "'Cinzel', serif" }}
+                >
                   Logout
                 </MenuItem>
               </Menu>
             </>
           ) : (
-            <>
-              {/* Buttons for logged-out users */}
-              <Button component={Link} to="/login" sx={{ backgroundColor: "#fefae0", color: "#780000", "&:hover": { backgroundColor: "white"}}}>
-                Login
-              </Button>
-              {/* <Button component={Link} to="/register" sx={{ backgroundColor: "#fefae0", color: "#780000", "&:hover": { backgroundColor: "white"}}}>
-                Register
-              </Button> */}
-            </>
+            <Button
+              component={Link}
+              to="/login"
+              sx={{
+                backgroundColor: "#fefae0",
+                color: "#780000",
+                fontWeight: "bold",
+                fontFamily: "'Cinzel', serif",
+                "&:hover": {
+                  backgroundColor: "white",
+                },
+              }}
+            >
+              Login
+            </Button>
           )}
         </Box>
       </Toolbar>

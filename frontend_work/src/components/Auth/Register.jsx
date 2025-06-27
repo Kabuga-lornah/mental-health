@@ -1,7 +1,19 @@
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { Box, Button, TextField, Typography, Paper, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio } from "@mui/material";
+import {
+  Box,
+  Button,
+  TextField,
+  Typography,
+  Paper,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Alert,
+} from "@mui/material";
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -10,7 +22,7 @@ export default function Register() {
     first_name: "",
     last_name: "",
     phone: "",
-    registerAsTherapist: false, 
+    registerAsTherapist: false,
   });
   const [error, setError] = useState("");
   const { register } = useAuth();
@@ -18,23 +30,28 @@ export default function Register() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-  
-    const processedValue = name === 'registerAsTherapist' ? value === 'therapist' : value;
-    setFormData({
-      ...formData,
-      [name]: processedValue,
-    });
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleRadioChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      registerAsTherapist: e.target.value === "therapist",
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); 
+    setError("");
     try {
-
-      await register({ ...formData, isTherapist: formData.registerAsTherapist });
-
-      navigate('/login');
-      
+      await register({
+        ...formData,
+        isTherapist: formData.registerAsTherapist,
+      });
+      navigate("/login");
     } catch (err) {
       setError(err.error || "Registration failed");
     }
@@ -43,120 +60,172 @@ export default function Register() {
   return (
     <Box
       sx={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
+        backgroundColor: "#FFF9DC",
         minHeight: "100vh",
-        backgroundColor: "#fefae0",
+        py: 8,
       }}
     >
-      <Paper
-        elevation={3}
+      <Box
         sx={{
-          padding: 4,
-          width: "100%",
-          maxWidth: "400px",
-          backgroundColor: "white",
-          borderRadius: 2, 
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          px: 2,
         }}
       >
-        <Typography variant="h4" sx={{ color: "#780000", mb: 3, textAlign: "center", fontWeight: "bold" }}>
-          Register
-        </Typography>
-        {error && (
-          <Typography color="error" sx={{ mb: 2, textAlign: "center" }}>
-            {error}
-          </Typography>
-        )}
-        <form onSubmit={handleSubmit}>
-          <TextField
-            fullWidth
-            label="First Name"
-            name="first_name"
-            value={formData.first_name}
-            onChange={handleChange}
-            sx={{ mb: 2 }}
-            required
-            variant="outlined" 
-          />
-          <TextField
-            fullWidth
-            label="Last Name"
-            name="last_name"
-            value={formData.last_name}
-            onChange={handleChange}
-            sx={{ mb: 2 }}
-            required
-            variant="outlined"
-          />
-          <TextField
-            fullWidth
-            label="Email"
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            sx={{ mb: 2 }}
-            required
-            variant="outlined"
-          />
-          <TextField
-            fullWidth
-            label="Phone"
-            name="phone"
-            value={formData.phone}
-            onChange={handleChange}
-            sx={{ mb: 2 }}
-            variant="outlined"
-          />
-          <TextField
-            fullWidth
-            label="Password"
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            sx={{ mb: 3 }}
-            required
-            variant="outlined"
-          />
-
-          <FormControl component="fieldset" sx={{ mb: 3, width: "100%" }}>
-            <FormLabel component="legend" sx={{ color: "#780000", fontWeight: "bold", mb: 1 }}>Register as:</FormLabel>
-            <RadioGroup
-              row
-              name="registerAsTherapist"
-              value={formData.registerAsTherapist ? "therapist" : "user"}
-              onChange={handleChange}
-              sx={{ justifyContent: "center" }}
-            >
-              <FormControlLabel value="user" control={<Radio sx={{ color: "#780000" }} />} label="User" />
-              <FormControlLabel value="therapist" control={<Radio sx={{ color: "#780000" }} />} label="Apply as Therapist" /> {/* Changed label */}
-            </RadioGroup>
-          </FormControl>
-
-          <Button
-            fullWidth
-            type="submit"
-            variant="contained"
-            size="large" 
+        <Paper
+          elevation={3}
+          sx={{
+            display: "flex",
+            flexDirection: { xs: "column", md: "row" },
+            width: "100%",
+            maxWidth: 800,
+            borderRadius: 3,
+            overflow: "hidden",
+          }}
+        >
+          {/* Image Section */}
+          <Box
             sx={{
-              backgroundColor: "#780000",
-              "&:hover": { backgroundColor: "#5a0000" },
-              py: 1.5, 
-              borderRadius: 2, 
+              width: { xs: "100%", md: 380 },
+              height: { xs: 200, md: "auto" },
+              flexShrink: 0,
+              background: "#222",
             }}
           >
-            Register
-          </Button>
-        </form>
-        <Typography sx={{ mt: 2, textAlign: "center" }}>
-          Already have an account?{" "}
-          <Link to="/login" style={{ color: "#780000", textDecoration: "none", fontWeight: "bold" }}>
-            Login
-          </Link>
-        </Typography>
-      </Paper>
+            <img
+              src="/reg.jpeg"
+              alt="Register Visual"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          </Box>
+
+          {/* Registration Form Section */}
+          <Box sx={{ flex: 1, p: 4, minWidth: 0 }}>
+            <Typography
+              variant="h4"
+              component="h1"
+              gutterBottom
+              sx={{ fontWeight: "bold", color: "#7b1818", textAlign: "center" }}
+            >
+              Register
+            </Typography>
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <Box component="form" onSubmit={handleSubmit} noValidate>
+              <TextField
+                label="First Name"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                fullWidth
+                required
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                label="Last Name"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleChange}
+                fullWidth
+                required
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                label="Email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                fullWidth
+                required
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                label="Phone"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                fullWidth
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                label="Password"
+                name="password"
+                type="password"
+                value={formData.password}
+                onChange={handleChange}
+                fullWidth
+                required
+                sx={{ mb: 2 }}
+              />
+
+              <FormControl component="fieldset" sx={{ mb: 2 }}>
+                <FormLabel component="legend" sx={{ color: "#7b1818", mb: 1 }}>
+                  Register as:
+                </FormLabel>
+                <RadioGroup
+                  row
+                  name="registerAsTherapist"
+                  value={formData.registerAsTherapist ? "therapist" : "user"}
+                  onChange={handleRadioChange}
+                >
+                  <FormControlLabel
+                    value="user"
+                    control={<Radio />}
+                    label="User"
+                  />
+                  <FormControlLabel
+                    value="therapist"
+                    control={<Radio />}
+                    label="Apply as Therapist"
+                  />
+                </RadioGroup>
+              </FormControl>
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                sx={{
+                  backgroundColor: "#7b1818",
+                  color: "#fff",
+                  fontWeight: "bold",
+                  py: 1.5,
+                  mt: 1,
+                  mb: 1,
+                  "&:hover": {
+                    backgroundColor: "#5c1313",
+                  },
+                }}
+              >
+                REGISTER
+              </Button>
+            </Box>
+
+            <Typography
+              variant="body2"
+              sx={{ mt: 2, textAlign: "center" }}
+              color="text.secondary"
+            >
+              Already have an account?{" "}
+              <Link to="/login" style={{ color: "#7b1818", fontWeight: "bold" }}>
+                Login
+              </Link>
+            </Typography>
+          </Box>
+        </Paper>
+      </Box>
     </Box>
   );
 }
