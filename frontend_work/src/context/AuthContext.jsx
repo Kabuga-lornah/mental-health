@@ -1,3 +1,4 @@
+// frontend_work/src/context/AuthContext.jsx
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
@@ -14,7 +15,7 @@ export const AuthProvider = ({ children }) => {
   const refreshAccessToken = useCallback(async () => {
     if (!refreshToken) {
       console.log("AuthContext - No refresh token available. Logging out.");
-      logout();
+      logout(); // Call logout if no refresh token
       return null;
     }
     try {
@@ -29,7 +30,7 @@ export const AuthProvider = ({ children }) => {
       return newAccessToken;
     } catch (err) {
       console.error("AuthContext - Error refreshing access token:", err.response?.data || err.message);
-      logout();
+      logout(); // Logout on refresh failure
       return null;
     }
   }, [refreshToken]);
@@ -62,6 +63,8 @@ export const AuthProvider = ({ children }) => {
       console.log("AuthContext - Initializing AuthContext: validateAndRefresh called.");
       
       if (token) {
+        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`; // Set default header immediately
+        localStorage.setItem("access_token", token);
         try {
           // Validate token expiration
           const decoded = jwtDecode(token);
@@ -83,26 +86,43 @@ export const AuthProvider = ({ children }) => {
         }
       } else {
         console.log("AuthContext - No token found on initial load.");
+        delete axios.defaults.headers.common["Authorization"];
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("refresh_token");
       }
       setLoading(false);
     };
 
-    if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      localStorage.setItem("access_token", token);
-    } else {
-      delete axios.defaults.headers.common["Authorization"];
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("user");
-      localStorage.removeItem("refresh_token");
-    }
-
     validateAndRefresh();
 
-    // The automatic refresh interval has been removed as requested.
-    // Token validation will now happen primarily on initial load.
-    // Consider implementing a mechanism to refresh the token when an API call returns a 401 Unauthorized error.
+    // Axios Interceptor for automatic token refresh on 401 errors
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        // If the error is 401 (Unauthorized) and it's not a retry attempt
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true; // Mark as retried
+          console.log("AuthContext - 401 Unauthorized, attempting to refresh token via interceptor...");
+          const newAccessToken = await refreshAccessToken();
+          if (newAccessToken) {
+            originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
+            console.log("AuthContext - Retrying original request with new token.");
+            return axios(originalRequest); // Retry the original request
+          }
+        }
+        return Promise.reject(error); // Reject the error if not 401 or refresh failed
+      }
+    );
+
+    // Clean up interceptor on component unmount
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+
   }, [token, refreshToken, refreshAccessToken]);
+
 
   // Login function
   const login = async (email, password) => {
