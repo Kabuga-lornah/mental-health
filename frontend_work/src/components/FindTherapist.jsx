@@ -1,7 +1,7 @@
 // frontend_work/src/components/FindTherapist.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
+  // Container, // Removed Container
   Typography,
   Box,
   CircularProgress,
@@ -15,12 +15,13 @@ import {
   Button,
   Chip,
   Stack,
-  CardMedia
+  CardMedia,
+  Avatar
 } from '@mui/material';
-import { Search, Clear } from '@mui/icons-material';
+import { Search, Clear, Person, Star, LocationOn } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // Removed .jsx extension to help with resolution
 
 export default function FindTherapist() {
   const { user, token } = useAuth();
@@ -68,72 +69,163 @@ export default function FindTherapist() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', backgroundColor: "#fefae0" }}>
-        <CircularProgress sx={{ color: '#780000' }} />
-        <Typography sx={{ ml: 2, color: '#780000' }}>Loading therapists...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '80vh', 
+        backgroundColor: "#fefae0",
+        gap: 2
+      }}>
+        <CircularProgress 
+          sx={{ 
+            color: '#780000',
+            '& .MuiCircularProgress-circle': {
+              strokeLinecap: 'round',
+            }
+          }} 
+          size={60}
+          thickness={4}
+        />
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            color: '#780000',
+            fontWeight: 500,
+            textAlign: 'center'
+          }}
+        >
+          Finding the perfect therapists for you...
+        </Typography>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ textAlign: 'center', mt: 4 }}>
-        <Typography color="error">{error}</Typography>
+      <Box sx={{ 
+        textAlign: 'center', 
+        mt: 8,
+        backgroundColor: '#fefae0',
+        minHeight: '80vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        <Typography 
+          variant="h5" 
+          color="error" 
+          sx={{ mb: 3, fontWeight: 600 }}
+        >
+          {error}
+        </Typography>
+        <Button
+          variant="contained"
+          size="large"
+          sx={{ 
+            backgroundColor: '#780000', 
+            '&:hover': { 
+              backgroundColor: '#5a0000',
+              transform: 'translateY(-2px)',
+              boxShadow: '0 8px 25px rgba(120, 0, 0, 0.3)'
+            },
+            borderRadius: 3,
+            px: 4,
+            py: 1.5,
+            fontWeight: 600,
+            transition: 'all 0.3s ease-in-out'
+          }}
+          onClick={() => window.location.reload()}
+        >
+          Try Again
+        </Button>
       </Box>
     );
   }
 
-  // --- Strict Pixel-Based Height Definitions for Consistency ---
-  const CARD_TOTAL_HEIGHT_PX = 420; // Fixed total height of the card in pixels
-  const IMAGE_HEIGHT_PX = 210;     // Fixed height for the image section (50% of 420)
-  const ACTIONS_HEIGHT_PX = 70;    // Fixed height for the button area
-
-  // Calculate remaining height for CardContent strictly
-  const CARD_CONTENT_HEIGHT_PX = CARD_TOTAL_HEIGHT_PX - IMAGE_HEIGHT_PX - ACTIONS_HEIGHT_PX; // 420 - 210 - 70 = 140px
-
-  // Individual content line heights and margins within CardContent
-  const NAME_LINE_HEIGHT_PX = 28;
-  const INFO_LINE_HEIGHT_PX = 20;
-  const CHIP_ROW_HEIGHT_PX = 35;
-  const PADDING_VERTICAL_CARD_CONTENT = 16; // p:2 means 16px vertical padding (top+bottom)
-
-  // Sum of fixed heights for content elements + their vertical margins + CardContent padding
-  // This helps ensure the math lines up for the 140px CardContent
-  const SUM_OF_INTERNAL_CONTENT_HEIGHTS = 
-    NAME_LINE_HEIGHT_PX + 8 + // Name + mb
-    INFO_LINE_HEIGHT_PX + 8 + // Client Focus + mb
-    INFO_LINE_HEIGHT_PX + 12 + // Approach + mb
-    CHIP_ROW_HEIGHT_PX; // Chips Stack
-
-  // Just a check to ensure our fixed heights fit within CardContent
-  // console.log("Calculated CardContent actual content height:", SUM_OF_INTERNAL_CONTENT_HEIGHTS + (2 * PADDING_VERTICAL_CARD_CONTENT)); // Should be 103 + 32 = 135px + a bit more for flex distribution.
-  // We'll rely on strict heights and overflow hidden.
-  // -------------------------------------------------------------
-
   return (
-    <Container maxWidth="lg" sx={{ py: 4, backgroundColor: '#fefae0', minHeight: '100vh' }}>
-      <Typography variant="h4" sx={{ color: '#780000', mb: 3, fontWeight: 'bold', textAlign: 'center' }}>
-        Find a Therapist
-      </Typography>
+    // Changed Container to Box and added responsive horizontal padding
+    <Box sx={{ py: 6, px: { xs: 2, sm: 3, md: 4, lg: 6 }, backgroundColor: '#fefae0', minHeight: '100vh' }}>
+      {/* Header Section */}
+      <Box sx={{ textAlign: 'center', mb: 6 }}>
+        <Typography 
+          variant="h3" 
+          sx={{ 
+            color: '#780000', 
+            mb: 2, 
+            fontWeight: 700,
+            background: 'linear-gradient(135deg, #780000 0%, #a00000 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            textShadow: '0 2px 4px rgba(120, 0, 0, 0.1)'
+          }}
+        >
+          Find Your Perfect Therapist
+        </Typography>
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            color: '#666',
+            fontWeight: 400,
+            maxWidth: 600,
+            mx: 'auto',
+            lineHeight: 1.6
+          }}
+        >
+          Connect with qualified mental health professionals who understand your needs
+        </Typography>
+      </Box>
 
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center' }}>
+      {/* Search Section */}
+      <Box sx={{ mb: 6, display: 'flex', justifyContent: 'center' }}>
         <TextField
-          label="Search Therapists"
+          label="Search by name"
           variant="outlined"
           value={searchTerm}
           onChange={handleSearchChange}
           fullWidth
-          sx={{ maxWidth: 500, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+          sx={{ 
+            maxWidth: 600,
+            '& .MuiOutlinedInput-root': { 
+              borderRadius: 4,
+              backgroundColor: 'white',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+              '&:hover': {
+                boxShadow: '0 6px 25px rgba(0, 0, 0, 0.12)',
+              },
+              '&.Mui-focused': {
+                boxShadow: '0 8px 30px rgba(120, 0, 0, 0.15)',
+              }
+            },
+            '& .MuiInputLabel-root': {
+              color: '#666',
+            },
+            '& .MuiOutlinedInput-input': {
+              py: 2,
+            }
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <Search />
+                <Search sx={{ color: '#780000' }} />
               </InputAdornment>
             ),
             endAdornment: (
               searchTerm && (
                 <InputAdornment position="end">
-                  <IconButton onClick={handleClearSearch}>
+                  <IconButton 
+                    onClick={handleClearSearch}
+                    sx={{ 
+                      color: '#666',
+                      '&:hover': { 
+                        color: '#780000',
+                        backgroundColor: 'rgba(120, 0, 0, 0.04)'
+                      }
+                    }}
+                  >
                     <Clear />
                   </IconButton>
                 </InputAdornment>
@@ -143,185 +235,328 @@ export default function FindTherapist() {
         />
       </Box>
 
-      {therapists.length === 0 && !loading && (
-        <Typography variant="h6" color="text.secondary" textAlign="center" sx={{ mt: 4 }}>
-          No therapists found matching your search.
+      {/* Results Count */}
+      {!loading && (
+        <Typography 
+          variant="body1" 
+          sx={{ 
+            color: '#666',
+            mb: 4,
+            textAlign: 'center',
+            fontWeight: 500
+          }}
+        >
+          {therapists.length > 0 
+            ? `Found ${therapists.length} therapist${therapists.length !== 1 ? 's' : ''}`
+            : 'No therapists found matching your search'
+          }
         </Typography>
       )}
 
+      {/* No Results Message */}
+      {therapists.length === 0 && !loading && (
+        <Box sx={{ 
+          textAlign: 'center', 
+          py: 8,
+          backgroundColor: 'white',
+          borderRadius: 4,
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+          mx: 'auto',
+          maxWidth: 500
+        }}>
+          <Person sx={{ fontSize: 64, color: '#ccc', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+            No therapists found
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Try adjusting your search terms or browse all available therapists
+          </Typography>
+          <Button
+            variant="outlined"
+            sx={{ 
+              mt: 3,
+              borderColor: '#780000',
+              color: '#780000',
+              '&:hover': {
+                borderColor: '#5a0000',
+                backgroundColor: 'rgba(120, 0, 0, 0.04)'
+              }
+            }}
+            onClick={() => setSearchTerm('')}
+          >
+            Clear Search
+          </Button>
+        </Box>
+      )}
+
+      {/* Therapist Cards Grid */}
       <Grid container spacing={4}>
         {therapists.map((therapist) => (
-          <Grid item xs={12} sm={6} md={4} key={therapist.id}>
+          <Grid item xs={12} sm={6} lg={4} xl={3} key={therapist.id}>
             <Card
-              elevation={6}
+              elevation={0}
               sx={{
-                height: `${CARD_TOTAL_HEIGHT_PX}px`, // Fixed total height for the card
+                height: 480, 
                 display: 'flex',
                 flexDirection: 'column',
-                borderRadius: 3,
-                transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                borderRadius: 4,
+                backgroundColor: 'white',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                cursor: 'pointer',
+                overflow: 'hidden',
+                position: 'relative',
                 '&:hover': {
-                  transform: 'translateY(-5px)',
-                  boxShadow: '0 12px 24px rgba(0,0,0,0.2)',
+                  transform: 'translateY(-8px)',
+                  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.12)',
+                  borderColor: 'rgba(120, 0, 0, 0.2)',
+                  '& .therapist-image': {
+                    transform: 'scale(1.05)',
+                  },
+                  '& .view-details-btn': {
+                    backgroundColor: '#5a0000',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 25px rgba(120, 0, 0, 0.3)'
+                  }
                 },
-                border: '1px solid #e0e0e0',
-                overflow: 'hidden', // Ensures everything respects card borders
               }}
+              onClick={() => handleViewDetails(therapist.id)}
             >
-              {/* Image section */}
-              {therapist.profile_picture ? (
-                <CardMedia
-                  component="img"
-                  height={`${IMAGE_HEIGHT_PX}px`} // Fixed height for the image
-                  image={therapist.profile_picture}
-                  alt={therapist.full_name}
-                  sx={{ objectFit: 'cover' }}
-                />
-              ) : (
-                // Fallback for no profile picture
-                <Box
-                  sx={{
-                    height: `${IMAGE_HEIGHT_PX}px`, // Fixed height for fallback
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: '#DCC8C8', // Placeholder background color
-                    color: '#780000', // Placeholder text color
-                    fontSize: '3rem',
-                    fontWeight: 'bold',
-                    borderBottom: '1px solid #e0e0e0', // Separator from content
-                  }}
-                >
-                  {(therapist.first_name || 'T').charAt(0).toUpperCase()}
-                </Box>
-              )}
+              {/* Image/Avatar Section */}
+              <Box sx={{ position: 'relative', height: 200, overflow: 'hidden' }}>
+                {therapist.profile_picture ? (
+                  <CardMedia
+                    component="img"
+                    height="200"
+                    image={therapist.profile_picture}
+                    alt={therapist.full_name}
+                    className="therapist-image"
+                    sx={{ 
+                      objectFit: 'cover',
+                      transition: 'transform 0.3s ease-in-out'
+                    }}
+                  />
+                ) : (
+                  <Box
+                    className="therapist-image"
+                    sx={{
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'linear-gradient(135deg, #DCC8C8 0%, #C4A4A4 100%)',
+                      color: '#780000',
+                      transition: 'transform 0.3s ease-in-out'
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 80,
+                        height: 80,
+                        backgroundColor: 'rgba(120, 0, 0, 0.1)',
+                        color: '#780000',
+                        fontSize: '2.5rem',
+                        fontWeight: 'bold',
+                        border: '3px solid rgba(120, 0, 0, 0.2)'
+                      }}
+                    >
+                      {(therapist.first_name || therapist.full_name || 'T').charAt(0).toUpperCase()}
+                    </Avatar>
+                  </Box>
+                )}
+                
+                {/* Status Badge - Only show if free consultation */}
+                {therapist.is_free_consultation && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      backgroundColor: '#4CAF50',
+                      color: 'white',
+                      px: 2,
+                      py: 0.5,
+                      borderRadius: 2,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      backdropFilter: 'blur(10px)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+                    }}
+                  >
+                    Free Consultation
+                  </Box>
+                )}
+              </Box>
 
+              {/* Content Section */}
               <CardContent
                 sx={{
-                  flexGrow: 1, // Allows content area to take remaining space
-                  textAlign: 'center',
-                  p: 2, // Consistent padding around content
+                  flexGrow: 1,
+                  p: 3,
                   display: 'flex',
                   flexDirection: 'column',
-                  justifyContent: 'space-between', // Distribute content vertically within its fixed space
-                  height: `${CARD_CONTENT_HEIGHT_PX}px`, // Strict fixed height for CardContent
-                  overflow: 'hidden', // Crucial for text truncation and preventing overflow
+                  gap: 1.5
                 }}
               >
-                <Box sx={{ flexShrink: 0 }}> {/* Group elements that should not flex or stretch */}
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      color: '#780000',
-                      mb: 0.5, // Small margin below name
-                      fontWeight: 'bold',
-                      whiteSpace: 'nowrap', // Force single line
-                      overflow: 'hidden',    // Hide overflow
-                      textOverflow: 'ellipsis', // Show ellipsis for overflow
-                      width: '100%', // Ensure it respects container width
-                      display: 'block',
-                      height: `${NAME_LINE_HEIGHT_PX}px`, // Fixed height for name line
-                      lineHeight: `${NAME_LINE_HEIGHT_PX}px` // Match line-height to height for perfect vertical centering
-                    }}
-                  >
-                    {therapist.full_name}
-                  </Typography>
-
-                  {/* Display Client Focus */}
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: 'bold',
-                      mt: 0.5, // Small margin above
-                      mb: 0.5, // Small margin below
-                      whiteSpace: 'nowrap', // Force single line
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      width: '100%',
-                      display: 'block',
-                      height: `${INFO_LINE_HEIGHT_PX}px`, // Fixed height for client focus line
-                      lineHeight: `${INFO_LINE_HEIGHT_PX}px` // Match line-height to height
-                    }}
-                  >
-                    Client Focus:
-                    <span style={{ fontWeight: 'normal', fontStyle: 'italic', marginLeft: '4px' }}>
-                      {therapist.client_focus || 'N/A'}
-                    </span>
-                  </Typography>
-
-                  {/* Display Approach Modalities */}
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: 'bold',
-                      mt: 0.5, // Small margin above
-                      mb: 1, // Slightly larger margin before chips
-                      whiteSpace: 'nowrap', // Force single line
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      width: '100%',
-                      display: 'block',
-                      height: `${INFO_LINE_HEIGHT_PX}px`, // Fixed height for approach line
-                      lineHeight: `${INFO_LINE_HEIGHT_PX}px` // Match line-height to height
-                    }}
-                  >
-                    Approach:
-                    <span style={{ fontWeight: 'normal', fontStyle: 'italic', marginLeft: '4px' }}>
-                      {therapist.approach_modalities ? therapist.approach_modalities.split(',')[0].trim() + (therapist.approach_modalities.split(',').length > 1 ? '...' : '') : 'N/A'}
-                    </span>
-                  </Typography>
-                </Box>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  justifyContent="center"
-                  useFlexGap
-                  flexWrap="wrap"
+                {/* Name */}
+                <Typography
+                  variant="h6"
                   sx={{
-                    mt: 'auto', // Pushes this stack to the bottom within content area
-                    mb: 1, // Consistent bottom margin
-                    flexShrink: 0, // Prevent this section from shrinking
-                    height: `${CHIP_ROW_HEIGHT_PX}px`, // Fixed height for the chip row
-                    alignItems: 'center', // Vertically center chips within their row
+                    color: '#780000',
+                    fontWeight: 700,
+                    fontSize: '1.1rem',
+                    lineHeight: 1.3,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    minHeight: '2.6rem'
                   }}
                 >
+                  {therapist.full_name}
+                </Typography>
+
+                {/* Client Focus */}
+                <Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: '#666',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      mb: 0.5
+                    }}
+                  >
+                    Specializes in:
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: '#333',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.4,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      minHeight: '2.5rem'
+                    }}
+                  >
+                    {therapist.client_focus || 'General mental health support'}
+                  </Typography>
+                </Box>
+
+                {/* Spacer for consistent layout */}
+                <Box sx={{ flexGrow: 1 }} />
+
+                {/* Price/Consultation Chip */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 'auto' }}>
                   {therapist.is_free_consultation ? (
-                    <Chip label="Free Consultation" color="info" size="small" sx={{ px: 1, bgcolor: '#B0C4DE', color: '#1A202C', fontWeight: 'bold' }} />
+                    <Chip 
+                      label="Free Initial Consultation" 
+                      sx={{ 
+                        backgroundColor: '#E8F5E8',
+                        color: '#2E7D32',
+                        fontWeight: 600,
+                        fontSize: '0.8rem',
+                        border: '1px solid #4CAF50'
+                      }} 
+                    />
+                  ) : therapist.hourly_rate ? (
+                    <Chip 
+                      label={`KSh ${parseFloat(therapist.hourly_rate).toLocaleString()}/session`}
+                      sx={{ 
+                        backgroundColor: '#FFF3E0',
+                        color: '#F57C00',
+                        fontWeight: 600,
+                        fontSize: '0.8rem',
+                        border: '1px solid #FFB74D'
+                      }} 
+                    />
                   ) : (
-                    therapist.hourly_rate && (
-                      <Chip label={`Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}/hr`} color="primary" size="small" sx={{ px: 1, backgroundColor: '#DCC8C8', color: '#333', fontWeight: 'bold' }} />
-                    )
+                    <Chip 
+                      label="Contact for Pricing"
+                      sx={{ 
+                        backgroundColor: '#F5F5F5',
+                        color: '#666',
+                        fontWeight: 600,
+                        fontSize: '0.8rem'
+                      }} 
+                    />
                   )}
-                </Stack>
+                </Box>
               </CardContent>
+
+              {/* Action Button */}
               <CardActions
                 sx={{
-                  justifyContent: 'center',
-                  pb: 2,
-                  height: `${ACTIONS_HEIGHT_PX}px`, // Fixed height for the actions section
-                  flexShrink: 0, // Prevent actions from shrinking
+                  p: 3,
+                  pt: 0
                 }}
               >
                 <Button
                   variant="contained"
+                  fullWidth
+                  className="view-details-btn"
                   sx={{
                     backgroundColor: '#780000',
-                    '&:hover': { backgroundColor: '#5a0000', transform: 'scale(1.05)' },
-                    borderRadius: 2,
-                    px: 3,
-                    py: 1,
-                    fontWeight: 'bold',
-                    transition: 'transform 0.2s ease-in-out',
+                    borderRadius: 3,
+                    py: 1.5,
+                    fontWeight: 600,
+                    fontSize: '0.95rem',
+                    textTransform: 'none',
+                    transition: 'all 0.3s ease-in-out',
+                    boxShadow: '0 4px 15px rgba(120, 0, 0, 0.2)',
+                    '&:hover': {
+                      backgroundColor: '#5a0000'
+                    }
                   }}
-                  onClick={() => handleViewDetails(therapist.id)}
                 >
-                  View Details
+                  View Profile & Book
                 </Button>
               </CardActions>
             </Card>
           </Grid>
         ))}
       </Grid>
-    </Container>
+
+      {/* Call to Action for Empty State */}
+      {therapists.length > 0 && (
+        <Box sx={{ 
+          textAlign: 'center', 
+          mt: 8,
+          py: 6,
+          backgroundColor: 'white',
+          borderRadius: 4,
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)'
+        }}>
+          <Typography variant="h5" sx={{ color: '#780000', fontWeight: 600, mb: 2 }}>
+            Need Help Choosing?
+          </Typography>
+          <Typography variant="body1" sx={{ color: '#666', mb: 3, maxWidth: 500, mx: 'auto' }}>
+            Our team can help match you with the perfect therapist based on your specific needs and preferences.
+          </Typography>
+          <Button
+            variant="outlined"
+            size="large"
+            sx={{
+              borderColor: '#780000',
+              color: '#780000',
+              borderRadius: 3,
+              px: 4,
+              py: 1.5,
+              fontWeight: 600,
+              '&:hover': {
+                borderColor: '#5a0000',
+                backgroundColor: 'rgba(120, 0, 0, 0.04)',
+                transform: 'translateY(-2px)'
+              }
+            }}
+          >
+            Get Personalized Recommendations
+          </Button>
+        </Box>
+      )}
+    </Box>
   );
 }

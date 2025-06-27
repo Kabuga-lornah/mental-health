@@ -17,53 +17,42 @@ import {
   Alert,
   Chip,
   Stack,
-  Card,
-  CardContent,
+  // Card, CardContent removed
   Divider,
-  FormControl,
-  FormLabel,
-  RadioGroup,
-  FormControlLabel,
-  Radio
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import DatePicker from 'react-datepicker'; // Import react-datepicker
-import 'react-datepicker/dist/react-datepicker.css'; // Import react-datepicker styles
-import { format, addDays } from 'date-fns'; // Import date-fns utilities
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { format, addDays } from 'date-fns';
 
 export default function TherapistDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, token } = useAuth(); // Assuming 'token' contains the access token directly from AuthContext
+  const { user, token } = useAuth();
   const [therapist, setTherapist] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // New states for scheduling
-  const [selectedDate, setSelectedDate] = useState(null); // Date selected by user in calendar
-  const [availableSlots, setAvailableSlots] = useState({}); // { 'YYYY-MM-DD': [{start_time: 'HH:MM', end_time: 'HH:MM', duration_minutes: N}] }
-  const [selectedSlot, setSelectedSlot] = useState(null); // The actual slot object selected {date: 'YYYY-MM-DD', start_time: 'HH:MM', end_time: 'HH:MM'}
-  const [message, setMessage] = useState(''); // Message to therapist
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [availableSlots, setAvailableSlots] = useState({});
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [message, setMessage] = useState('');
 
-  // New states for payment and session request flow
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [currentSessionRequestId, setCurrentSessionRequestId] = useState(null); // ID of the created SessionRequest
+  const [currentSessionRequestId, setCurrentSessionRequestId] = useState(null);
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
-  // Removed old requestedDate, requestedTime, openRequestModal, paymentAmount (derived from therapist.hourly_rate), handleSubmitSessionRequest, handleSubmitPayment
-
   const fetchTherapistDetailsAndAvailability = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch therapist details
       const therapistResponse = await axios.get(`http://localhost:8000/api/therapists/${id}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -71,9 +60,8 @@ export default function TherapistDetail() {
       });
       setTherapist(therapistResponse.data);
 
-      // 2. Fetch therapist availability for a range (e.g., next 60 days)
       const today = new Date();
-      const futureDate = addDays(today, 60); // Fetch for the next 60 days
+      const futureDate = addDays(today, 60);
 
       const formattedToday = format(today, 'yyyy-MM-dd');
       const formattedFutureDate = format(futureDate, 'yyyy-MM-dd');
@@ -81,7 +69,7 @@ export default function TherapistDetail() {
       const availabilityResponse = await axios.get(`http://localhost:8000/api/therapists/${id}/available-slots/?start_date=${formattedToday}&end_date=${formattedFutureDate}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAvailableSlots(availabilityResponse.data); // Store available slots grouped by date
+      setAvailableSlots(availabilityResponse.data);
 
     } catch (err) {
       console.error("Error fetching therapist details or availability:", err.response?.data || err.message);
@@ -97,11 +85,9 @@ export default function TherapistDetail() {
     }
   }, [user, token, id, fetchTherapistDetailsAndAvailability]);
 
-
   const handleClosePaymentModal = () => {
     setShowPaymentModal(false);
     setMpesaPhoneNumber('');
-    // Optionally, clear currentSessionRequestId if the payment flow is cancelled entirely
   };
 
   const handleSnackbarClose = (event, reason) => {
@@ -109,7 +95,6 @@ export default function TherapistDetail() {
     setSnackbarOpen(false);
   };
 
-  // New function to handle the initial session request (before payment)
   const handleSessionRequest = async () => {
     if (!selectedSlot) {
       setSnackbarMessage("Please select an available time slot first.");
@@ -122,7 +107,7 @@ export default function TherapistDetail() {
       return;
     }
 
-    setPaymentProcessing(true); // Indicate that a request is being processed
+    setPaymentProcessing(true);
     setSnackbarMessage('Creating session request...');
     setSnackbarSeverity('info');
     setSnackbarOpen(true);
@@ -133,8 +118,7 @@ export default function TherapistDetail() {
       requested_date: selectedSlot.date,
       requested_time: selectedSlot.start_time,
       message: message,
-      session_duration: selectedSlot.duration_minutes || 120, // Send the actual duration
-      // status and is_paid are set by backend default
+      session_duration: selectedSlot.duration_minutes || 120,
     };
 
     try {
@@ -148,11 +132,8 @@ export default function TherapistDetail() {
         setSnackbarMessage("Session request submitted for free consultation. Therapist will review.");
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
-        // --- MODIFICATION START ---
-        navigate('/dashboard'); // Redirect to dashboard for free consultations
-        // --- MODIFICATION END ---
+        navigate('/dashboard');
       } else {
-        // For paid sessions, proceed to show the M-Pesa payment modal
         setSnackbarMessage("Session request created. Proceeding to payment.");
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
@@ -173,8 +154,6 @@ export default function TherapistDetail() {
     }
   };
 
-
-  // Function to handle the M-Pesa STK Push initiation
   const handleInitiatePayment = async () => {
     setPaymentProcessing(true);
     setSnackbarMessage('Initiating M-Pesa STK Push...');
@@ -193,7 +172,7 @@ export default function TherapistDetail() {
     const paymentData = {
       session_request_id: currentSessionRequestId,
       therapist: therapist.id,
-      amount: parseFloat(therapist.hourly_rate), // Use the therapist's actual hourly rate
+      amount: parseFloat(therapist.hourly_rate),
       mpesa_phone_number: mpesaPhoneNumber
     };
 
@@ -205,17 +184,14 @@ export default function TherapistDetail() {
       setSnackbarMessage("M-Pesa STK Push initiated. Please check your phone to complete the payment.");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      setShowPaymentModal(false); // Close payment modal
+      setShowPaymentModal(false);
       setMpesaPhoneNumber('');
-      setSelectedSlot(null); // Clear selected slot after successful initiation
-      setMessage(''); // Clear message
+      setSelectedSlot(null);
+      setMessage('');
 
-      // --- MODIFICATION START ---
-      // Redirect to dashboard after payment initiation
       setTimeout(() => {
-        navigate('/dashboard'); // Redirect to client's dashboard
+        navigate('/dashboard');
       }, 3000);
-      // --- MODIFICATION END ---
 
     } catch (err) {
       console.error("Error initiating M-Pesa payment:", err.response?.data || err.message);
@@ -229,10 +205,9 @@ export default function TherapistDetail() {
     }
   };
 
-
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', backgroundColor: '#fefae0' }}>
         <CircularProgress sx={{ color: '#780000' }} />
         <Typography sx={{ ml: 2, color: '#780000' }}>Loading therapist details...</Typography>
       </Box>
@@ -241,8 +216,8 @@ export default function TherapistDetail() {
 
   if (error) {
     return (
-      <Box sx={{ textAlign: 'center', mt: 4 }}>
-        <Typography color="error">{error}</Typography>
+      <Box sx={{ textAlign: 'center', mt: 4, backgroundColor: '#fefae0', minHeight: '80vh', py: 8 }}>
+        <Typography color="error" variant="h6">{error}</Typography>
         <Button
           variant="contained"
           sx={{ mt: 2, backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}
@@ -256,7 +231,7 @@ export default function TherapistDetail() {
 
   if (!therapist) {
     return (
-      <Box sx={{ textAlign: 'center', mt: 4 }}>
+      <Box sx={{ textAlign: 'center', mt: 4, backgroundColor: '#fefae0', minHeight: '80vh', py: 8 }}>
         <Typography variant="h6" sx={{ color: '#780000' }}>Therapist not found or not available.</Typography>
         <Button
           variant="contained"
@@ -272,186 +247,206 @@ export default function TherapistDetail() {
   const isButtonDisabled = (user && user.is_therapist) || !therapist.is_available;
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: 8 }}>
-      <Container maxWidth="md">
-        <Paper elevation={6} sx={{ p: { xs: 2, sm: 4 }, borderRadius: 3, backgroundColor: 'white' }}>
-          <Grid container spacing={4} alignItems="flex-start">
-            <Grid item xs={12} md={4}>
-              <img
-                src={therapist.profile_picture || `https://placehold.co/150x150/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
-                alt={therapist.full_name}
-                style={{ borderRadius: '50%', width: 180, height: 180, objectFit: 'cover', border: '4px solid #780000' }}
-              />
-              <Typography variant="h5" sx={{ color: '#780000', mt: 2, fontWeight: 'bold' }}>
-                {therapist.license_credentials ? `${therapist.license_credentials} ` : ''}{therapist.full_name}
+    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: { xs: 4, md: 8 } }}>
+      <Container maxWidth="lg">
+        <Paper elevation={8} sx={{ p: { xs: 3, sm: 5 }, borderRadius: 4, backgroundColor: 'white', overflow: 'hidden' }}>
+          <Grid container spacing={{ xs: 4, md: 6 }} alignItems="flex-start">
+            {/* Therapist Profile and Photo Section (Left Column) */}
+            <Grid item xs={12} md={4} sx={{ textAlign: 'center', pr: { md: 4 } }}>
+              {/* Unique Photo Display */}
+              <Box
+                sx={{
+                  width: 240, // Increased size for more impact
+                  height: 280, // Rectangular shape
+                  overflow: 'hidden',
+                  mx: 'auto',
+                  mb: 3,
+                  border: '6px solid #780000',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.3)', // Stronger shadow
+                  position: 'relative', // For pseudo-elements or more complex shapes
+                  // Example: A skewed rectangle
+                  transform: 'skewY(-5deg)',
+                  '& img': {
+                    transform: 'skewY(5deg)', // Counter-skew the image
+                  },
+                  borderRadius: 2, // Slight border radius
+                }}
+              >
+                <img
+                  src={therapist.profile_picture || `https://placehold.co/240x280/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
+                  alt={therapist.full_name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </Box>
+              <Typography variant="h4" sx={{ color: '#780000', fontWeight: 'bold', mb: 1.5, letterSpacing: 0.5 }}>
+                {therapist.full_name}
               </Typography>
-              <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 1 }}>
-                {therapist.license_credentials}
+              <Typography variant="h6" color="text.secondary" sx={{ mb: 2.5, fontStyle: 'italic', fontSize: '1.15rem' }}>
+                {therapist.license_credentials || 'Licensed Therapist'}
               </Typography>
-              <Chip
-                label={therapist.is_available ? 'Available' : 'Not Available'}
-                color={therapist.is_available ? 'success' : 'error'}
-                size="small"
-                sx={{ mt: 1, px: 1 }}
-              />
+              
             </Grid>
 
+            {/* Therapist Details Section (Right Column) */}
             <Grid item xs={12} md={8}>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
+              {/* About Me */}
+              <Box sx={{ mb: 4, p: 3.5, borderRadius: 3, backgroundColor: '#fdf8f5', boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+                <Typography variant="h5" sx={{ color: '#780000', fontWeight: 'bold', mb: 2, borderBottom: '2px solid #DCC8C8', pb: 1.5 }}>
                   About Me
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  {therapist.bio || 'No bio provided yet.'}
+                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.8 }}>
+                  {therapist.bio || 'This therapist has not yet provided a personal biography. Please check back later for more details about their background and philosophy.'}
                 </Typography>
               </Box>
 
-              <Divider sx={{ my: 2 }} />
-
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
+              {/* Professional Details */}
+              <Box sx={{ mb: 4, p: 3.5, borderRadius: 3, backgroundColor: '#fdf8f5', boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+                <Typography variant="h5" sx={{ color: '#780000', fontWeight: 'bold', mb: 2, borderBottom: '2px solid #DCC8C8', pb: 1.5 }}>
                   Professional Details
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2"><strong>Years of Experience:</strong> {therapist.years_of_experience || 'N/A'}</Typography>
+                    <Typography variant="body1" sx={{ color: '#5a0000' }}><strong>Years of Experience:</strong> {therapist.years_of_experience || 'N/A'}</Typography>
                   </Grid>
                   {!therapist.is_free_consultation && (
                     <>
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2"><strong>Hourly Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}` : 'N/A'}</Typography>
+                        <Typography variant="body1" sx={{ color: '#5a0000' }}><strong>Hourly Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}` : 'N/A'}</Typography>
                       </Grid>
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2"><strong>Accepts Insurance:</strong> {therapist.insurance_accepted ? 'Yes' : 'No'}</Typography>
+                        <Typography variant="body1" sx={{ color: '#5a0000' }}><strong>Accepts Insurance:</strong> {therapist.insurance_accepted ? 'Yes' : 'No'}</Typography>
                       </Grid>
                     </>
                   )}
                   {therapist.is_free_consultation && (
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2"><strong>Consultation Fee:</strong> Free Initial Consultation</Typography>
+                      <Typography variant="body1" sx={{ color: 'green', fontWeight: 'bold' }}><strong>Consultation Fee:</strong> Free Initial Consultation</Typography>
                     </Grid>
                   )}
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2"><strong>Languages Spoken:</strong> {therapist.languages_spoken || 'N/A'}</Typography>
+                    <Typography variant="body1" sx={{ color: '#5a0000' }}><strong>Languages Spoken:</strong> {therapist.languages_spoken || 'Not specified'}</Typography>
                   </Grid>
                   <Grid item xs={12}>
-                    <Typography variant="body2"><strong>Client Focus:</strong> {therapist.client_focus || 'N/A'}</Typography>
+                    <Typography variant="body1" sx={{ color: '#5a0000' }}><strong>Client Focus:</strong> {therapist.client_focus || 'Not specified'}</Typography>
                   </Grid>
                   <Grid item xs={12}>
-                    <Typography variant="body2"><strong>Approach/Modalities:</strong> {therapist.approach_modalities || 'No specific approach listed.'}</Typography>
+                    <Typography variant="body1" sx={{ color: '#5a0000' }}><strong>Approach/Modalities:</strong> {therapist.approach_modalities || 'No specific approach listed.'}</Typography>
                   </Grid>
                 </Grid>
               </Box>
 
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
+              {/* Session Information */}
+              <Box sx={{ mb: 4, p: 3.5, borderRadius: 3, backgroundColor: '#fdf8f5', boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+                <Typography variant="h5" sx={{ color: '#780000', fontWeight: 'bold', mb: 2, borderBottom: '2px solid #DCC8C8', pb: 1.5 }}>
                   Session Information
                 </Typography>
-                <Typography variant="body2">
+                <Typography variant="body1" sx={{ color: '#5a0000' }}>
                   <strong>Session Modes:</strong> {therapist.session_modes ? therapist.session_modes.replace('both', 'Online & Physical') : 'N/A'}
                 </Typography>
                 {therapist.session_modes && (therapist.session_modes === 'physical' || therapist.session_modes === 'both') && (
-                  <Typography variant="body2">
+                  <Typography variant="body1" sx={{ color: '#5a0000', mt: 1 }}>
                     <strong>Physical Location:</strong> {therapist.physical_address || 'Not specified'}
                   </Typography>
                 )}
               </Box>
 
+              {/* Specializations */}
               {therapist.specializations && therapist.specializations.length > 0 && (
-                <>
-                  <Divider sx={{ my: 2 }} />
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
-                      Specializations
-                    </Typography>
-                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                      {therapist.specializations.split(',').map((spec, index) => (
-                        <Chip key={index} label={spec.trim()} size="medium" sx={{ backgroundColor: '#DCC8C8', color: '#333' }} />
-                      ))}
-                    </Stack>
-                  </Box>
-                </>
+                <Box sx={{ mb: 4, p: 3.5, borderRadius: 3, backgroundColor: '#fdf8f5', boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+                  <Typography variant="h5" sx={{ color: '#780000', fontWeight: 'bold', mb: 2, borderBottom: '2px solid #DCC8C8', pb: 1.5 }}>
+                    Specializations
+                  </Typography>
+                  <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap">
+                    {therapist.specializations.split(',').map((spec, index) => (
+                      <Chip key={index} label={spec.trim()} size="medium"
+                        sx={{
+                          backgroundColor: '#DCC8C8',
+                          color: '#333',
+                          fontWeight: 'medium',
+                          fontSize: '0.9rem',
+                          p: '5px 10px',
+                          borderRadius: '16px', // Standard chip look
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
               )}
 
+              {/* Video Introduction */}
               {therapist.video_introduction_url && (
-                <>
-                  <Divider sx={{ my: 2 }} />
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="h6" sx={{ color: '#780000', fontWeight: 'bold', mb: 1 }}>
-                      Video Introduction
+                <Box sx={{ mb: 4, p: 3.5, borderRadius: 3, backgroundColor: '#fdf8f5', boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+                  <Typography variant="h5" sx={{ color: '#780000', fontWeight: 'bold', mb: 2, borderBottom: '2px solid #DCC8C8', pb: 1.5 }}>
+                    Video Introduction
+                  </Typography>
+                  {/* Replaced Card with Box for video embed */}
+                  <Box sx={{ maxWidth: 600, mx: 'auto', bgcolor: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', borderRadius: 2, p: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Watch this brief video to learn more about the therapist's approach.
                     </Typography>
-                    <Card sx={{ maxWidth: 560, mx: 'auto', bgcolor: '#f5f5f5' }}>
-                      <CardContent>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          Watch this brief video to learn more about the therapist's approach.
-                        </Typography>
-                        <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
-                          <iframe
-                            src={therapist.video_introduction_url}
-                            title="Therapist Introduction"
-                            frameBorder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-                          ></iframe>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                    <Typography variant="caption" display="block" sx={{ mt: 1, textAlign: 'center', color: 'text.secondary' }}>
-                      <a href={therapist.video_introduction_url} target="_blank" rel="noopener noreferrer" style={{ color: '#780000' }}>
-                        Open video in new tab
-                      </a>
-                    </Typography>
+                    <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', borderRadius: 1, overflow: 'hidden' }}>
+                      <iframe
+                        src={therapist.video_introduction_url}
+                        title="Therapist Introduction"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                      ></iframe>
+                    </Box>
                   </Box>
-                </>
+                  <Typography variant="caption" display="block" sx={{ mt: 1.5, textAlign: 'center', color: 'text.secondary' }}>
+                    <a href={therapist.video_introduction_url} target="_blank" rel="noopener noreferrer" style={{ color: '#780000', textDecoration: 'none', fontWeight: 'bold' }}>
+                      Open video in new tab <i className="fas fa-external-link-alt" style={{ marginLeft: '5px' }}></i>
+                    </a>
+                  </Typography>
+                </Box>
               )}
             </Grid>
           </Grid>
-          <Divider sx={{ my: 4 }} /> {/* Separator for booking section */}
 
-          {/* New Booking Section */}
-          <Box sx={{ mt: 4 }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
+          {/* Booking Section */}
+          <Box sx={{ mt: { xs: 4, md: 6 }, p: { xs: 3, sm: 5 }, borderRadius: 4, backgroundColor: '#fff3e0', boxShadow: '0 8px 20px rgba(0,0,0,0.15)' }}>
+            <Typography variant="h4" sx={{ color: '#780000', mb: 4, fontWeight: 'bold', textAlign: 'center' }}>
               Book a Session
             </Typography>
 
             {therapist.is_free_consultation ? (
-              <Typography variant="body1" sx={{ mb: 2, color: 'green', fontWeight: 'bold' }}>
-                This therapist offers a FREE initial consultation. No payment is required.
+              <Typography variant="h6" sx={{ mb: 3, color: 'green', fontWeight: 'bold', textAlign: 'center' }}>
+                This therapist offers a FREE initial consultation. No payment is required!
               </Typography>
             ) : (
-              <Typography variant="body1" sx={{ mb: 2, color: '#780000', fontWeight: 'bold' }}>
+              <Typography variant="h6" sx={{ mb: 3, color: '#780000', fontWeight: 'bold', textAlign: 'center' }}>
                 Session Rate: Ksh {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'} per session
               </Typography>
             )}
 
-            <Grid container spacing={3}>
+            <Grid container spacing={4}>
               <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle1" sx={{ mb: 1, color: '#780000' }}>Select Date:</Typography>
+                <Typography variant="h6" sx={{ mb: 1.5, color: '#780000', fontWeight: 'bold' }}>Select Date:</Typography>
                 <DatePicker
                   selected={selectedDate}
                   onChange={(date) => {
                     setSelectedDate(date);
-                    setSelectedSlot(null); // Reset selected slot when date changes
+                    setSelectedSlot(null);
                   }}
-                  minDate={new Date()} // Cannot select past dates
+                  minDate={new Date()}
                   dateFormat="yyyy-MM-dd"
                   placeholderText="Click to select a date"
-                  customInput={<TextField fullWidth variant="outlined" />}
-                  filterDate={(date) => date.getDay() !== 0 && date.getDay() !== 6} // Example: disable weekends
+                  customInput={<TextField fullWidth variant="outlined" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />}
+                  filterDate={(date) => date.getDay() !== 0 && date.getDay() !== 6}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle1" sx={{ mb: 1, color: '#780000' }}>Available Time Slots:</Typography>
-                <Paper variant="outlined" sx={{ p: 2, minHeight: 120, maxHeight: 200, overflowY: 'auto', bgcolor: '#fdf8f5' }}>
+                <Typography variant="h6" sx={{ mb: 1.5, color: '#780000', fontWeight: 'bold' }}>Available Time Slots:</Typography>
+                <Paper variant="outlined" sx={{ p: 2.5, minHeight: 150, maxHeight: 250, overflowY: 'auto', bgcolor: '#fdf8f5', borderRadius: 2, border: '1px solid #DCC8C8' }}>
                   {selectedDate ? (
                     (() => {
                       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
                       const slots = availableSlots[formattedDate];
                       if (slots && slots.length > 0) {
                         return (
-                          <Grid container spacing={1}>
+                          <Grid container spacing={1.5}>
                             {slots.map((slot, index) => (
                               <Grid item key={index} xs={6}>
                                 <Button
@@ -468,6 +463,8 @@ export default function TherapistDetail() {
                                       borderColor: '#5a0000',
                                     },
                                     textTransform: 'none',
+                                    borderRadius: 1.5,
+                                    py: 1,
                                   }}
                                 >
                                   {slot.start_time} - {slot.end_time}
@@ -477,11 +474,11 @@ export default function TherapistDetail() {
                           </Grid>
                         );
                       } else {
-                        return <Typography variant="body2" color="text.secondary">No available slots for this date. Try another date.</Typography>;
+                        return <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>No available slots for this date. Please try another date.</Typography>;
                       }
                     })()
                   ) : (
-                    <Typography variant="body2" color="text.secondary">Please select a date to see available slots.</Typography>
+                    <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>Please select a date to view available time slots.</Typography>
                   )}
                 </Paper>
               </Grid>
@@ -490,11 +487,12 @@ export default function TherapistDetail() {
                   fullWidth
                   label="Message to Therapist (Optional)"
                   multiline
-                  rows={3}
+                  rows={4}
                   variant="outlined"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  sx={{ mt: 2 }}
+                  sx={{ mt: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  placeholder="Share any specific concerns or questions you have for the therapist."
                 />
               </Grid>
             </Grid>
@@ -504,30 +502,35 @@ export default function TherapistDetail() {
               sx={{
                 backgroundColor: '#780000',
                 '&:hover': { backgroundColor: '#5a0000' },
-                mt: 3,
-                py: 1.5,
-                borderRadius: 2,
+                mt: 4,
+                py: 1.8,
+                borderRadius: 2.5,
+                fontSize: '1.1rem',
+                fontWeight: 'bold',
+                boxShadow: '0 4px 10px rgba(120, 0, 0, 0.4)',
               }}
               onClick={handleSessionRequest}
               disabled={isButtonDisabled || !selectedSlot || paymentProcessing}
             >
               {isButtonDisabled ?
-                (user && user.is_therapist ? "Therapists Cannot Book" : "Therapist Not Available")
-                : (paymentProcessing ? <CircularProgress size={24} color="inherit" /> : 'Request Session')}
+                (user && user.is_therapist ? "Therapists Cannot Book Sessions" : "Therapist Not Available for Booking")
+                : (paymentProcessing ? <CircularProgress size={26} color="inherit" /> : 'Request Session Now')}
             </Button>
           </Box>
         </Paper>
       </Container>
 
       {/* Payment Modal */}
-      <Dialog open={showPaymentModal} onClose={handleClosePaymentModal}>
-        <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Complete Payment</DialogTitle>
-        <DialogContent>
+      <Dialog open={showPaymentModal} onClose={handleClosePaymentModal} PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ backgroundColor: '#780000', color: 'white', fontWeight: 'bold', pb: 2 }}>
+          Complete Payment
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
           <Typography variant="body1" sx={{ mb: 2 }}>
-            You are requesting a session with {therapist?.first_name} {therapist?.last_name} on {selectedSlot?.date} at {selectedSlot?.start_time}.
+            You are requesting a session with <span style={{ fontWeight: 'bold', color: '#780000' }}>{therapist?.full_name}</span> on <span style={{ fontWeight: 'bold' }}>{selectedSlot?.date}</span> at <span style={{ fontWeight: 'bold' }}>{selectedSlot?.start_time}</span>.
           </Typography>
-          <Typography variant="body1" sx={{ mb: 2, fontWeight: 'bold' }}>
-            Amount Due: KES {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'}
+          <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold', color: '#5a0000' }}>
+            Amount Due: <span style={{ color: '#780000' }}>KES {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'}</span>
           </Typography>
           <TextField
             autoFocus
@@ -538,21 +541,30 @@ export default function TherapistDetail() {
             variant="outlined"
             value={mpesaPhoneNumber}
             onChange={(e) => setMpesaPhoneNumber(e.target.value)}
-            helperText="Enter your M-Pesa registered phone number for simulation."
-            sx={{ mb: 2 }}
+            helperText="Enter your M-Pesa registered phone number for the STK Push simulation."
+            sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             disabled={paymentProcessing}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClosePaymentModal} sx={{ color: '#780000' }} disabled={paymentProcessing}>Cancel</Button>
-          <Button onClick={handleInitiatePayment} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }} disabled={!mpesaPhoneNumber || paymentProcessing}>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button onClick={handleClosePaymentModal} sx={{ color: '#780000', '&:hover': { backgroundColor: '#f5f5f5' } }} disabled={paymentProcessing}>Cancel</Button>
+          <Button onClick={handleInitiatePayment} variant="contained"
+            sx={{
+              backgroundColor: '#780000',
+              '&:hover': { backgroundColor: '#5a0000' },
+              py: 1,
+              px: 3,
+              borderRadius: 2,
+            }}
+            disabled={!mpesaPhoneNumber || paymentProcessing}>
             {paymentProcessing ? <CircularProgress size={24} color="inherit" /> : 'Pay Now'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+      <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>
