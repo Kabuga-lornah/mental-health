@@ -161,9 +161,9 @@ CSRF_TRUSTED_ORIGINS = [
 AUTH_USER_MODEL = 'mental_health_app.User' 
 
 cloudinary.config(
-    cloud_name=os.environ['CLOUDINARY_CLOUD_NAME'],
-    api_key=os.environ['CLOUDINARY_API_KEY'],
-    api_secret=os.environ['CLOUDINARY_API_SECRET']
+    cloud_name='dgdf0svqx',
+    api_key='563553895748169',
+    api_secret='V5pzLDiadn6UCYyCkMxOSMQqeGg'
 )
 
 MEDIA_URL = '/media/'
