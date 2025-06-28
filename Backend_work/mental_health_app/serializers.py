@@ -1,3 +1,4 @@
+# Overwriting file: Backend_work/mental_health_app/serializers.py
 # File: Backend_work/mental_health_app/serializers.py
 # mental_health_app/serializers.py
 from rest_framework import serializers
@@ -57,6 +58,11 @@ class UserSerializer(serializers.ModelSerializer):
     video_introduction_url = serializers.URLField(max_length=500, required=False, allow_null=True, allow_blank=True)
 
     is_free_consultation = serializers.BooleanField(required=False, default=False)
+    SESSION_MODES_CHOICES = [
+        ('online', 'Online'),
+        ('physical', 'Physical (In-Person)'),
+        ('both', 'Both Online & Physical'),
+    ]
     session_modes = serializers.ChoiceField(choices=User.SESSION_MODES_CHOICES, required=False, allow_null=True)
     physical_address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
@@ -199,14 +205,17 @@ class JournalEntrySerializer(serializers.ModelSerializer):
         allow_null=True,
         write_only=True
     )
+    # Added user_email field for admin panel display
+    user_email = serializers.ReadOnlyField(source='user.email')
+
 
     class Meta:
         model = JournalEntry
         fields = [
             'id', 'date', 'mood', 'entry', 'tags',
-            'attachment_name', 'attachment_file', 'user'
+            'attachment_name', 'attachment_file', 'user', 'user_email'
         ]
-        read_only_fields = ['id', 'date', 'user']
+        read_only_fields = ['id', 'date', 'user', 'user_email']
 
     def create(self, validated_data):
         attachment_file = validated_data.pop('attachment_file', None)

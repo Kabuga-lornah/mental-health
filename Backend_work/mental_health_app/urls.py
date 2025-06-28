@@ -1,5 +1,4 @@
-# File: Backend_work/mental_health_app/urls.py
-
+# Overwriting file: Backend_work/mental_health_app/urls.py
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
@@ -16,13 +15,16 @@ from .views import (
     TherapistDetailView,
     PaymentCreateView,
     ClientPaymentStatusView,
-    # Import the new views here
     TherapistAvailabilityListCreateView,
     TherapistAvailabilityDetailView,
     TherapistAvailableSlotsView,
-    MpesaCallbackView, # <--- ADDED THIS LINE
-    AiRecommendationView, # NEW AI VIEW
-    ChatWithGeminiView # NEW AI CHAT VIEW
+    MpesaCallbackView,
+    AiRecommendationView,
+    ChatWithGeminiView,
+    # Admin-specific views that were missing in urlpatterns
+    AdminUserListView,
+    AdminSessionListView,
+    AdminJournalEntryListView,
 )
 
 urlpatterns = [
@@ -43,6 +45,12 @@ urlpatterns = [
     # ADMIN THERAPIST APPLICATION ENDPOINTS
     path('admin/therapist-applications/', AdminTherapistApplicationListView.as_view(), name='admin-therapist-applications-list'),
     path('admin/therapist-applications/<int:pk>/', AdminTherapistApplicationDetailView.as_view(), name='admin-therapist-applications-detail'),
+
+    # ADMIN DATA LISTING ENDPOINTS (NEWLY ADDED)
+    path('admin/users/', AdminUserListView.as_view(), name='admin-user-list'),
+    path('admin/sessions/', AdminSessionListView.as_view(), name='admin-session-list'),
+    path('admin/journal-entries/', AdminJournalEntryListView.as_view(), name='admin-journal-entry-list'),
+
 
     # THERAPIST & SESSION RELATED ENDPOINTS
     path('therapists/', TherapistListView.as_view(), name='therapist-list'),
@@ -77,7 +85,7 @@ urlpatterns = [
     path('payments/initiate/', PaymentCreateView.as_view(), name='payment-initiate'),
     path('payments/status/<int:therapist_id>/', ClientPaymentStatusView.as_view(), name='client-payment-status'),
 
-    # NEW: M-Pesa Callback Endpoint - THIS IS THE CRUCIAL ADDITION
+    # NEW: M-Pesa Callback Endpoint
     path('mpesa/callback/', MpesaCallbackView, name='mpesa_callback'),
 
     # NEW: AI Endpoints
