@@ -4,13 +4,13 @@ import {
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Select, MenuItem, FormControl, InputLabel, TextField, Link as MuiLink,
-  Tabs, Tab, Chip
+  // Tabs, Tab, // Removed Tabs and Tab import
+  Chip
 } from '@mui/material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-
-
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 export default function AdminDashboard() {
   const { user, token, loading: authLoading } = useAuth();
@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
-  // Tab state for different sections
+  // Tab state for different sections - CurrentTab will still manage which content is shown
   const [currentTab, setCurrentTab] = useState(0);
 
   // Data states for different sections
@@ -30,18 +30,25 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [journalEntries, setJournalEntries] = useState([]);
-  const [analyticsData, setAnalyticsData] = useState(null); 
+  const [analyticsData, setAnalyticsData] = useState(null);
 
   // Modals specific to applications
   const [openReviewModal, setOpenReviewModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [newStatus, setNewStatus] = useState('');
   const [reviewerNotes, setReviewerNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false); 
+  const [submitting, setSubmitting] = useState(false);
 
   // Modals for user/session details
   const [openUserDetailsModal, setOpenUserDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+
+  // Theme colors for charts
+  const primaryColor = '#780000';
+  const secondaryColor = '#b56576';
+  const tertiaryColor = '#6d597a';
+  const accentColor = '#e7a042';
+  const neutralBg = '#fefae0';
 
   // Fetching functions for each data type
   const fetchTherapistApplications = useCallback(async () => {
@@ -97,10 +104,60 @@ export default function AdminDashboard() {
   }, [token]);
 
   const fetchAnalyticsData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [usersRes, sessionsRes, journalsRes] = await Promise.all([
+        axios.get('http://localhost:8000/api/admin/users/', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('http://localhost:8000/api/admin/sessions/', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('http://localhost:8000/api/admin/journal-entries/', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
 
-    setAnalyticsData(null); 
-    setLoading(false);
-  }, []);
+      const allUsers = usersRes.data;
+      const allSessions = sessionsRes.data;
+      const allJournalEntries = journalsRes.data;
+
+      // Calculate total users and therapists
+      const totalUsers = allUsers.length;
+      const totalTherapists = allUsers.filter(u => u.is_therapist).length;
+
+      // Calculate session status distribution
+      const sessionStatusCounts = allSessions.reduce((acc, session) => {
+        acc[session.status] = (acc[session.status] || 0) + 1;
+        return acc;
+      }, {});
+
+      const sessionData = Object.keys(sessionStatusCounts).map(status => ({
+        name: status.charAt(0).toUpperCase() + status.slice(1),
+        count: sessionStatusCounts[status],
+      }));
+
+      // Calculate mood distribution from journal entries
+      const moodCounts = allJournalEntries.reduce((acc, entry) => {
+        if (entry.mood) {
+          acc[entry.mood] = (acc[entry.mood] || 0) + 1;
+        }
+        return acc;
+      }, {});
+
+      const moodData = Object.keys(moodCounts).map(mood => ({
+        name: mood.charAt(0).toUpperCase() + mood.slice(1),
+        count: moodCounts[mood],
+      }));
+
+      setAnalyticsData({
+        totalUsers,
+        totalTherapists,
+        sessionData,
+        moodData,
+      });
+
+    } catch (err) {
+      console.error("Error fetching analytics data:", err.response?.data || err);
+      setError("Failed to load analytics data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
 
   useEffect(() => {
@@ -108,9 +165,9 @@ export default function AdminDashboard() {
       '/admin/applications': 0,
       '/admin/users': 1,
       '/admin/sessions': 2,
-      '/admin/journals': 3, 
+      '/admin/journals': 3,
       '/admin/analytics': 4,
-      '/admin': 0 
+      '/admin': 0
     };
 
     const currentPath = location.pathname;
@@ -140,8 +197,8 @@ export default function AdminDashboard() {
     }
   }, [user, token, authLoading, currentTab, fetchTherapistApplications, fetchUsers, fetchSessions, fetchJournalEntries, fetchAnalyticsData]);
 
-  // Handle tab change
-  const handleTabChange = (event, newValue) => {
+  // Handle tab change (will need to be triggered by side navbar or other UI elements)
+  const handleTabChange = (event, newValue) => { // This function will no longer be called by Tabs component
     setCurrentTab(newValue);
     // Optionally, update the URL to match the tab change for direct linking
     const tabToPathMap = {
@@ -152,7 +209,7 @@ export default function AdminDashboard() {
       4: '/admin/analytics'
     };
     navigate(tabToPathMap[newValue]);
-    setError(null); 
+    setError(null);
   };
 
   // Snackbar and Modal Handlers
@@ -213,8 +270,8 @@ export default function AdminDashboard() {
   if (authLoading || loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-        <CircularProgress sx={{ color: '#780000' }} />
-        <Typography sx={{ ml: 2, color: '#780000' }}>Loading admin dashboard...</Typography>
+        <CircularProgress sx={{ color: primaryColor }} />
+        <Typography sx={{ ml: 2, color: primaryColor }}>Loading admin dashboard...</Typography>
       </Box>
     );
   }
@@ -228,32 +285,35 @@ export default function AdminDashboard() {
         <Typography variant="body1" sx={{ mb: 3 }}>
           Please log in with an administrator account.
         </Typography>
-        <Button component={Link} to="/login" variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }}>
+        <Button component={Link} to="/login" variant="contained" sx={{ backgroundColor: primaryColor, '&:hover': { backgroundColor: '#5a0000' } }}>
           Go to Login
         </Button>
       </Box>
     );
   }
 
+  const COLORS = ['#780000', '#b56576', '#e7a042', '#6d597a', '#7f5a83', '#a75000'];
+
+
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0' }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: neutralBg }}>
       <Container maxWidth="lg" sx={{ py: 3 }}>
-        <Typography variant="h4" sx={{ color: '#780000', mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ color: primaryColor, mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
           MindWell Admin Dashboard
         </Typography>
 
-       
+        {/* The Tabs component was here */}
 
         {/* Tab Panel for Therapist Applications */}
         {currentTab === 0 && (
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
+            <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold' }}>
               Therapist Applications
             </Typography>
             {error ? (
               <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
             ) : therapistApplications.length === 0 ? (
-              <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 2 }}>
+              <Typography variant="h6" sx={{ textAlign: 'center', color: primaryColor, mt: 2 }}>
                 No therapist applications found.
               </Typography>
             ) : (
@@ -261,11 +321,11 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Applicant Name</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Status</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Submitted At</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Actions</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Applicant Name</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Submitted At</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -281,7 +341,7 @@ export default function AdminDashboard() {
                           <Button
                             variant="outlined"
                             size="small"
-                            sx={{ borderColor: '#780000', color: '#780000', '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
+                            sx={{ borderColor: primaryColor, color: primaryColor, '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
                             onClick={() => handleOpenReviewModal(app)}
                           >
                             Review
@@ -299,23 +359,23 @@ export default function AdminDashboard() {
         {/* Tab Panel for User Management */}
         {currentTab === 1 && (
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
+            <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold' }}>
               User Management
             </Typography>
             {error ? (
                 <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
             ) : users.length === 0 ? (
-                <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 2 }}>No users found.</Typography>
+                <Typography variant="h6" sx={{ textAlign: 'center', color: primaryColor, mt: 2 }}>No users found.</Typography>
             ) : (
                 <TableContainer>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Email</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Name</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Role</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Verified</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Actions</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Email</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Name</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Role</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Verified</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -324,18 +384,18 @@ export default function AdminDashboard() {
                                     <TableCell>{u.email}</TableCell>
                                     <TableCell>{u.first_name} {u.last_name}</TableCell>
                                     <TableCell>
-                                      <Chip 
-                                        label={u.is_superuser ? 'Admin' : (u.is_therapist ? 'Therapist' : 'User')} 
-                                        size="small" 
+                                      <Chip
+                                        label={u.is_superuser ? 'Admin' : (u.is_therapist ? 'Therapist' : 'User')}
+                                        size="small"
                                         color={u.is_superuser ? 'secondary' : (u.is_therapist ? 'primary' : 'default')}
                                       />
                                     </TableCell>
                                     <TableCell>{u.is_verified ? 'Yes' : 'No'}</TableCell>
                                     <TableCell>
-                                        <Button 
-                                          size="small" 
+                                        <Button
+                                          size="small"
                                           variant="outlined"
-                                          sx={{ borderColor: '#780000', color: '#780000', '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
+                                          sx={{ borderColor: primaryColor, color: primaryColor, '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
                                           onClick={() => handleOpenUserDetailsModal(u)}
                                         >
                                           View
@@ -353,25 +413,25 @@ export default function AdminDashboard() {
         {/* Tab Panel for Sessions */}
         {currentTab === 2 && (
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
+            <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold' }}>
               All Sessions
             </Typography>
             {error ? (
                 <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
             ) : sessions.length === 0 ? (
-                <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 2 }}>No sessions found.</Typography>
+                <Typography variant="h6" sx={{ textAlign: 'center', color: primaryColor, mt: 2 }}>No sessions found.</Typography>
             ) : (
                 <TableContainer>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Client</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Therapist</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Date</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Time</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Duration (min)</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Status</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Type</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Client</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Therapist</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Date</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Time</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Duration (min)</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Status</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Type</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -383,9 +443,9 @@ export default function AdminDashboard() {
                                     <TableCell>{s.session_time}</TableCell>
                                     <TableCell> {s.duration_minutes} </TableCell>
                                     <TableCell>
-                                      <Chip 
-                                        label={s.status.charAt(0).toUpperCase() + s.status.slice(1)} 
-                                        size="small" 
+                                      <Chip
+                                        label={s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                                        size="small"
                                         color={s.status === 'completed' ? 'success' : 'info'}
                                       />
                                     </TableCell>
@@ -402,23 +462,23 @@ export default function AdminDashboard() {
         {/* Tab Panel for Journal Entries */}
         {currentTab === 3 && (
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
+            <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold' }}>
               All Journal Entries
             </Typography>
             {error ? (
                 <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
             ) : journalEntries.length === 0 ? (
-                <Typography variant="h6" sx={{ textAlign: 'center', color: '#780000', mt: 2 }}>No journal entries found.</Typography>
+                <Typography variant="h6" sx={{ textAlign: 'center', color: primaryColor, mt: 2 }}>No journal entries found.</Typography>
             ) : (
                 <TableContainer>
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>User Email</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Date</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Mood</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Entry Summary</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#780000' }}>Tags</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>User Email</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Date</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Mood</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Entry Summary</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Tags</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -447,13 +507,73 @@ export default function AdminDashboard() {
         {/* Tab Panel for Analytics */}
         {currentTab === 4 && (
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 'bold' }}>
+            <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold' }}>
               Website Analytics
             </Typography>
-            <Typography>
-              This section will display various graphs and detailed statistics related to user activity, session trends, mood patterns, and more once the analytics endpoints are implemented in the backend.
-            </Typography>
-            
+            {error ? (
+              <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
+            ) : analyticsData ? (
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Paper elevation={1} sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Overview</Typography>
+                    <Typography variant="body1">Total Users: <Chip label={analyticsData.totalUsers} color="primary" sx={{ bgcolor: primaryColor, color: 'white' }} /></Typography>
+                    <Typography variant="body1" sx={{ mt: 1 }}>Total Therapists: <Chip label={analyticsData.totalTherapists} color="secondary" sx={{ bgcolor: secondaryColor, color: 'white' }} /></Typography>
+                    <Typography variant="body1" sx={{ mt: 1 }}>Total Sessions: <Chip label={sessions.length} color="info" /></Typography>
+                    <Typography variant="body1" sx={{ mt: 1 }}>Total Journal Entries: <Chip label={journalEntries.length} color="success" /></Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper elevation={1} sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Session Status Distribution</Typography>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart
+                        data={analyticsData.sessionData}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" stroke={primaryColor} />
+                        <YAxis stroke={primaryColor} allowDecimals={false} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="count" fill={primaryColor} name="Number of Sessions" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12}>
+                  <Paper elevation={1} sx={{ p: 2 }}>
+                    <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Journal Entry Mood Distribution</Typography>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={analyticsData.moodData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={100}
+                          fill="#8884d8"
+                          dataKey="count"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {
+                            analyticsData.moodData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))
+                          }
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Paper>
+                </Grid>
+              </Grid>
+            ) : (
+              <Typography variant="h6" sx={{ textAlign: 'center', color: primaryColor, mt: 2 }}>
+                No analytics data available or still loading.
+              </Typography>
+            )}
           </Paper>
         )}
 
@@ -466,11 +586,11 @@ export default function AdminDashboard() {
 
         {/* Review Application Modal */}
         <Dialog open={openReviewModal} onClose={handleCloseReviewModal} maxWidth="sm" fullWidth>
-            <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>Review Therapist Application</DialogTitle>
+            <DialogTitle sx={{ color: primaryColor, fontWeight: 'bold' }}>Review Therapist Application</DialogTitle>
             <DialogContent dividers>
                 {selectedApplication && (
                     <Box>
-                        <Typography variant="h6" sx={{ mb: 1, color: '#780000' }}>Applicant: {selectedApplication.applicant_full_name}</Typography>
+                        <Typography variant="h6" sx={{ mb: 1, color: primaryColor }}>Applicant: {selectedApplication.applicant_full_name}</Typography>
                         <Typography variant="body2"><strong>Email:</strong> {selectedApplication.applicant_email}</Typography>
                         <Typography variant="body2"><strong>License Number:</strong> {selectedApplication.license_number}</Typography>
                         <Typography variant="body2"><strong>ID Number:</strong> {selectedApplication.id_number}</Typography>
@@ -536,8 +656,8 @@ export default function AdminDashboard() {
                 )}
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleCloseReviewModal} sx={{ color: '#780000' }}>Cancel</Button>
-                <Button onClick={handleSaveReview} variant="contained" sx={{ backgroundColor: '#780000', '&:hover': { backgroundColor: '#5a0000' } }} disabled={submitting}>
+                <Button onClick={handleCloseReviewModal} sx={{ color: primaryColor }}>Cancel</Button>
+                <Button onClick={handleSaveReview} variant="contained" sx={{ backgroundColor: primaryColor, '&:hover': { backgroundColor: '#5a0000' } }} disabled={submitting}>
                     {submitting ? <CircularProgress size={24} color="inherit" /> : 'Save Review'}
                 </Button>
             </DialogActions>
@@ -545,7 +665,7 @@ export default function AdminDashboard() {
 
         {/* New: User Details/Edit Modal */}
         <Dialog open={openUserDetailsModal} onClose={handleCloseUserDetailsModal} maxWidth="sm" fullWidth>
-            <DialogTitle sx={{ color: '#780000', fontWeight: 'bold' }}>User Details</DialogTitle>
+            <DialogTitle sx={{ color: primaryColor, fontWeight: 'bold' }}>User Details</DialogTitle>
             <DialogContent dividers>
                 {selectedUser && (
                     <Box>
@@ -558,7 +678,7 @@ export default function AdminDashboard() {
                         <Typography variant="body1"><strong>Is Superuser:</strong> {selectedUser.is_superuser ? 'Yes' : 'No'}</Typography>
                         {selectedUser.is_therapist && (
                             <Box sx={{ mt: 2, borderTop: '1px solid #eee', pt: 2 }}>
-                                <Typography variant="h6" sx={{ color: '#780000', mb: 1 }}>Therapist Details</Typography>
+                                <Typography variant="h6" sx={{ color: primaryColor, mb: 1 }}>Therapist Details</Typography>
                                 <Typography variant="body2"><strong>Bio:</strong> {selectedUser.bio || 'N/A'}</Typography>
                                 <Typography variant="body2"><strong>Years of Experience:</strong> {selectedUser.years_of_experience || 'N/A'}</Typography>
                                 <Typography variant="body2"><strong>Specializations:</strong> {selectedUser.specializations || 'N/A'}</Typography>
@@ -579,8 +699,8 @@ export default function AdminDashboard() {
                 )}
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleCloseUserDetailsModal} sx={{ color: '#780000' }}>Close</Button>
-               
+                <Button onClick={handleCloseUserDetailsModal} sx={{ color: primaryColor }}>Close</Button>
+
             </DialogActions>
         </Dialog>
 
