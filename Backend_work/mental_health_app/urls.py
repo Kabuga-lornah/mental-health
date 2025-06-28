@@ -21,7 +21,7 @@ from .views import (
     MpesaCallbackView,
     AiRecommendationView,
     ChatWithGeminiView,
-    # Admin-specific views that were missing in urlpatterns
+    ChatMessageListView,
     AdminUserListView,
     AdminSessionListView,
     AdminJournalEntryListView,
@@ -91,4 +91,5 @@ urlpatterns = [
     # NEW: AI Endpoints
     path('ai/recommendations/', AiRecommendationView.as_view(), name='ai-recommendations'),
     path('ai/chat/', ChatWithGeminiView.as_view(), name='ai-chat'),
+    path('chat/messages/<str:room_name>/', ChatMessageListView.as_view(), name='chat-message-list'),
 ]

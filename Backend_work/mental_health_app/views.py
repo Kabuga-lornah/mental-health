@@ -1323,9 +1323,7 @@ class ChatWithGeminiView(APIView):
             response = gemini_model.generate_content(formatted_history, generation_config=generation_config)
             bot_response_text = response.text.strip()
 
-            # Add a disclaimer (similar to your frontend logic)
-            # NOTE: This disclaimer logic could also be handled on the frontend if desired
-            # Fix: Changed .includes() to 'in' for Python string check
+           
             if not "mindwell" in bot_response_text.lower() and \
                not "journaling" in bot_response_text.lower() and \
                not "platform" in bot_response_text.lower():
@@ -1336,3 +1334,16 @@ class ChatWithGeminiView(APIView):
         except Exception as e:
             print(f"ERROR: Error calling Gemini API for chat: {e}")
             return Response({"error": "Failed to get response from AI chat. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class ChatMessageListView(generics.ListAPIView):
+    serializer_class = ChatMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        room_name = self.kwargs['room_name']
+      
+        sender_id, receiver_id = self._parse_room_name(room_name) 
+        if self.request.user.id not in [sender_id, receiver_id]:
+            raise PermissionDenied("You are not authorized to view this chat.")
+
+        return ChatMessage.objects.filter(room_name=room_name).order_by('timestamp')
