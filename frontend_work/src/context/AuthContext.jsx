@@ -1,4 +1,3 @@
-// frontend_work/src/context/AuthContext.jsx
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
@@ -24,8 +23,13 @@ export const AuthProvider = ({ children }) => {
         refresh: refreshToken,
       });
       const newAccessToken = response.data.access;
+      const newRefreshToken = response.data.refresh; // Get the new refresh token returned by the backend
+
       setToken(newAccessToken);
+      setRefreshToken(newRefreshToken); // Update refresh token state with the new one
       localStorage.setItem("access_token", newAccessToken);
+      localStorage.setItem("refresh_token", newRefreshToken); // Update refresh token in localStorage with the new one
+
       console.log("AuthContext - Access token refreshed successfully.");
       return newAccessToken;
     } catch (err) {
@@ -33,7 +37,7 @@ export const AuthProvider = ({ children }) => {
       logout(); // Logout on refresh failure
       return null;
     }
-  }, [refreshToken]);
+  }, [refreshToken]); // refreshToken is a dependency because it's used in the function
 
   // Fetch user details from API
   const fetchUserDetails = async (currentToken) => {
@@ -89,7 +93,7 @@ export const AuthProvider = ({ children }) => {
         delete axios.defaults.headers.common["Authorization"];
         localStorage.removeItem("access_token");
         localStorage.removeItem("user");
-        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("refresh_token"); // Ensure refresh token is also cleared if no access token
       }
       setLoading(false);
     };
@@ -121,8 +125,7 @@ export const AuthProvider = ({ children }) => {
       axios.interceptors.response.eject(interceptor);
     };
 
-  }, [token, refreshToken, refreshAccessToken]);
-
+  }, [token, refreshToken, refreshAccessToken]); // Add refreshAccessToken as dependency
 
   // Login function
   const login = async (email, password) => {

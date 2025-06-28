@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'mental_health_app',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist', 
     'corsheaders',
     'channels', 
 ]
@@ -160,11 +161,25 @@ CSRF_TRUSTED_ORIGINS = [
 
 AUTH_USER_MODEL = 'mental_health_app.User' 
 
+# BEGIN MODIFICATION FOR CLOUDINARY CONFIGURATION
+# Remove or comment out the hardcoded block like this:
+# cloudinary.config(
+#     cloud_name='dgdf0svqx',
+#     api_key='563553895748169',
+#     api_secret='V5pzLDiadn6UCYyCkMxOSMQqeGg'
+# )
+
+# Instead, read from environment variables:
+CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', 'dgdf0svqx') 
+CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY', '563553895748169') 
+CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET', 'V5pzLDiadn6UCYyCkMxOSMQqeGg') 
+
 cloudinary.config(
-    cloud_name='dgdf0svqx',
-    api_key='563553895748169',
-    api_secret='V5pzLDiadn6UCYyCkMxOSMQqeGg'
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET
 )
+# END MODIFICATION FOR CLOUDINARY CONFIGURATION
 
 MEDIA_URL = '/media/'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'

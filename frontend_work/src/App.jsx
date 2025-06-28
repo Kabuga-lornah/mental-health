@@ -1,4 +1,3 @@
-// frontend_work/src/App.jsx
 import React from 'react';
 import { createBrowserRouter, RouterProvider, Outlet, useNavigation, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -9,7 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Homepage from "./components/Homepage";
 import Journal from "./components/Journal";
 import Navbar from "./components/Navbar";
-import TherapistNavbar from "./components/TherapistNavbar_OLD";
+import TherapistNavbar from "./components/TherapistNavbar_OLD"; // Assuming this is correct
 import TherapistDashboard from "./components/TherapistDashboard";
 import FindTherapist from "./components/FindTherapist";
 import TherapistApplicationForm from "./components/TherapistApplicationForm";
@@ -19,6 +18,8 @@ import Footer from "./components/Footer";
 import TherapistDetail from "./components/TherapistDetail";
 import Meditation from "./components/Meditation";
 import BreathingLoader from "./components/BreathingLoader";
+import UserProfile from "./components/UserProfile"; // NEW IMPORT
+import TherapistProfile from "./components/TherapistProfile"; // NEW IMPORT
 
 
 const AppNavbar = () => {
@@ -118,6 +119,14 @@ const router = createBrowserRouter([
       {
         path: "therapist/dashboard",
         element: <ProtectedRoute><TherapistDashboard /></ProtectedRoute>,
+      },
+      {
+        path: "profile", // NEW: User Profile route
+        element: <ProtectedRoute><UserProfile /></ProtectedRoute>,
+      },
+      {
+        path: "therapist/profile", // NEW: Therapist Profile route
+        element: <ProtectedRoute requiredRole="therapist" therapistVerified={true}><TherapistProfile /></ProtectedRoute>,
       },
       {
         path: "admin/applications",

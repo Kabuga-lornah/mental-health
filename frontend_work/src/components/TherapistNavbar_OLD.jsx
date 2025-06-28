@@ -1,38 +1,161 @@
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  Box,
+  Avatar,
+  Menu,
+  MenuItem,
+  IconButton
+} from "@mui/material";
+import { useState, useEffect } from "react";
 
-import React from 'react';
-import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+// Load Cinzel font (assuming this is desired for therapist navbar too)
+const loadCinzelFont = () => {
+  const link = document.createElement("link");
+  link.href = "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap";
+  link.rel = "stylesheet";
+  document.head.appendChild(link);
+};
 
 export default function TherapistNavbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  useEffect(() => {
+    loadCinzelFont();
+  }, []);
+
+  const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
+  const handleMenuClose = () => setAnchorEl(null);
 
   const handleLogout = () => {
     logout();
-    navigate('/login'); 
+    navigate("/");
   };
 
+  // Only render this navbar if the user is a therapist
+  if (!user || !user.is_therapist) return null;
+
   return (
-    <AppBar position="static" sx={{ backgroundColor: '#780000' }}>
-      <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          <Link to="/therapist/dashboard" style={{ textDecoration: 'none', color: 'inherit' }}>
-            MindWell Therapist Portal
-          </Link>
+    <AppBar
+      position="static"
+      sx={{
+        backgroundColor: "#780000",
+        boxShadow: "none",
+        padding: "0.5rem 0",
+        fontFamily: "'Cinzel', serif",
+      }}
+    >
+      <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+        <Typography
+          variant="h5"
+          component={Link}
+          to="/"
+          sx={{
+            fontFamily: "'Cinzel', serif",
+            fontWeight: 700,
+            fontSize: "2rem",
+            color: "#fefae0",
+            textDecoration: "none",
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+            "&:hover": { color: "white" },
+          }}
+        >
+          MindWell
         </Typography>
-        <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-          {user ? (
+
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+          {user && user.is_therapist ? (
             <>
-              <Button color="inherit" component={Link} to="/therapist/dashboard">Dashboard</Button>
-              {/* Add other therapist-specific links here */}
-              <Button color="inherit" onClick={handleLogout}>Logout</Button>
+              <Button
+                component={Link}
+                to="/therapist/dashboard"
+                sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
+              >
+                Dashboard
+              </Button>
+
+              <Button
+                component={Link}
+                to="/journal" // Assuming therapists can also journal
+                sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
+              >
+                Journal
+              </Button>
+
+              <Button
+                component={Link}
+                to="/meditation" // Assuming therapists can also use meditation
+                sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
+              >
+                Meditation
+              </Button>
+
+              <IconButton onClick={handleMenuOpen} size="small">
+                <Avatar src={user.profile_picture} sx={{ bgcolor: "#fefae0", color: "#780000" }}>
+                  {!user.profile_picture && user.first_name?.charAt(0)}
+                </Avatar>
+              </IconButton>
+
+              <Menu
+                anchorEl={anchorEl}
+                open={open}
+                onClose={handleMenuClose}
+                PaperProps={{
+                  sx: {
+                    mt: 1.5,
+                    minWidth: 200,
+                    fontFamily: "'Cinzel', serif",
+                  },
+                }}
+              >
+                <MenuItem disabled>
+                  <strong>Dr. {user.first_name} {user.last_name}</strong>
+                </MenuItem>
+                <MenuItem
+                  component={Link}
+                  to="/therapist/profile" // NEW: Point to therapist profile route
+                  onClick={handleMenuClose}
+                  sx={{ fontFamily: "'Cinzel', serif" }}
+                >
+                  View/Edit Profile
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    handleLogout();
+                    handleMenuClose();
+                  }}
+                  sx={{ fontFamily: "'Cinzel', serif" }}
+                >
+                  Logout
+                </MenuItem>
+              </Menu>
             </>
           ) : (
-            <>
-              <Button color="inherit" component={Link} to="/login">Login</Button>
-              <Button color="inherit" component={Link} to="/register">Register</Button>
-            </>
+            // This case should ideally not be hit if the 'if' condition above works correctly,
+            // but providing a fallback for robustness.
+            <Button
+              component={Link}
+              to="/login"
+              sx={{
+                backgroundColor: "#fefae0",
+                color: "#780000",
+                fontWeight: "bold",
+                fontFamily: "'Cinzel', serif",
+                "&:hover": {
+                  backgroundColor: "white",
+                },
+              }}
+            >
+              Login
+            </Button>
           )}
         </Box>
       </Toolbar>

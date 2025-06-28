@@ -7,7 +7,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { login, user: authUser } = useAuth();
+  const { login } = useAuth(); // Removed 'user: authUser' from destructuring, will use response.user
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -15,11 +15,11 @@ export default function Login() {
     setError("");
     try {
       console.log("DEBUG: Login.jsx: Attempting login with email:", email);
-      const response = await login(email, password);
+      const response = await login(email, password); // response will contain { success: true, user: userData }
 
       console.log("DEBUG: Login.jsx - Response from login function:", response);
 
-      if (response && response.user) {
+      if (response && response.user) { // Use response.user directly
         console.log("DEBUG: Login.jsx: User object from response: ", response.user);
         console.log("DEBUG: Login.jsx: is_staff: ", response.user.is_staff, "is_superuser: ", response.user.is_superuser);
 
@@ -32,7 +32,8 @@ export default function Login() {
         // Therapist redirect
         else if (response.user.is_therapist) {
           console.log("DEBUG: Login.jsx - Redirecting therapist.");
-          navigate(authUser.is_verified ? "/therapist/dashboard" : "/therapist-apply");
+          // Use response.user.is_verified directly
+          navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply");
         }
         // Regular user redirect
         else {
@@ -40,25 +41,12 @@ export default function Login() {
           navigate("/homepage");
         }
       } else {
-        console.warn("DEBUG: Login.jsx - Login successful but user object not immediately available from response. Redirecting based on AuthContext user state.");
-
-        if (authUser) {
-          console.log("DEBUG: Login.jsx - Fallback: user from AuthContext: ", authUser);
-          if (authUser.is_staff && authUser.is_superuser) {
-            console.log("DEBUG: Login.jsx - Fallback: Redirecting to admin applications (from AuthContext user) with navigate.");
-            navigate("/admin/applications");
-            return;
-          } else if (authUser.is_therapist) {
-            console.log("DEBUG: Login.jsx - Fallback: Redirecting therapist (from AuthContext user).");
-            navigate(authUser.is_verified ? "/therapist/dashboard" : "/therapist-apply");
-          } else {
-            console.log("DEBUG: Login.jsx - Fallback: Redirecting regular user to homepage (from AuthContext user).");
-            navigate("/homepage");
-          }
-        } else {
-          console.log("DEBUG: Login.jsx - Fallback: No user in AuthContext. Defaulting to homepage.");
-          navigate("/homepage");
-        }
+        // This 'else' block should ideally not be hit if login returns success and user
+        // If it is hit, it means login was successful but response.user was not populated
+        // This might indicate an issue with the AuthContext's login return value,
+        // or a very rare timing issue. For now, we'll keep a simpler fallback.
+        console.warn("DEBUG: Login.jsx - Login successful, but response.user was not immediately available. Defaulting to homepage.");
+        navigate("/homepage"); // Default fallback if response.user is unexpectedly missing
       }
     } catch (err) {
       setError(err.error || err.message || "Invalid credentials");

@@ -106,8 +106,8 @@ export default function Navbar() {
               </Button>
 
               <IconButton onClick={handleMenuOpen} size="small">
-                <Avatar src={user.photo} sx={{ bgcolor: "#fefae0", color: "#780000" }}>
-                  {!user.photo && user.first_name?.charAt(0)}
+                <Avatar src={user.profile_picture} sx={{ bgcolor: "#fefae0", color: "#780000" }}>
+                  {!user.profile_picture && user.first_name?.charAt(0)}
                 </Avatar>
               </IconButton>
 
@@ -128,20 +128,13 @@ export default function Navbar() {
                 </MenuItem>
                 <MenuItem
                   component={Link}
-                  to="/profile"
+                  to="/profile" // Point to the new UserProfile route
                   onClick={handleMenuClose}
                   sx={{ fontFamily: "'Cinzel', serif" }}
                 >
-                  View Profile
+                  View/Edit Profile
                 </MenuItem>
-                <MenuItem
-                  component={Link}
-                  to="/profile/photo"
-                  onClick={handleMenuClose}
-                  sx={{ fontFamily: "'Cinzel', serif" }}
-                >
-                  Upload/Remove Photo
-                </MenuItem>
+                {/* Removed separate "Upload/Remove Photo" as it's now in UserProfile */}
                 <MenuItem
                   onClick={() => {
                     handleLogout();

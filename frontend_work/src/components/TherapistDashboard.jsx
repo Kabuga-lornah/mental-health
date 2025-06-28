@@ -1,4 +1,3 @@
-// frontend_work/src/components/TherapistDashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container, Typography, Box, Paper, Button, CircularProgress,
@@ -11,11 +10,12 @@ import {
 import {
   VideoCall, LocationOn, ExpandMore, ExpandLess,
   CheckCircle, Cancel, Notes,
-  InfoOutlined, AttachMoney, Category, Psychology
+  InfoOutlined, AttachMoney, Category, Psychology // Removed EditIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 // Define theme colors
 const themePrimaryColor = '#780000'; // Dark red/maroon
@@ -27,6 +27,7 @@ const themeBorderColor = '#e0e0e0'; // Neutral gray for borders
 
 const TherapistDashboard = () => {
   const { user, token, authLoading } = useAuth();
+  const navigate = useNavigate(); // Initialize useNavigate
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [therapistProfile, setTherapistProfile] = useState(null);
@@ -255,6 +256,8 @@ const TherapistDashboard = () => {
     }
   };
 
+  // Removed handleEditProfile function as the link is now in the navbar
+
   if (authLoading || loading) {
     return (
       <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
@@ -317,9 +320,12 @@ const TherapistDashboard = () => {
         {/* Profile Summary */}
         {therapistProfile && (
           <Paper elevation={3} sx={{ p: 4, mb: 4, backgroundColor: 'white', borderRadius: 2, border: `1px solid ${themeBorderColor}` }}>
-            <Typography variant="h5" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
-              Welcome, Dr. {therapistProfile.first_name} {therapistProfile.last_name}!
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold' }}>
+                    Welcome, Dr. {therapistProfile.first_name} {therapistProfile.last_name}!
+                </Typography>
+                {/* Removed Edit Profile button as it's now in the navbar */}
+            </Box>
             <Divider sx={{ mb: 2 }} />
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
