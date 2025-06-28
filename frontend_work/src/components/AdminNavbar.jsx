@@ -64,7 +64,7 @@ export default function AdminNavbar({ children }) {
       </Toolbar>
       <List>
         {[
-          { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin' },
+          
           { text: 'Therapist Applications', icon: <AssignmentIcon />, path: '/admin/applications' },
           { text: 'User Management', icon: <PeopleIcon />, path: '/admin/users' },
           { text: 'Sessions', icon: <CalendarMonthIcon />, path: '/admin/sessions' },
@@ -171,11 +171,10 @@ export default function AdminNavbar({ children }) {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          // Updated width and added marginLeft for larger screens
+          // Removed padding: p: 3, // Keep this commented out or remove if you don't want the default padding
           width: { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` }, // This pushes the content to the right
-          mt: { xs: '64px', sm: '0px' }
+          // ml: { sm: `${drawerWidth}px` }, // Remove this line
+          mt: { xs: '64px', sm: '0px' } // Keep mt for xs, but ensure sm is 0 or removed if not needed
         }}
       >
         {children}

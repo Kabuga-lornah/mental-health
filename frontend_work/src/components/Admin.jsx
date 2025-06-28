@@ -1,4 +1,3 @@
-// frontend_work/src/components/Admin.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Container, Paper, Grid, Button, CircularProgress,
@@ -11,8 +10,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
-// Import charting library components (e.g., from Recharts)
-// import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
 
 export default function AdminDashboard() {
   const { user, token, loading: authLoading } = useAuth();
@@ -32,14 +30,14 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [journalEntries, setJournalEntries] = useState([]);
-  const [analyticsData, setAnalyticsData] = useState(null); // For graphs
+  const [analyticsData, setAnalyticsData] = useState(null); 
 
   // Modals specific to applications
   const [openReviewModal, setOpenReviewModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [newStatus, setNewStatus] = useState('');
   const [reviewerNotes, setReviewerNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false); // <--- ADDED: Declare submitting state
+  const [submitting, setSubmitting] = useState(false); 
 
   // Modals for user/session details
   const [openUserDetailsModal, setOpenUserDetailsModal] = useState(false);
@@ -99,21 +97,20 @@ export default function AdminDashboard() {
   }, [token]);
 
   const fetchAnalyticsData = useCallback(async () => {
-    // Analytics endpoints are not yet implemented in the backend.
-    // This function will remain a placeholder.
-    setAnalyticsData(null); // Clear previous analytics data
+
+    setAnalyticsData(null); 
     setLoading(false);
   }, []);
 
-  // Effect to synchronize currentTab with URL path
+
   useEffect(() => {
     const pathToTabMap = {
       '/admin/applications': 0,
       '/admin/users': 1,
       '/admin/sessions': 2,
-      '/admin/journals': 3, // Assuming this is the path for Journal Entries
+      '/admin/journals': 3, 
       '/admin/analytics': 4,
-      '/admin': 0 // Default dashboard tab
+      '/admin': 0 
     };
 
     const currentPath = location.pathname;
@@ -155,7 +152,7 @@ export default function AdminDashboard() {
       4: '/admin/analytics'
     };
     navigate(tabToPathMap[newValue]);
-    setError(null); // Clear any previous errors when changing tabs
+    setError(null); 
   };
 
   // Snackbar and Modal Handlers
@@ -239,21 +236,13 @@ export default function AdminDashboard() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: 8 }}>
-      <Container maxWidth="lg">
+    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0' }}>
+      <Container maxWidth="lg" sx={{ py: 3 }}>
         <Typography variant="h4" sx={{ color: '#780000', mb: 4, textAlign: 'center', fontWeight: 'bold' }}>
           MindWell Admin Dashboard
         </Typography>
 
-        <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2, mb: 4 }}>
-          <Tabs value={currentTab} onChange={handleTabChange} aria-label="admin dashboard tabs" centered>
-            <Tab label="Therapist Applications" />
-            <Tab label="User Management" />
-            <Tab label="Sessions" />
-            <Tab label="Journal Entries" />
-            <Tab label="Analytics" />
-          </Tabs>
-        </Paper>
+       
 
         {/* Tab Panel for Therapist Applications */}
         {currentTab === 0 && (
@@ -349,7 +338,7 @@ export default function AdminDashboard() {
                                           sx={{ borderColor: '#780000', color: '#780000', '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
                                           onClick={() => handleOpenUserDetailsModal(u)}
                                         >
-                                          View/Edit
+                                          View
                                         </Button>
                                     </TableCell>
                                 </TableRow>
@@ -464,21 +453,7 @@ export default function AdminDashboard() {
             <Typography>
               This section will display various graphs and detailed statistics related to user activity, session trends, mood patterns, and more once the analytics endpoints are implemented in the backend.
             </Typography>
-            {/* Example: User Role Distribution */}
-            {/* {analyticsData?.userRoles && (
-              <Box sx={{ height: 300, mb: 4 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analyticsData.userRoles}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="count" fill="#780000" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Box>
-            )} */}
+            
           </Paper>
         )}
 

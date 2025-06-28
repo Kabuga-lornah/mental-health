@@ -169,7 +169,6 @@ AUTH_USER_MODEL = 'mental_health_app.User'
 #     api_secret='V5pzLDiadn6UCYyCkMxOSMQqeGg'
 # )
 
-# Instead, read from environment variables:
 CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', 'dgdf0svqx') 
 CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY', '563553895748169') 
 CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET', 'V5pzLDiadn6UCYyCkMxOSMQqeGg') 
@@ -179,7 +178,8 @@ cloudinary.config(
     api_key=CLOUDINARY_API_KEY,
     api_secret=CLOUDINARY_API_SECRET
 )
-# END MODIFICATION FOR CLOUDINARY CONFIGURATION
+
+
 
 MEDIA_URL = '/media/'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
