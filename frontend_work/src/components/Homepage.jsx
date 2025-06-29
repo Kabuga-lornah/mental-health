@@ -1,8 +1,9 @@
+// frontend_work/src/components/Homepage.jsx
 import React from "react";
 import { Box, Typography, Button, Container, Grid, Paper, Divider, Card, CardMedia, CardContent } from "@mui/material";
 import { Link } from "react-router-dom";
-// Removed import for AIChatbot as it was causing a resolution error.
-// Import Material-UI Icons for better visual appeal
+import AIChatbot from './AIChatbot'; // Corrected import for AIChatbot
+
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
@@ -11,9 +12,8 @@ import CreateOutlinedIcon from '@mui/icons-material/CreateOutlined';
 import SelfImprovementOutlinedIcon from '@mui/icons-material/SelfImprovementOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 
-// Placeholder images for visual appeal (using existing ones)
 const heroImage = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80";
-const brainflowerImage = "/brainflower.jpeg"; // Keep your new journaling image
+const brainflowerImage = "/brainflower.jpeg";
 
 export default function Homepage() {
   return (
@@ -21,13 +21,12 @@ export default function Homepage() {
       {/* Hero Section */}
       <Box
         sx={{
-          // Stronger, more impactful gradient inspired by subtle depth on Remente
           backgroundImage: `linear-gradient(135deg, rgba(179, 158, 73, 0.9) 0%, rgba(140, 133, 53, 0.9) 100%)`,
-          minHeight: "85vh", // Slightly taller hero for more impact
+          minHeight: "85vh",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center", // Center content vertically and horizontally
-          color: "white", // Text color should contrast well with the dark gradient
+          justifyContent: "center",
+          color: "white",
           textAlign: "center",
           position: "relative",
           overflow: "hidden",
@@ -41,7 +40,7 @@ export default function Homepage() {
             backgroundImage: `url(${heroImage})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            opacity: 0.2, // Slightly more opaque hero image for subtle texture
+            opacity: 0.2,
             zIndex: 1,
           },
         }}
@@ -49,13 +48,13 @@ export default function Homepage() {
         <Container maxWidth="lg" sx={{ position: "relative", zIndex: 2, py: { xs: 8, md: 12 } }}>
           <Typography
             variant="h2"
-            component="h1" // Semantic tag for main heading
+            component="h1"
             sx={{
               mb: 3,
-              fontWeight: 800, // Make it bolder
-              color: "white", // Ensure text is white for contrast
-              fontSize: { xs: '2.5rem', sm: '3.5rem', md: '4.5rem' }, // Responsive font size
-              textShadow: '2px 2px 8px rgba(0,0,0,0.4)' // Subtle shadow for readability
+              fontWeight: 800,
+              color: "white",
+              fontSize: { xs: '2.5rem', sm: '3.5rem', md: '4.5rem' },
+              textShadow: '2px 2px 8px rgba(0,0,0,0.4)'
             }}
           >
             Your Holistic Path to Mental Wellness
@@ -68,7 +67,7 @@ export default function Homepage() {
               maxWidth: "800px",
               mx: "auto",
               lineHeight: 1.6,
-              color: "#e0e0e0", // Lighter gray for subheading
+              color: "#e0e0e0",
               fontSize: { xs: '1.1rem', sm: '1.3rem', md: '1.5rem' }
             }}
           >
@@ -90,7 +89,7 @@ export default function Homepage() {
               fontWeight: 'bold',
               fontSize: { xs: "1rem", md: "1.1rem" },
               transition: 'transform 0.3s ease-in-out, background-color 0.3s ease-in-out',
-              boxShadow: '0 6px 20px rgba(120, 0, 0, 0.4)' // Stronger shadow for pop
+              boxShadow: '0 6px 20px rgba(120, 0, 0, 0.4)'
             }}
           >
             Start Your Journey Today
@@ -197,18 +196,17 @@ export default function Homepage() {
               </Button>
             </Grid>
             <Grid item xs={12} md={6}>
-              {/* Added a placeholder image to this section for visual balance */}
               <CardMedia
                 component="img"
-                image="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" // Using therapyImage
+                image="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
                 alt="Therapist Session"
                 sx={{
                   borderRadius: 4,
                   boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
                   width: '100%',
-                  height: 'auto', // Maintain aspect ratio
+                  height: 'auto',
                   maxWidth: '100%',
-                  display: 'block' // Remove extra space below image
+                  display: 'block'
                 }}
               />
             </Grid>
@@ -224,10 +222,10 @@ export default function Homepage() {
             image={brainflowerImage}
             alt="Brain Flower representing journaling insights"
             sx={{
-              width: { xs: "100%", md: "45%" }, // Adjusted width for better visual balance
+              width: { xs: "100%", md: "45%" },
               objectFit: "cover",
-              borderRadius: { xs: '4px 4px 0 0', md: '4px 0 0 4px' }, // Rounded corners specific to image
-              minHeight: { xs: '200px', md: '450px' } // Ensure image has a minimum height
+              borderRadius: { xs: '4px 4px 0 0', md: '4px 0 0 4px' },
+              minHeight: { xs: '200px', md: '450px' }
             }}
           />
           <CardContent sx={{ p: { xs: 4, md: 6 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -246,13 +244,13 @@ export default function Homepage() {
             <Typography sx={{ mb: 4, color: "#555", fontSize: { xs: "1rem", md: "1.1rem" }, lineHeight: 1.8 }}>
               Transform daily writing into emotional breakthroughs. Capture your moods, vent your thoughts, and track patterns that lead to healing and self-discovery.
             </Typography>
-            <Divider sx={{ my: 3 }} /> {/* Increased margin for divider */}
+            <Divider sx={{ my: 3 }} />
             {[
               { icon: <InsightsOutlinedIcon sx={{ color: "#780000", mr: 1.5, fontSize: '1.8rem' }} />, title: "Mood Tracking", desc: "Log daily emotions and visualize trends with beautiful, insightful charts." },
               { icon: <CreateOutlinedIcon sx={{ color: "#780000", mr: 1.5, fontSize: '1.8rem' }} />, title: "Free-form Expression", desc: "Write your thoughts freely or use guided prompts like #gratitude, #anxiety, and #reflection." },
               { icon: <SelfImprovementOutlinedIcon sx={{ color: "#780000", mr: 1.5, fontSize: '1.8rem' }} />, title: "Self-Discovery & Growth", desc: "Uncover emotional triggers, identify recurring patterns, and track your personal development journey." }
             ].map((feature, index) => (
-              <Box key={index} sx={{ mb: 3, display: 'flex', alignItems: 'flex-start' }}> {/* Align icon with start of text */}
+              <Box key={index} sx={{ mb: 3, display: 'flex', alignItems: 'flex-start' }}>
                 {feature.icon}
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: "#780000", mb: 0.5 }}>
@@ -269,11 +267,11 @@ export default function Homepage() {
               to="/journal"
               variant="contained"
               sx={{
-                mt: 4, // Increased top margin
+                mt: 4,
                 backgroundColor: "#780000",
                 color: "white",
                 "&:hover": { backgroundColor: "#5a0000", transform: 'scale(1.05)' },
-                px: 4, py: 1.5, // Slightly larger padding
+                px: 4, py: 1.5,
                 borderRadius: 3,
                 fontWeight: 'bold',
                 transition: 'transform 0.2s ease-in-out',
@@ -347,10 +345,9 @@ export default function Homepage() {
               </Button>
             </Grid>
             <Grid item xs={12} md={6}>
-              {/* Added a placeholder image to this section for visual balance */}
               <CardMedia
                 component="img"
-                image="https://images.unsplash.com/photo-1506126613408-eca07ce68773?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" // Using meditationImage
+                image="https://images.unsplash.com/photo-1506126613408-eca07ce68773?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
                 alt="Meditation and AI Guidance"
                 sx={{
                   borderRadius: 4,
@@ -366,11 +363,7 @@ export default function Homepage() {
         </Paper>
       </Container>
 
-      {/* The AIChatbot component was removed due to import resolution issues. 
-          If you have this component in a separate file, ensure it's placed in the same directory as Homepage.jsx, 
-          and then you can re-add the import and component usage. 
-          For now, it is commented out to allow the rest of the page to render. */}
-      {/* <AIChatbot /> */}
+      <AIChatbot />
     </Box>
   );
 }

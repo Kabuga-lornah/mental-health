@@ -2,9 +2,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box, Button, TextField, Typography, Paper, CircularProgress, IconButton,
-  Snackbar, Alert // Removed RadioGroup, FormControlLabel, Radio, FormControl, FormLabel, Select, MenuItem
+  Snackbar, Alert, InputAdornment
 } from '@mui/material';
-import { Close as CloseIcon, Send as SendIcon, Chat as ChatIcon, Mic as MicIcon, Stop as StopIcon, VolumeUp as VolumeUpIcon } from '@mui/icons-material';
+import {
+  Close as CloseIcon, Send as SendIcon, Chat as ChatIcon, Mic as MicIcon, Stop as StopIcon, VolumeUp as VolumeUpIcon,
+  ThumbUpOutlined as ThumbUpOutlinedIcon,
+  ThumbDownOutlined as ThumbDownOutlinedIcon,
+  RefreshOutlined as RefreshOutlinedIcon,
+  ContentCopyOutlined as ContentCopyOutlinedIcon,
+  StopOutlined as StopOutlinedIcon
+} from '@mui/icons-material';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -22,52 +29,43 @@ export default function AIChatbot() {
 
   const chatSessionRef = useRef(null);
 
-  // State for Speech-to-Text (STT)
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef(null); // Ref for SpeechRecognition instance
+  const recognitionRef = useRef(null);
 
-  // State for Text-to-Speech (TTS)
-  // Removed selectedVoiceGender as it's now hardcoded to female
-  const [isSpeaking, setIsSpeaking] = useState(false); // To indicate if the bot is currently speaking
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  // Removed speakingMessageIndex as it's no longer needed for individual message icons
+  // const [speakingMessageIndex, setSpeakingMessageIndex] = useState(null);
 
-  // State for Snackbar (for error/info messages)
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('info');
 
-  // Initialize Speech Synthesis Voices (simplified)
   useEffect(() => {
-    // This useEffect is now simpler as we no longer need to track availableVoices state for UI selection
-    // The voices will be fetched directly in the speak function.
+    // This useEffect hook is empty and can be removed or used for other initializations
   }, []);
 
-  // Function to speak text
-  const speak = useCallback((text) => {
+  const speak = useCallback((text) => { // Removed index parameter as it's not needed for individual icons
     if (!window.speechSynthesis || !text) return;
 
-    // Stop any ongoing speech before starting a new one
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
     }
     
     setIsSpeaking(true);
+    // setSpeakingMessageIndex(index); // Removed setting speaking index
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Select a female voice by default
     const voices = window.speechSynthesis.getVoices();
     let voiceToUse = null;
 
-    // Prioritize female English voices
     voiceToUse = voices.find(
       (voice) => voice.lang.startsWith('en') && (voice.name.toLowerCase().includes('female') || voice.name.toLowerCase().includes('woman'))
     );
     
-    // Fallback to any English voice if a specific female voice isn't found
     if (!voiceToUse) {
         voiceToUse = voices.find(voice => voice.lang.startsWith('en'));
     }
 
-    // Final fallback to default browser voice if no specific English voice is found
     if (!voiceToUse && voices.length > 0) {
         voiceToUse = voices[0];
     }
@@ -78,35 +76,36 @@ export default function AIChatbot() {
         console.warn("No suitable female or English voice found. Using default.");
     }
 
-    utterance.pitch = 1; // Default pitch
-    utterance.rate = 1;  // Default rate (speed)
+    utterance.pitch = 1;
+    utterance.rate = 1;
 
     utterance.onend = () => {
       setIsSpeaking(false);
+      // setSpeakingMessageIndex(null); // Removed clearing speaking index on end
     };
     utterance.onerror = (event) => {
         console.error('SpeechSynthesisUtterance.onerror', event);
         setIsSpeaking(false);
+        // setSpeakingMessageIndex(null); // Removed clearing speaking index on error
     };
 
     window.speechSynthesis.speak(utterance);
-  }, []); // speak no longer depends on selectedVoiceGender
+  }, []);
 
-  // Function to stop current speech
   const stopSpeaking = useCallback(() => {
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
+      // setSpeakingMessageIndex(null); // Removed clearing speaking index
     }
   }, []);
 
-  // Initialize Speech Recognition
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false; 
-      recognitionRef.current.interimResults = true; // IMPORTANT: Enable interim results for live typing
+      recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event) => {
@@ -121,13 +120,10 @@ export default function AIChatbot() {
           }
         }
         
-        // Update input message with interim results, or finalize with final results
         setInputMessage(finalTranscript || interimTranscript);
 
         if (finalTranscript) {
           setIsListening(false);
-          // If you want to auto-send the message once spoken, uncomment below:
-          // handleSendMessage(); 
         }
       };
 
@@ -148,9 +144,8 @@ export default function AIChatbot() {
       setSnackbarSeverity('warning');
       setSnackbarOpen(true);
     }
-  }, []); // Run once on component mount
+  }, []);
 
-  // Toggle listening for speech input
   const handleListen = () => {
     if (!recognitionRef.current) {
       setSnackbarMessage("Speech recognition not supported or initialized.");
@@ -163,8 +158,8 @@ export default function AIChatbot() {
       recognitionRef.current.stop();
       setIsListening(false);
     } else {
-      stopSpeaking(); // Stop bot speaking when user starts talking
-      setInputMessage(''); // Clear previous input
+      stopSpeaking();
+      setInputMessage('');
       setMessages((prev) => [...prev, { type: 'system', text: "Listening... speak now." }]);
       recognitionRef.current.start();
       setIsListening(true);
@@ -177,9 +172,7 @@ export default function AIChatbot() {
       setMessages([
         { type: 'bot', text: initialBotMessage }
       ]);
-      speak(initialBotMessage); // Speak the initial message
       
-      // Initialize chat session with more detailed system instruction
       chatSessionRef.current = model.startChat({
         history: [
           {
@@ -230,9 +223,9 @@ export default function AIChatbot() {
     } else if (!isOpen) {
       setMessages([]);
       chatSessionRef.current = null;
-      stopSpeaking(); // Stop speaking when chat closes
+      stopSpeaking();
     }
-  }, [isOpen, speak, messages.length, stopSpeaking]);
+  }, [isOpen, messages.length, stopSpeaking]);
 
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -243,7 +236,7 @@ export default function AIChatbot() {
   const handleSendMessage = async () => {
     if (inputMessage.trim() === '') return;
 
-    stopSpeaking(); // Stop any ongoing speech when user sends a message
+    stopSpeaking();
 
     const userMessageText = inputMessage.trim();
     const userMessage = { type: 'user', text: userMessageText };
@@ -265,7 +258,6 @@ export default function AIChatbot() {
 
       let finalBotResponse = botResponseText;
       
-      // Add disclaimer for responses that don't seem to be about the platform or wellness
       if (!finalBotResponse.toLowerCase().includes("mindwell") &&
           !finalBotResponse.toLowerCase().includes("journaling") &&
           !finalBotResponse.toLowerCase().includes("platform") &&
@@ -274,12 +266,11 @@ export default function AIChatbot() {
           !finalBotResponse.toLowerCase().includes("therapist") &&
           !finalBotResponse.toLowerCase().includes("session") &&
           !finalBotResponse.toLowerCase().includes("meditation") &&
-          !finalBotResponse.toLowerCase().includes("resource")) { // Added more keywords
+          !finalBotResponse.toLowerCase().includes("resource")) {
         finalBotResponse += "\n\n*Please remember I am an AI assistant and not a substitute for professional medical advice or therapy. If you are in crisis, please seek immediate professional help.*";
       }
 
       setMessages((prevMessages) => [...prevMessages, { type: 'bot', text: finalBotResponse }]);
-      speak(finalBotResponse); // Speak the AI's response
     } catch (error) {
       console.error("Error communicating with AI:", error);
       
@@ -294,7 +285,6 @@ export default function AIChatbot() {
       }
       
       setMessages((prevMessages) => [...prevMessages, { type: 'bot', text: errorMessage }]);
-      speak(errorMessage); // Speak the error message
     } finally {
       setIsTyping(false);
     }
@@ -313,6 +303,82 @@ export default function AIChatbot() {
     }
     setSnackbarOpen(false);
   };
+
+  // --- Action Handlers for Gemini-like bottom bar ---
+
+  const handleLike = () => {
+    setSnackbarMessage("Thanks for your feedback!");
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
+    // TODO: Implement actual like logic (e.g., send feedback to backend)
+  };
+
+  const handleDislike = () => {
+    setSnackbarMessage("Feedback received. We'll improve!");
+    setSnackbarSeverity('info');
+    setSnackbarOpen(true);
+    // TODO: Implement actual dislike logic (e.g., send feedback to backend)
+  };
+
+  const handleRegenerateLastResponse = async () => {
+    stopSpeaking(); // Stop any ongoing speech
+    const lastUserMessage = messages.slice().reverse().find(msg => msg.type === 'user');
+
+    if (lastUserMessage) {
+        setSnackbarMessage("Regenerating response...");
+        setSnackbarSeverity('info');
+        setSnackbarOpen(true);
+        // Remove the last bot message before sending the request again
+        setMessages(prev => prev.filter(msg => !(msg.type === 'bot' && prev.indexOf(msg) === prev.length -1)));
+        setInputMessage(lastUserMessage.text); // Pre-fill input with last user message
+        await handleSendMessage(); // Re-send the last user message to get a new bot response
+    } else {
+        setSnackbarMessage("No previous user message to regenerate from.");
+        setSnackbarSeverity('warning');
+        setSnackbarOpen(true);
+    }
+  };
+
+  const handleCopyLastResponse = () => {
+    const lastBotMessage = messages.slice().reverse().find(msg => msg.type === 'bot');
+    if (lastBotMessage && navigator.clipboard) {
+      navigator.clipboard.writeText(lastBotMessage.text)
+        .then(() => {
+          setSnackbarMessage("Response copied to clipboard!");
+          setSnackbarSeverity('success');
+          setSnackbarOpen(true);
+        })
+        .catch(err => {
+          console.error('Failed to copy: ', err);
+          setSnackbarMessage("Failed to copy response.");
+          setSnackbarSeverity('error');
+          setSnackbarOpen(true);
+        });
+    } else {
+      setSnackbarMessage("No bot response to copy.");
+      setSnackbarSeverity('warning');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleSpeakLastResponse = () => {
+    const lastBotMessage = messages.slice().reverse().find(msg => msg.type === 'bot');
+    if (lastBotMessage) {
+      speak(lastBotMessage.text); // Call speak without index, as no individual icons
+    } else {
+      setSnackbarMessage("No bot response to speak.");
+      setSnackbarSeverity('warning');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleStopSpeakingFromActionBar = () => {
+    stopSpeaking();
+  };
+
+  // Determine if the action bar should be visible
+  const lastMessage = messages[messages.length - 1];
+  const showActionBar = !isTyping && lastMessage && lastMessage.type === 'bot';
 
   return (
     <Box
@@ -378,8 +444,6 @@ export default function AIChatbot() {
             </IconButton>
           </Box>
 
-          {/* Voice Selection UI removed */}
-
           <Box
             ref={chatMessagesRef}
             sx={{
@@ -398,21 +462,24 @@ export default function AIChatbot() {
                 sx={{
                   display: 'flex',
                   justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
-                  alignItems: 'center', // Align items for icon next to message
-                  gap: 1, // Space between message and icon
+                  alignItems: 'center', // Keep center alignment for consistent spacing
+                  gap: 1,
+                  // If it's a bot message and the last one, add some bottom margin
+                  // to provide space for the action bar, if the bar is shown.
+                  mb: (msg.type === 'bot' && index === messages.length - 1 && showActionBar) ? 0.5 : 0,
                 }}
               >
-                {/* Speaker Icon for Bot Messages */}
-                {msg.type === 'bot' && (
+                {/* REMOVED: Individual message replay button */}
+                {/* {msg.type === 'bot' && (
                   <IconButton
                     size="small"
-                    onClick={() => speak(msg.text)}
-                    sx={{ color: '#780000' }}
+                    onClick={() => speak(msg.text, index)}
+                    sx={{ color: speakingMessageIndex === index && isSpeaking ? '#a4161a' : '#780000' }}
                     aria-label="Replay message"
                   >
                     <VolumeUpIcon fontSize="small" />
                   </IconButton>
-                )}
+                )} */}
                 <Paper
                   variant="outlined"
                   sx={{
@@ -437,45 +504,57 @@ export default function AIChatbot() {
                 <Typography variant="body2" sx={{ ml: 1, color: '#780000' }}>Thinking...</Typography>
               </Box>
             )}
-            {isSpeaking && (
-              <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
-                {/* <VolumeUpIcon sx={{ color: '#780000', fontSize: '1.2rem', mr: 0.5 }} /> */}
-                <Typography variant="body2" sx={{ color: '#780000', fontStyle: 'italic' }}>Speaking...</Typography>
-                {/* Stop Speaking Button */}
-                <Button
-                  variant="text"
-                  size="small"
-                  onClick={stopSpeaking}
-                  sx={{ color: '#a4161a', ml: 1, textTransform: 'none' }}
-                >
-                  Stop
-                </Button>
-              </Box>
-            )}
           </Box>
 
-          <Box sx={{ display: 'flex', p: 1.5, borderTop: '1px solid #ccc', backgroundColor: '#fefae0' }}>
-            {recognitionRef.current && ( // Only show mic button if STT is supported
-              <IconButton
-                color="primary"
-                onClick={handleListen}
-                sx={{
-                  backgroundColor: isListening ? '#a4161a' : '#780000',
-                  color: 'white',
-                  '&:hover': { backgroundColor: isListening ? '#780000' : '#5a0000' },
-                  '&:disabled': { backgroundColor: '#ccc' },
-                  borderRadius: 2,
-                  minWidth: '40px',
-                  p: '8px',
-                  alignSelf: 'flex-end',
-                  mr: 1,
-                }}
-                disabled={isTyping}
-                aria-label={isListening ? "Stop listening" : "Start listening"}
-              >
-                {isListening ? <StopIcon /> : <MicIcon />}
+          {/* Conditional Action bar at the bottom of the chat display */}
+          {showActionBar && (
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 1,
+                p: 0.5, // Reduced padding
+                borderTop: '1px solid #e0e0e0',
+                backgroundColor: '#fdf8f5',
+                // Added top margin to separate it visually from the last message
+                mt: 1,
+              }}
+            >
+              <IconButton size="small" onClick={handleLike} aria-label="Like response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
+                <ThumbUpOutlinedIcon fontSize="small" />
               </IconButton>
-            )}
+              <IconButton size="small" onClick={handleDislike} aria-label="Dislike response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
+                <ThumbDownOutlinedIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" onClick={handleRegenerateLastResponse} aria-label="Regenerate response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }} disabled={isTyping}>
+                <RefreshOutlinedIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" onClick={handleCopyLastResponse} aria-label="Copy response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
+                <ContentCopyOutlinedIcon fontSize="small" />
+              </IconButton>
+              {isSpeaking ? (
+                <IconButton size="small" onClick={handleStopSpeakingFromActionBar} aria-label="Stop speaking" sx={{ color: '#a4161a', '&:hover': { backgroundColor: 'rgba(164, 22, 26, 0.08)' } }}>
+                  <StopOutlinedIcon fontSize="small" />
+                </IconButton>
+              ) : (
+                <IconButton size="small" onClick={handleSpeakLastResponse} aria-label="Speak response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
+                  <VolumeUpIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
+          )}
+
+          {/* Input and Buttons at the very bottom */}
+          <Box sx={{ 
+              display: 'flex', 
+              p: 1.5, 
+              borderTop: showActionBar ? 'none' : '1px solid #ccc', // Remove border top if action bar is visible
+              backgroundColor: '#fefae0', 
+              alignItems: 'flex-end',
+              // Add top margin if action bar is NOT visible, to maintain consistent spacing
+              mt: showActionBar ? 0 : 1, 
+            }}
+          >
             <TextField
               fullWidth
               variant="outlined"
@@ -486,7 +565,6 @@ export default function AIChatbot() {
               multiline
               maxRows={3}
               sx={{
-                mr: 1,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 2,
                   backgroundColor: 'white',
@@ -494,29 +572,56 @@ export default function AIChatbot() {
                 },
                 '& .MuiInputBase-input': {
                     color: '#333',
-                }
+                },
+                pr: 0.5,
               }}
               size="small"
               disabled={isTyping}
-            />
-            <Button
-              variant="contained"
-              sx={{
-                backgroundColor: '#780000',
-                '&:hover': { backgroundColor: '#5a0000' },
-                '&:disabled': { backgroundColor: '#ccc' },
-                borderRadius: 2,
-                minWidth: '40px',
-                p: '8px',
-                alignSelf: 'flex-end',
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end" sx={{ mt: 'auto', mb: 'auto' }}>
+                    {recognitionRef.current && (
+                      <IconButton
+                        color="primary"
+                        onClick={handleListen}
+                        sx={{
+                          backgroundColor: 'transparent',
+                          color: isListening ? '#a4161a' : '#780000',
+                          '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' },
+                          '&:disabled': { color: '#ccc' },
+                          p: 0.5,
+                        }}
+                        disabled={isTyping}
+                        aria-label={isListening ? "Stop listening" : "Start listening"}
+                      >
+                        {isListening ? <StopIcon /> : <MicIcon />}
+                      </IconButton>
+                    )}
+                    <IconButton
+                      color="primary"
+                      onClick={handleSendMessage}
+                      sx={{
+                        backgroundColor: 'transparent',
+                        color: '#780000',
+                        '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' },
+                        '&:disabled': { color: '#ccc' },
+                        p: 0.5,
+                      }}
+                      disabled={isTyping || inputMessage.trim() === ''}
+                      aria-label="Send message"
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
               }}
-              onClick={handleSendMessage}
-              disabled={isTyping || inputMessage.trim() === ''}
-              aria-label="Send message"
-            >
-              <SendIcon />
-            </Button>
+            />
           </Box>
+
+          {/* Helper text at the very bottom */}
+          <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', mb: 1.5, mx: 2 }}>
+            MindWell AI can make mistakes, so double-check it.
+          </Typography>
         </Paper>
       )}
 

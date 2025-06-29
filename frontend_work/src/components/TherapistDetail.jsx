@@ -205,6 +205,17 @@ export default function TherapistDetail() {
     }
   };
 
+  const handleStartChat = () => {
+    if (!user || !therapist) {
+      // Redirect to login or show an alert
+      navigate('/login');
+      return;
+    }
+    // Generate room name (ensure consistent ordering)
+    const roomName = `chat_${Math.min(user.id, therapist.id)}_${Math.max(user.id, therapist.id)}`;
+    navigate(`/chat/${roomName}`); // Navigate to a new chat route
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', backgroundColor: '#fefae0' }}>
@@ -284,7 +295,25 @@ export default function TherapistDetail() {
               <Typography variant="h6" color="text.secondary" sx={{ mb: 2.5, fontStyle: 'italic', fontSize: '1.15rem' }}>
                 {therapist.license_credentials || 'Licensed Therapist'}
               </Typography>
-              
+              {user && user.id !== therapist.id && ( // Only show chat button if not viewing your own profile
+                <Button
+                    variant="contained"
+                    onClick={handleStartChat}
+                    sx={{
+                        backgroundColor: '#780000',
+                        '&:hover': { backgroundColor: '#5a0000' },
+                        mt: 2,
+                        py: 1,
+                        px: 3,
+                        borderRadius: 2,
+                        fontSize: '1rem',
+                        fontWeight: 'bold',
+                        boxShadow: '0 4px 10px rgba(120, 0, 0, 0.4)',
+                    }}
+                >
+                    Chat with {therapist.first_name}
+                </Button>
+            )}
             </Grid>
 
             {/* Therapist Details Section (Right Column) */}
