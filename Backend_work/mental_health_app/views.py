@@ -1,4 +1,4 @@
-# Backend_work/mental_health_app/views.py
+# Overwriting file: Backend_work/mental_health_app/views.py
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -14,7 +14,7 @@ from datetime import datetime
 import json
 from datetime import time, timedelta
 from collections import defaultdict
-import time as raw_time 
+import time as raw_time
 from django.db import transaction
 
 # NEW: Imports for Gemini API
@@ -686,10 +686,21 @@ class TherapistSessionRequestListView(generics.ListAPIView):
             return SessionRequest.objects.none()
 
         status_filter = self.request.query_params.get('status')
-        queryset = SessionRequest.objects.filter(therapist=self.request.user, is_paid=True)
+        # --- MODIFICATION START ---
+        # Explicitly filter for 'pending' status for new session requests.
+        # If a specific status is requested via query param, honor it.
+        # Otherwise, default to showing only 'pending' requests as 'new'.
+        queryset = SessionRequest.objects.filter(
+            therapist=self.request.user,
+            is_paid=True
+        )
 
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+        else:
+            # Default for "new session requests" should only be pending ones
+            queryset = queryset.filter(status='pending')
+        # --- MODIFICATION END ---
 
         return queryset.order_by('-created_at')
 
@@ -842,11 +853,18 @@ class PaymentCreateView(generics.CreateAPIView):
         )
 
         if stk_response["success"]:
+            # --- MODIFICATION START ---
+            # Mark the session request as paid immediately upon successful STK push initiation
+            session_request_obj.is_paid = True
+            session_request_obj.save()
+            print(f"DEBUG: SessionRequest {session_request_obj.id} marked as paid upon STK Push initiation.")
+            # --- MODIFICATION END ---
+
             payment_data = {
                 'client': self.request.user.id,
                 'therapist': therapist.id,
                 'amount': amount_int,
-                'status': 'pending',
+                'status': 'pending', # The payment record itself is still 'pending' until callback
                 'transaction_id': stk_response.get('merchant_request_id'),
                 'checkout_request_id': stk_response.get('checkout_request_id'),
                 'session_request': session_request_obj.id
@@ -969,7 +987,7 @@ def MpesaCallbackView(request):
             print(f"INFO: Payment for {checkout_request_id} updated to 'completed'. MpesaReceiptNumber: {mpesa_receipt_number}")
 
             if payment.session_request:
-                payment.session_request.is_paid = True
+                payment.session_request.is_paid = True # Redundant but safe
                 payment.session_request.save()
                 print(f"INFO: SessionRequest {payment.session_request.id} marked as paid.")
 
@@ -982,6 +1000,7 @@ def MpesaCallbackView(request):
             print(f"WARNING: Payment for {checkout_request_id} updated to 'failed'. ResultCode: {result_code}, Reason: {result_desc}")
 
             if payment.session_request:
+                payment.session_request.is_paid = False # Set back to False
                 payment.session_request.status = 'cancelled' # Cancel session request on payment failure
                 payment.session_request.save()
                 print(f"INFO: SessionRequest {payment.session_request.id} cancelled due to payment failure.")

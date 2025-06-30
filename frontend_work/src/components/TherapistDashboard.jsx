@@ -396,16 +396,9 @@ const TherapistDashboard = () => {
                     onClick={() => handleCreateSession(request.id)}
                     disabled={!request.is_paid}
                   >
-                    Confirm & Create Session
+                    Confirm
                   </Button>
-                  <Button
-                    size="small"
-                    startIcon={<Cancel />}
-                    sx={{ color: themePrimaryColor, '&:hover': { backgroundColor: `${themePrimaryColor}10` } }}
-                    onClick={() => handleUpdateRequest(request.id, 'rejected')}
-                  >
-                    Reject
-                  </Button>
+
                 </CardActions>
               </Card>
             ))

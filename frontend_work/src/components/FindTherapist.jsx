@@ -520,43 +520,8 @@ export default function FindTherapist() {
         ))}
       </Grid>
 
-      {/* Call to Action for Empty State */}
-      {therapists.length > 0 && (
-        <Box sx={{ 
-          textAlign: 'center', 
-          mt: 8,
-          py: 6,
-          backgroundColor: 'white',
-          borderRadius: 4,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)'
-        }}>
-          <Typography variant="h5" sx={{ color: '#780000', fontWeight: 600, mb: 2 }}>
-            Need Help Choosing?
-          </Typography>
-          <Typography variant="body1" sx={{ color: '#666', mb: 3, maxWidth: 500, mx: 'auto' }}>
-            Our team can help match you with the perfect therapist based on your specific needs and preferences.
-          </Typography>
-          <Button
-            variant="outlined"
-            size="large"
-            sx={{
-              borderColor: '#780000',
-              color: '#780000',
-              borderRadius: 3,
-              px: 4,
-              py: 1.5,
-              fontWeight: 600,
-              '&:hover': {
-                borderColor: '#5a0000',
-                backgroundColor: 'rgba(120, 0, 0, 0.04)',
-                transform: 'translateY(-2px)'
-              }
-            }}
-          >
-            Get Personalized Recommendations
-          </Button>
-        </Box>
-      )}
+      
+     
     </Box>
   );
 }

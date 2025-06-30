@@ -13,7 +13,7 @@ import {
 } from "@mui/material";
 import { useState, useEffect } from "react";
 
-// Load Cinzel font (assuming this is desired for therapist navbar too)
+
 const loadCinzelFont = () => {
   const link = document.createElement("link");
   link.href = "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap";
@@ -39,7 +39,7 @@ export default function TherapistNavbar() {
     navigate("/");
   };
 
-  // Only render this navbar if the user is a therapist
+
   if (!user || !user.is_therapist) return null;
 
   return (
@@ -68,7 +68,7 @@ export default function TherapistNavbar() {
             "&:hover": { color: "white" },
           }}
         >
-          MindWell
+          {/* MindWell */}
         </Typography>
 
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
@@ -139,8 +139,7 @@ export default function TherapistNavbar() {
               </Menu>
             </>
           ) : (
-            // This case should ideally not be hit if the 'if' condition above works correctly,
-            // but providing a fallback for robustness.
+         
             <Button
               component={Link}
               to="/login"

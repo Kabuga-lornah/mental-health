@@ -2,7 +2,7 @@
 import React from "react";
 import { Box, Typography, Button, Container, Grid, Paper, Divider, Card, CardMedia, CardContent } from "@mui/material";
 import { Link } from "react-router-dom";
-import AIChatbot from './AIChatbot'; // Corrected import for AIChatbot
+import AIChatbot from './AIChatbot';
 
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';

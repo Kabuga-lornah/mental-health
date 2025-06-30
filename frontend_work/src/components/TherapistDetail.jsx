@@ -131,7 +131,7 @@ export default function TherapistDetail() {
         setSnackbarMessage("Session request submitted for free consultation. Therapist will review.");
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
-        navigate('/dashboard');
+        
       } else {
         setSnackbarMessage("Session request created. Proceeding to payment.");
         setSnackbarSeverity('success');
@@ -307,7 +307,7 @@ export default function TherapistDetail() {
                         boxShadow: '0 4px 10px rgba(120, 0, 0, 0.4)',
                     }}
                 >
-                    Chat with {therapist.first_name}
+                     {therapist.first_name}
                 </Button>
             )}
             </Grid>
