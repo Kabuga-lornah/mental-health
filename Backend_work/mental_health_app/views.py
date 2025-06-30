@@ -14,14 +14,14 @@ from datetime import datetime
 import json
 from datetime import time, timedelta
 from collections import defaultdict
-import time as raw_time # Corrected import for time.sleep
+import time as raw_time 
 from django.db import transaction
 
 # NEW: Imports for Gemini API
 import google.generativeai as genai
 from googleapiclient.discovery import build # For YouTube Data API
 
-from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment, TherapistAvailability, ChatMessage
+from .models import JournalEntry, SessionRequest, TherapistApplication, User, Session, Payment, TherapistAvailability, ChatMessage, ChatRoom
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -1347,3 +1347,28 @@ class ChatMessageListView(generics.ListAPIView):
             raise PermissionDenied("You are not authorized to view this chat.")
 
         return ChatMessage.objects.filter(room_name=room_name).order_by('timestamp')
+    
+class ChatMessageListView(generics.ListAPIView):
+    serializer_class = ChatMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _parse_room_name(self, room_name):
+        # The room_name is expected to be like 'chat_ID1_ID2' from frontend
+        parts = room_name.split('_')
+        if len(parts) == 3 and parts[0] == 'chat':
+            user1_id = int(parts[1])
+            user2_id = int(parts[2])
+            return user1_id, user2_id
+        else:
+            raise ValueError("Invalid room name format. Expected 'chat_ID1_ID2'.")
+
+    def get_queryset(self):
+        room_name = self.kwargs['room_name']
+
+        # Ensure correct authorization for the chat room
+        sender_id, receiver_id = self._parse_room_name(room_name)
+        if self.request.user.id not in [sender_id, receiver_id]:
+            raise PermissionDenied("You are not authorized to view this chat.")
+
+        # <--- CORRECTED: Filter by the 'name' field of the related 'chat_room'
+        return ChatMessage.objects.filter(chat_room__name=room_name).order_by('timestamp')

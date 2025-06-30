@@ -10,7 +10,9 @@ import {
   ThumbDownOutlined as ThumbDownOutlinedIcon,
   RefreshOutlined as RefreshOutlinedIcon,
   ContentCopyOutlined as ContentCopyOutlinedIcon,
-  StopOutlined as StopOutlinedIcon
+  StopOutlined as StopOutlinedIcon,
+  ThumbUp as ThumbUpIcon,
+  ThumbDown as ThumbDownIcon
 } from '@mui/icons-material';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -33,8 +35,10 @@ export default function AIChatbot() {
   const recognitionRef = useRef(null);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
-  // Removed speakingMessageIndex as it's no longer needed for individual message icons
-  // const [speakingMessageIndex, setSpeakingMessageIndex] = useState(null);
+  const [speakingMessageIndex, setSpeakingMessageIndex] = useState(null);
+
+  // State to track likes/dislikes for each message
+  const [messageReactions, setMessageReactions] = useState({});
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -44,7 +48,7 @@ export default function AIChatbot() {
     // This useEffect hook is empty and can be removed or used for other initializations
   }, []);
 
-  const speak = useCallback((text) => { // Removed index parameter as it's not needed for individual icons
+  const speak = useCallback((text, messageIndex) => {
     if (!window.speechSynthesis || !text) return;
 
     if (window.speechSynthesis.speaking) {
@@ -52,7 +56,7 @@ export default function AIChatbot() {
     }
     
     setIsSpeaking(true);
-    // setSpeakingMessageIndex(index); // Removed setting speaking index
+    setSpeakingMessageIndex(messageIndex);
     const utterance = new SpeechSynthesisUtterance(text);
     
     const voices = window.speechSynthesis.getVoices();
@@ -81,12 +85,12 @@ export default function AIChatbot() {
 
     utterance.onend = () => {
       setIsSpeaking(false);
-      // setSpeakingMessageIndex(null); // Removed clearing speaking index on end
+      setSpeakingMessageIndex(null);
     };
     utterance.onerror = (event) => {
         console.error('SpeechSynthesisUtterance.onerror', event);
         setIsSpeaking(false);
-        // setSpeakingMessageIndex(null); // Removed clearing speaking index on error
+        setSpeakingMessageIndex(null);
     };
 
     window.speechSynthesis.speak(utterance);
@@ -96,7 +100,7 @@ export default function AIChatbot() {
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
-      // setSpeakingMessageIndex(null); // Removed clearing speaking index
+      setSpeakingMessageIndex(null);
     }
   }, []);
 
@@ -222,6 +226,7 @@ export default function AIChatbot() {
       });
     } else if (!isOpen) {
       setMessages([]);
+      setMessageReactions({});
       chatSessionRef.current = null;
       stopSpeaking();
     }
@@ -304,45 +309,104 @@ export default function AIChatbot() {
     setSnackbarOpen(false);
   };
 
-  // --- Action Handlers for Gemini-like bottom bar ---
+  // --- Action Handlers for individual message actions ---
 
-  const handleLike = () => {
+  const handleLike = (messageIndex) => {
+    setMessageReactions(prev => ({
+      ...prev,
+      [messageIndex]: {
+        ...prev[messageIndex],
+        liked: !prev[messageIndex]?.liked,
+        disliked: false // Reset dislike if liked
+      }
+    }));
     setSnackbarMessage("Thanks for your feedback!");
     setSnackbarSeverity('success');
     setSnackbarOpen(true);
-    // TODO: Implement actual like logic (e.g., send feedback to backend)
   };
 
-  const handleDislike = () => {
+  const handleDislike = (messageIndex) => {
+    setMessageReactions(prev => ({
+      ...prev,
+      [messageIndex]: {
+        ...prev[messageIndex],
+        disliked: !prev[messageIndex]?.disliked,
+        liked: false // Reset like if disliked
+      }
+    }));
     setSnackbarMessage("Feedback received. We'll improve!");
     setSnackbarSeverity('info');
     setSnackbarOpen(true);
-    // TODO: Implement actual dislike logic (e.g., send feedback to backend)
   };
 
-  const handleRegenerateLastResponse = async () => {
-    stopSpeaking(); // Stop any ongoing speech
-    const lastUserMessage = messages.slice().reverse().find(msg => msg.type === 'user');
+  const handleRegenerateResponse = async (messageIndex) => {
+    stopSpeaking();
+    
+    // Find the user message that corresponds to this bot response
+    let userMessageIndex = -1;
+    for (let i = messageIndex - 1; i >= 0; i--) {
+      if (messages[i].type === 'user') {
+        userMessageIndex = i;
+        break;
+      }
+    }
 
-    if (lastUserMessage) {
-        setSnackbarMessage("Regenerating response...");
-        setSnackbarSeverity('info');
+    if (userMessageIndex !== -1) {
+      const userMessage = messages[userMessageIndex];
+      setSnackbarMessage("Regenerating response...");
+      setSnackbarSeverity('info');
+      setSnackbarOpen(true);
+      
+      setIsTyping(true);
+      
+      try {
+        const result = await chatSessionRef.current.sendMessage(userMessage.text);
+        const botResponseText = result.response.text();
+
+        let finalBotResponse = botResponseText;
+        
+        if (!finalBotResponse.toLowerCase().includes("mindwell") &&
+            !finalBotResponse.toLowerCase().includes("journaling") &&
+            !finalBotResponse.toLowerCase().includes("platform") &&
+            !finalBotResponse.toLowerCase().includes("mental") &&
+            !finalBotResponse.toLowerCase().includes("wellness") &&
+            !finalBotResponse.toLowerCase().includes("therapist") &&
+            !finalBotResponse.toLowerCase().includes("session") &&
+            !finalBotResponse.toLowerCase().includes("meditation") &&
+            !finalBotResponse.toLowerCase().includes("resource")) {
+          finalBotResponse += "\n\n*Please remember I am an AI assistant and not a substitute for professional medical advice or therapy. If you are in crisis, please seek immediate professional help.*";
+        }
+
+        // Replace the bot message at the specific index
+        setMessages(prev => prev.map((msg, idx) => 
+          idx === messageIndex ? { ...msg, text: finalBotResponse } : msg
+        ));
+        
+        // Clear reactions for this message since it's regenerated
+        setMessageReactions(prev => {
+          const newReactions = { ...prev };
+          delete newReactions[messageIndex];
+          return newReactions;
+        });
+        
+      } catch (error) {
+        console.error("Error regenerating response:", error);
+        setSnackbarMessage("Failed to regenerate response. Please try again.");
+        setSnackbarSeverity('error');
         setSnackbarOpen(true);
-        // Remove the last bot message before sending the request again
-        setMessages(prev => prev.filter(msg => !(msg.type === 'bot' && prev.indexOf(msg) === prev.length -1)));
-        setInputMessage(lastUserMessage.text); // Pre-fill input with last user message
-        await handleSendMessage(); // Re-send the last user message to get a new bot response
+      } finally {
+        setIsTyping(false);
+      }
     } else {
-        setSnackbarMessage("No previous user message to regenerate from.");
-        setSnackbarSeverity('warning');
-        setSnackbarOpen(true);
+      setSnackbarMessage("No corresponding user message found.");
+      setSnackbarSeverity('warning');
+      setSnackbarOpen(true);
     }
   };
 
-  const handleCopyLastResponse = () => {
-    const lastBotMessage = messages.slice().reverse().find(msg => msg.type === 'bot');
-    if (lastBotMessage && navigator.clipboard) {
-      navigator.clipboard.writeText(lastBotMessage.text)
+  const handleCopyResponse = (text) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text)
         .then(() => {
           setSnackbarMessage("Response copied to clipboard!");
           setSnackbarSeverity('success');
@@ -355,30 +419,19 @@ export default function AIChatbot() {
           setSnackbarOpen(true);
         });
     } else {
-      setSnackbarMessage("No bot response to copy.");
+      setSnackbarMessage("Clipboard not supported in this browser.");
       setSnackbarSeverity('warning');
       setSnackbarOpen(true);
     }
   };
 
-  const handleSpeakLastResponse = () => {
-    const lastBotMessage = messages.slice().reverse().find(msg => msg.type === 'bot');
-    if (lastBotMessage) {
-      speak(lastBotMessage.text); // Call speak without index, as no individual icons
-    } else {
-      setSnackbarMessage("No bot response to speak.");
-      setSnackbarSeverity('warning');
-      setSnackbarOpen(true);
-    }
+  const handleSpeakResponse = (text, messageIndex) => {
+    speak(text, messageIndex);
   };
 
-  const handleStopSpeakingFromActionBar = () => {
+  const handleStopSpeaking = () => {
     stopSpeaking();
   };
-
-  // Determine if the action bar should be visible
-  const lastMessage = messages[messages.length - 1];
-  const showActionBar = !isTyping && lastMessage && lastMessage.type === 'bot';
 
   return (
     <Box
@@ -457,45 +510,128 @@ export default function AIChatbot() {
             }}
           >
             {messages.map((msg, index) => (
-              <Box
-                key={index}
-                sx={{
-                  display: 'flex',
-                  justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
-                  alignItems: 'center', // Keep center alignment for consistent spacing
-                  gap: 1,
-                  // If it's a bot message and the last one, add some bottom margin
-                  // to provide space for the action bar, if the bar is shown.
-                  mb: (msg.type === 'bot' && index === messages.length - 1 && showActionBar) ? 0.5 : 0,
-                }}
-              >
-                {/* REMOVED: Individual message replay button */}
-                {/* {msg.type === 'bot' && (
-                  <IconButton
-                    size="small"
-                    onClick={() => speak(msg.text, index)}
-                    sx={{ color: speakingMessageIndex === index && isSpeaking ? '#a4161a' : '#780000' }}
-                    aria-label="Replay message"
-                  >
-                    <VolumeUpIcon fontSize="small" />
-                  </IconButton>
-                )} */}
-                <Paper
-                  variant="outlined"
+              <Box key={index}>
+                <Box
                   sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    maxWidth: '80%',
-                    backgroundColor: msg.type === 'user' ? '#DCC8C8' : '#FFFFFF',
-                    color: msg.type === 'user' ? '#333' : '#333',
-                    borderColor: msg.type === 'user' ? '#780000' : '#E0E0E0',
-                    borderWidth: '1px',
-                    wordBreak: 'break-word',
-                    whiteSpace: 'pre-wrap',
+                    display: 'flex',
+                    justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
+                    alignItems: 'center',
+                    gap: 1,
                   }}
                 >
-                  <Typography variant="body2">{msg.text}</Typography>
-                </Paper>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2,
+                      maxWidth: '80%',
+                      backgroundColor: msg.type === 'user' ? '#DCC8C8' : '#FFFFFF',
+                      color: msg.type === 'user' ? '#333' : '#333',
+                      borderColor: msg.type === 'user' ? '#780000' : '#E0E0E0',
+                      borderWidth: '1px',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    <Typography variant="body2">{msg.text}</Typography>
+                  </Paper>
+                </Box>
+                
+                {/* Action bar for bot messages */}
+                {msg.type === 'bot' && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'flex-start',
+                      gap: 0.5,
+                      mt: 0.5,
+                      ml: 1,
+                    }}
+                  >
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleLike(index)} 
+                      aria-label="Like response" 
+                      sx={{ 
+                        color: messageReactions[index]?.liked ? '#4caf50' : '#5a0000', 
+                        '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' },
+                        p: 0.25
+                      }}
+                    >
+                      {messageReactions[index]?.liked ? 
+                        <ThumbUpIcon fontSize="small" /> : 
+                        <ThumbUpOutlinedIcon fontSize="small" />
+                      }
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleDislike(index)} 
+                      aria-label="Dislike response" 
+                      sx={{ 
+                        color: messageReactions[index]?.disliked ? '#f44336' : '#5a0000', 
+                        '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' },
+                        p: 0.25
+                      }}
+                    >
+                      {messageReactions[index]?.disliked ? 
+                        <ThumbDownIcon fontSize="small" /> : 
+                        <ThumbDownOutlinedIcon fontSize="small" />
+                      }
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleRegenerateResponse(index)} 
+                      aria-label="Regenerate response" 
+                      sx={{ 
+                        color: '#5a0000', 
+                        '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' },
+                        p: 0.25
+                      }} 
+                      disabled={isTyping}
+                    >
+                      <RefreshOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleCopyResponse(msg.text)} 
+                      aria-label="Copy response" 
+                      sx={{ 
+                        color: '#5a0000', 
+                        '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' },
+                        p: 0.25
+                      }}
+                    >
+                      <ContentCopyOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    {isSpeaking && speakingMessageIndex === index ? (
+                      <IconButton 
+                        size="small" 
+                        onClick={handleStopSpeaking} 
+                        aria-label="Stop speaking" 
+                        sx={{ 
+                          color: '#a4161a', 
+                          '&:hover': { backgroundColor: 'rgba(164, 22, 26, 0.08)' },
+                          p: 0.25
+                        }}
+                      >
+                        <StopOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    ) : (
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleSpeakResponse(msg.text, index)} 
+                        aria-label="Speak response" 
+                        sx={{ 
+                          color: '#5a0000', 
+                          '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' },
+                          p: 0.25
+                        }}
+                      >
+                        <VolumeUpIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                )}
               </Box>
             ))}
             {isTyping && (
@@ -506,53 +642,13 @@ export default function AIChatbot() {
             )}
           </Box>
 
-          {/* Conditional Action bar at the bottom of the chat display */}
-          {showActionBar && (
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: 1,
-                p: 0.5, // Reduced padding
-                borderTop: '1px solid #e0e0e0',
-                backgroundColor: '#fdf8f5',
-                // Added top margin to separate it visually from the last message
-                mt: 1,
-              }}
-            >
-              <IconButton size="small" onClick={handleLike} aria-label="Like response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
-                <ThumbUpOutlinedIcon fontSize="small" />
-              </IconButton>
-              <IconButton size="small" onClick={handleDislike} aria-label="Dislike response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
-                <ThumbDownOutlinedIcon fontSize="small" />
-              </IconButton>
-              <IconButton size="small" onClick={handleRegenerateLastResponse} aria-label="Regenerate response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }} disabled={isTyping}>
-                <RefreshOutlinedIcon fontSize="small" />
-              </IconButton>
-              <IconButton size="small" onClick={handleCopyLastResponse} aria-label="Copy response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
-                <ContentCopyOutlinedIcon fontSize="small" />
-              </IconButton>
-              {isSpeaking ? (
-                <IconButton size="small" onClick={handleStopSpeakingFromActionBar} aria-label="Stop speaking" sx={{ color: '#a4161a', '&:hover': { backgroundColor: 'rgba(164, 22, 26, 0.08)' } }}>
-                  <StopOutlinedIcon fontSize="small" />
-                </IconButton>
-              ) : (
-                <IconButton size="small" onClick={handleSpeakLastResponse} aria-label="Speak response" sx={{ color: '#5a0000', '&:hover': { backgroundColor: 'rgba(120, 0, 0, 0.08)' } }}>
-                  <VolumeUpIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-          )}
-
           {/* Input and Buttons at the very bottom */}
           <Box sx={{ 
               display: 'flex', 
               p: 1.5, 
-              borderTop: showActionBar ? 'none' : '1px solid #ccc', // Remove border top if action bar is visible
+              borderTop: '1px solid #ccc',
               backgroundColor: '#fefae0', 
               alignItems: 'flex-end',
-              // Add top margin if action bar is NOT visible, to maintain consistent spacing
-              mt: showActionBar ? 0 : 1, 
             }}
           >
             <TextField

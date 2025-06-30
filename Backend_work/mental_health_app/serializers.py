@@ -1,14 +1,11 @@
-# Overwriting file: Backend_work/mental_health_app/serializers.py
-# File: Backend_work/mental_health_app/serializers.py
-# mental_health_app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import JournalEntry, TherapistApplication, SessionRequest, Session, Payment, TherapistAvailability
+from .models import ChatMessage, ChatRoom, JournalEntry, TherapistApplication, SessionRequest, Session, Payment, TherapistAvailability
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 import json
-from .models import ChatMessage 
+
 
 User = get_user_model()
 

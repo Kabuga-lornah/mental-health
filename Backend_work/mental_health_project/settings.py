@@ -184,7 +184,11 @@ cloudinary.config(
 MEDIA_URL = '/media/'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-# Mpesa Integration Settings
+NODE_MPESA_SERVICE_URL = os.environ.get('NODE_MPESA_SERVICE_URL', 'http://localhost:3000') 
+NODE_MPESA_SECRET_KEY = os.environ.get('NODE_MPESA_SECRET_KEY', 'your_django_node_shared_secret_key') 
+
+
+
 MPESA_CONSUMER_KEY = os.getenv('MPESA_CONSUMER_KEY', '')
 MPESA_CONSUMER_SECRET = os.getenv('MPESA_CONSUMER_SECRET', '')
 MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE', '')
@@ -192,7 +196,7 @@ MPESA_PASSKEY = os.getenv('MPESA_PASSKEY', '')
 MPESA_ENVIRONMENT = os.getenv('MPESA_ENVIRONMENT', 'sandbox')
 MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke' if MPESA_ENVIRONMENT == 'sandbox' else 'https://api.safaricom.co.ke'
 
-MPESA_STK_CALLBACK_URL = "https://natural-explicitly-sawfly.ngrok-free.app/api/mpesa/callback/"
+MPESA_STK_CALLBACK_URL = "https://155d-102-219-208-122.ngrok-free.app/api/mpesa/callback/"
 
 GEMINI_API_KEY='AIzaSyCzfeeSL53b5qVuGp2UyKyWQJ_rctM3Kjc',
 YOUTUBE_API_KEY='AIzaSyAP8LY0p-ah_dXTWxcg81kt63JqmUrVWuw'

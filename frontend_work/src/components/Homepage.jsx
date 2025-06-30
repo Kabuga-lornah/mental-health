@@ -21,7 +21,7 @@ export default function Homepage() {
       {/* Hero Section */}
       <Box
         sx={{
-          backgroundImage: `linear-gradient(135deg, rgba(179, 158, 73, 0.9) 0%, rgba(140, 133, 53, 0.9) 100%)`,
+          backgroundImage: `linear-gradient(135deg, rgba(245, 245, 245, 0.9) 0%, rgba(235, 235, 234, 0.9) 100%)`,
           minHeight: "85vh",
           display: "flex",
           alignItems: "center",
@@ -67,14 +67,14 @@ export default function Homepage() {
               maxWidth: "800px",
               mx: "auto",
               lineHeight: 1.6,
-              color: "#e0e0e0",
+              color: "#000000",
               fontSize: { xs: '1.1rem', sm: '1.3rem', md: '1.5rem' }
             }}
           >
             Empowering Kenyans to navigate their mental health journey with compassionate support and innovative tools.
           </Typography>
           
-          <Button
+          {/* <Button
             component={Link}
             to="/register"
             variant="contained"
@@ -93,7 +93,7 @@ export default function Homepage() {
             }}
           >
             Start Your Journey Today
-          </Button>
+          </Button> */}
         </Container>
       </Box>
 
@@ -195,21 +195,7 @@ export default function Homepage() {
                 Find a Therapist
               </Button>
             </Grid>
-            <Grid item xs={12} md={6}>
-              <CardMedia
-                component="img"
-                image="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-                alt="Therapist Session"
-                sx={{
-                  borderRadius: 4,
-                  boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
-                  width: '100%',
-                  height: 'auto',
-                  maxWidth: '100%',
-                  display: 'block'
-                }}
-              />
-            </Grid>
+            
           </Grid>
         </Paper>
       </Container>
@@ -344,21 +330,7 @@ export default function Homepage() {
                 Discover Meditation & Self-Care
               </Button>
             </Grid>
-            <Grid item xs={12} md={6}>
-              <CardMedia
-                component="img"
-                image="https://images.unsplash.com/photo-1506126613408-eca07ce68773?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-                alt="Meditation and AI Guidance"
-                sx={{
-                  borderRadius: 4,
-                  boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
-                  width: '100%',
-                  height: 'auto',
-                  maxWidth: '100%',
-                  display: 'block'
-                }}
-              />
-            </Grid>
+           
           </Grid>
         </Paper>
       </Container>

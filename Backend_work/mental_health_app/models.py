@@ -2,7 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from django.conf import settings # Redundant import, removed in fix
+from django.conf import settings 
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):

@@ -17,7 +17,6 @@ import {
   Alert,
   Chip,
   Stack,
-  // Card, CardContent removed
   Divider,
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -264,29 +263,26 @@ export default function TherapistDetail() {
           <Grid container spacing={{ xs: 4, md: 6 }} alignItems="flex-start">
             {/* Therapist Profile and Photo Section (Left Column) */}
             <Grid item xs={12} md={4} sx={{ textAlign: 'center', pr: { md: 4 } }}>
-              {/* Unique Photo Display */}
+              {/* Circular Photo Display */}
               <Box
                 sx={{
-                  width: 240, // Increased size for more impact
-                  height: 280, // Rectangular shape
+                  width: 200, // Adjusted size for a good circular look
+                  height: 200,
+                  borderRadius: '50%', // Makes the container circular
                   overflow: 'hidden',
                   mx: 'auto',
                   mb: 3,
-                  border: '6px solid #780000',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.3)', // Stronger shadow
-                  position: 'relative', // For pseudo-elements or more complex shapes
-                  // Example: A skewed rectangle
-                  transform: 'skewY(-5deg)',
-                  '& img': {
-                    transform: 'skewY(5deg)', // Counter-skew the image
-                  },
-                  borderRadius: 2, // Slight border radius
+                  border: '6px solid #780000', // Border around the circle
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.25)', // Softer shadow
+                  display: 'flex', // To center the image inside
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <img
-                  src={therapist.profile_picture || `https://placehold.co/240x280/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
+                  src={therapist.profile_picture || `https://placehold.co/200x200/780000/fefae0?text=${(therapist.full_name || 'T').charAt(0)}`}
                   alt={therapist.full_name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} // Image covers the circular area
                 />
               </Box>
               <Typography variant="h4" sx={{ color: '#780000', fontWeight: 'bold', mb: 1.5, letterSpacing: 0.5 }}>
@@ -394,7 +390,7 @@ export default function TherapistDetail() {
                           fontWeight: 'medium',
                           fontSize: '0.9rem',
                           p: '5px 10px',
-                          borderRadius: '16px', // Standard chip look
+                          borderRadius: '16px',
                         }}
                       />
                     ))}
@@ -408,7 +404,6 @@ export default function TherapistDetail() {
                   <Typography variant="h5" sx={{ color: '#780000', fontWeight: 'bold', mb: 2, borderBottom: '2px solid #DCC8C8', pb: 1.5 }}>
                     Video Introduction
                   </Typography>
-                  {/* Replaced Card with Box for video embed */}
                   <Box sx={{ maxWidth: 600, mx: 'auto', bgcolor: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', borderRadius: 2, p: 2 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Watch this brief video to learn more about the therapist's approach.
