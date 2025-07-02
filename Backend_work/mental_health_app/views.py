@@ -447,6 +447,31 @@ class TherapistListView(generics.ListAPIView):
                 Q(email__icontains=search_query)
             )
 
+        specialization_filter = self.request.query_params.get('specialization')
+        if specialization_filter:
+            queryset = queryset.filter(specializations__icontains=specialization_filter)
+
+        pricing_type = self.request.query_params.get('pricing_type')
+        if pricing_type == 'free':
+            queryset = queryset.filter(is_free_consultation=True)
+        elif pricing_type == 'paid':
+            queryset = queryset.filter(is_free_consultation=False)
+            min_hourly_rate = self.request.query_params.get('min_hourly_rate')
+            max_hourly_rate = self.request.query_params.get('max_hourly_rate')
+            if min_hourly_rate:
+                queryset = queryset.filter(hourly_rate__gte=float(min_hourly_rate))
+            if max_hourly_rate:
+                queryset = queryset.filter(hourly_rate__lte=float(max_hourly_rate))
+        
+        session_mode_filter = self.request.query_params.get('session_modes')
+        if session_mode_filter:
+            if session_mode_filter == 'online':
+                queryset = queryset.filter(Q(session_modes='online') | Q(session_modes='both'))
+            elif session_mode_filter == 'physical':
+                queryset = queryset.filter(Q(session_modes='physical') | Q(session_modes='both'))
+            elif session_mode_filter == 'both':
+                queryset = queryset.filter(session_modes='both') # If 'both' is chosen, only show those explicitly marked 'both'
+
         return queryset.order_by('last_name', 'first_name')
 
     def get_serializer_context(self):

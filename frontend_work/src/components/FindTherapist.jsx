@@ -1,7 +1,5 @@
-// frontend_work/src/components/FindTherapist.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  // Container, // Removed Container
   Typography,
   Box,
   CircularProgress,
@@ -16,12 +14,43 @@ import {
   Chip,
   Stack,
   CardMedia,
-  Avatar
+  Avatar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Paper,
+  Divider
 } from '@mui/material';
-import { Search, Clear, Person, Star, LocationOn } from '@mui/icons-material';
+import { Search, Clear, Person, LocationOn, MedicalServices, FilterList, Money } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext'; // Removed .jsx extension to help with resolution
+import { useAuth } from '../context/AuthContext';
+
+const specializationsList = [
+  'Anxiety and Stress Management',
+  'Depression and Mood Disorders',
+  'Relationship and Marital Issues',
+  'Family Counseling',
+  'Trauma and PTSD',
+  'Grief and Loss',
+  'Addiction and Substance Abuse',
+  'Child and Adolescent Therapy',
+  'Anger Management',
+  'Self-Esteem and Personal Growth',
+  'Career and Work-related Stress',
+  'LGBTQ+ Counseling',
+];
+
+const sessionModesList = [
+  { value: '', label: 'Any Mode' },
+  { value: 'online', label: 'Online' },
+  { value: 'physical', label: 'In-Person' },
+  { value: 'both', label: 'Online & In-Person' },
+];
 
 export default function FindTherapist() {
   const { user, token } = useAuth();
@@ -29,14 +58,44 @@ export default function FindTherapist() {
   const [therapists, setTherapists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [specializationFilter, setSpecializationFilter] = useState('');
+  const [pricingFilter, setPricingFilter] = useState('any'); // 'any', 'free', 'paid'
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sessionModeFilter, setSessionModeFilter] = useState('');
+
+
+  // Debounce effect for search term
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms debounce delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
 
   useEffect(() => {
     const fetchTherapists = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`http://localhost:8000/api/therapists/?search=${searchTerm}`, {
+        const params = new URLSearchParams();
+        if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+        if (specializationFilter) params.append('specialization', specializationFilter);
+        if (pricingFilter && pricingFilter !== 'any') params.append('pricing_type', pricingFilter);
+        if (pricingFilter === 'paid') {
+          if (minPrice) params.append('min_hourly_rate', minPrice);
+          if (maxPrice) params.append('max_hourly_rate', maxPrice);
+        }
+        if (sessionModeFilter) params.append('session_modes', sessionModeFilter);
+
+
+        const response = await axios.get(`http://localhost:8000/api/therapists/?${params.toString()}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -53,7 +112,7 @@ export default function FindTherapist() {
     if (user && token) {
       fetchTherapists();
     }
-  }, [user, token, searchTerm]);
+  }, [user, token, debouncedSearchTerm, specializationFilter, pricingFilter, minPrice, maxPrice, sessionModeFilter]);
 
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);
@@ -63,34 +122,66 @@ export default function FindTherapist() {
     setSearchTerm('');
   };
 
+  const handleSpecializationChange = (event) => {
+    setSpecializationFilter(event.target.value);
+  };
+
+  const handlePricingFilterChange = (event) => {
+    setPricingFilter(event.target.value);
+    if (event.target.value !== 'paid') {
+      setMinPrice('');
+      setMaxPrice('');
+    }
+  };
+
+  const handleMinPriceChange = (event) => {
+    // Only allow positive numbers
+    const value = event.target.value;
+    if (value === '' || (Number(value) >= 0 && !isNaN(Number(value)))) {
+      setMinPrice(value);
+    }
+  };
+
+  const handleMaxPriceChange = (event) => {
+    // Only allow positive numbers
+    const value = event.target.value;
+    if (value === '' || (Number(value) >= 0 && !isNaN(Number(value)))) {
+      setMaxPrice(value);
+    }
+  };
+
+  const handleSessionModeChange = (event) => {
+    setSessionModeFilter(event.target.value);
+  };
+
   const handleViewDetails = (id) => {
     navigate(`/therapists/${id}`);
   };
 
   if (loading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '80vh', 
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '80vh',
         backgroundColor: "#fefae0",
         gap: 2
       }}>
-        <CircularProgress 
-          sx={{ 
+        <CircularProgress
+          sx={{
             color: '#780000',
             '& .MuiCircularProgress-circle': {
               strokeLinecap: 'round',
             }
-          }} 
+          }}
           size={60}
           thickness={4}
         />
-        <Typography 
-          variant="h6" 
-          sx={{ 
+        <Typography
+          variant="h6"
+          sx={{
             color: '#780000',
             fontWeight: 500,
             textAlign: 'center'
@@ -104,8 +195,8 @@ export default function FindTherapist() {
 
   if (error) {
     return (
-      <Box sx={{ 
-        textAlign: 'center', 
+      <Box sx={{
+        textAlign: 'center',
         mt: 8,
         backgroundColor: '#fefae0',
         minHeight: '80vh',
@@ -114,9 +205,9 @@ export default function FindTherapist() {
         justifyContent: 'center',
         alignItems: 'center'
       }}>
-        <Typography 
-          variant="h5" 
-          color="error" 
+        <Typography
+          variant="h5"
+          color="error"
           sx={{ mb: 3, fontWeight: 600 }}
         >
           {error}
@@ -124,9 +215,9 @@ export default function FindTherapist() {
         <Button
           variant="contained"
           size="large"
-          sx={{ 
-            backgroundColor: '#780000', 
-            '&:hover': { 
+          sx={{
+            backgroundColor: '#780000',
+            '&:hover': {
               backgroundColor: '#5a0000',
               transform: 'translateY(-2px)',
               boxShadow: '0 8px 25px rgba(120, 0, 0, 0.3)'
@@ -146,15 +237,14 @@ export default function FindTherapist() {
   }
 
   return (
-    // Changed Container to Box and added responsive horizontal padding
     <Box sx={{ py: 6, px: { xs: 2, sm: 3, md: 4, lg: 6 }, backgroundColor: '#fefae0', minHeight: '100vh' }}>
       {/* Header Section */}
       <Box sx={{ textAlign: 'center', mb: 6 }}>
-        <Typography 
-          variant="h3" 
-          sx={{ 
-            color: '#780000', 
-            mb: 2, 
+        <Typography
+          variant="h3"
+          sx={{
+            color: '#780000',
+            mb: 2,
             fontWeight: 700,
             background: 'linear-gradient(135deg, #780000 0%, #a00000 100%)',
             backgroundClip: 'text',
@@ -165,9 +255,9 @@ export default function FindTherapist() {
         >
           Find Your Perfect Therapist
         </Typography>
-        <Typography 
-          variant="h6" 
-          sx={{ 
+        <Typography
+          variant="h6"
+          sx={{
             color: '#666',
             fontWeight: 400,
             maxWidth: 600,
@@ -175,88 +265,154 @@ export default function FindTherapist() {
             lineHeight: 1.6
           }}
         >
-          Connect with qualified mental health professionals who understand your needs
+          Connect with qualified mental health professionals who understand your needs. Utilize our filters to narrow down your search and find the best fit for your journey towards well-being.
         </Typography>
       </Box>
 
-      {/* Search Section */}
-      <Box sx={{ mb: 6, display: 'flex', justifyContent: 'center' }}>
-        <TextField
-          label="Search by name"
-          variant="outlined"
-          value={searchTerm}
-          onChange={handleSearchChange}
-          fullWidth
-          sx={{ 
-            maxWidth: 600,
-            '& .MuiOutlinedInput-root': { 
-              borderRadius: 4,
-              backgroundColor: 'white',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              '&:hover': {
-                boxShadow: '0 6px 25px rgba(0, 0, 0, 0.12)',
-              },
-              '&.Mui-focused': {
-                boxShadow: '0 8px 30px rgba(120, 0, 0, 0.15)',
-              }
-            },
-            '& .MuiInputLabel-root': {
-              color: '#666',
-            },
-            '& .MuiOutlinedInput-input': {
-              py: 2,
-            }
-          }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search sx={{ color: '#780000' }} />
-              </InputAdornment>
-            ),
-            endAdornment: (
-              searchTerm && (
-                <InputAdornment position="end">
-                  <IconButton 
-                    onClick={handleClearSearch}
-                    sx={{ 
-                      color: '#666',
-                      '&:hover': { 
-                        color: '#780000',
-                        backgroundColor: 'rgba(120, 0, 0, 0.04)'
-                      }
-                    }}
-                  >
-                    <Clear />
-                  </IconButton>
-                </InputAdornment>
-              )
-            ),
-          }}
-        />
-      </Box>
+      {/* Filter and Search Section */}
+      <Paper elevation={4} sx={{ p: { xs: 2, md: 4 }, mb: 6, borderRadius: 3, backgroundColor: 'white', boxShadow: '0 8px 25px rgba(0,0,0,0.1)' }}>
+        <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+          <FilterList sx={{ mr: 1 }} /> Refine Your Search
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <TextField
+              label="Search by Name or Email"
+              variant="outlined"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': { borderRadius: 2 },
+                '& .MuiInputLabel-root': { color: '#666' },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ color: '#780000' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  searchTerm && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={handleClearSearch}
+                        sx={{ color: '#666', '&:hover': { color: '#780000' } }}
+                      >
+                        <Clear />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                ),
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth variant="outlined">
+              <InputLabel sx={{ color: '#666' }}>Specialization</InputLabel>
+              <Select
+                value={specializationFilter}
+                onChange={handleSpecializationChange}
+                label="Specialization"
+                sx={{ '& .MuiOutlinedInput-notchedOutline': { borderRadius: 2 } }}
+              >
+                <MenuItem value=""><em>All Specializations</em></MenuItem>
+                {specializationsList.map((spec) => (
+                  <MenuItem key={spec} value={spec}>{spec}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="subtitle1" sx={{ color: '#780000', mb: 1, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+              <Money sx={{ fontSize: 18, mr: 0.5 }} /> Pricing Options:
+            </Typography>
+            <RadioGroup
+              row
+              name="pricingFilter"
+              value={pricingFilter}
+              onChange={handlePricingFilterChange}
+              sx={{ justifyContent: 'flex-start', mb: 2 }}
+            >
+              <FormControlLabel value="any" control={<Radio sx={{ color: '#780000' }} />} label="Any" />
+              <FormControlLabel value="free" control={<Radio sx={{ color: '#780000' }} />} label="Free Consultation" />
+              <FormControlLabel value="paid" control={<Radio sx={{ color: '#780000' }} />} label="Paid Sessions" />
+            </RadioGroup>
+          </Grid>
+          <Grid item xs={12} md={6}>
+             <FormControl fullWidth variant="outlined">
+              <InputLabel sx={{ color: '#666' }}>Session Mode</InputLabel>
+              <Select
+                value={sessionModeFilter}
+                onChange={handleSessionModeChange}
+                label="Session Mode"
+                sx={{ '& .MuiOutlinedInput-notchedOutline': { borderRadius: 2 } }}
+              >
+                {sessionModesList.map((mode) => (
+                  <MenuItem key={mode.value} value={mode.value}>{mode.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          {pricingFilter === 'paid' && (
+            <Grid item xs={12}>
+              <Divider sx={{ mb: 2 }} />
+              <Typography variant="subtitle1" sx={{ color: '#780000', mb: 1, fontWeight: 600 }}>Hourly Rate Range:</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Min Hourly Rate (Ksh)"
+                    type="number"
+                    value={minPrice}
+                    onChange={handleMinPriceChange}
+                    fullWidth
+                    variant="outlined"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    InputProps={{ startAdornment: <InputAdornment position="start">Ksh</InputAdornment> }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Max Hourly Rate (Ksh)"
+                    type="number"
+                    value={maxPrice}
+                    onChange={handleMaxPriceChange}
+                    fullWidth
+                    variant="outlined"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    InputProps={{ startAdornment: <InputAdornment position="start">Ksh</InputAdornment> }}
+                  />
+                </Grid>
+              </Grid>
+            </Grid>
+          )}
+        </Grid>
+      </Paper>
+
 
       {/* Results Count */}
       {!loading && (
-        <Typography 
-          variant="body1" 
-          sx={{ 
+        <Typography
+          variant="body1"
+          sx={{
             color: '#666',
             mb: 4,
             textAlign: 'center',
             fontWeight: 500
           }}
         >
-          {therapists.length > 0 
-            ? `Found ${therapists.length} therapist${therapists.length !== 1 ? 's' : ''}`
-            : 'No therapists found matching your search'
+          {therapists.length > 0
+            ? `Found ${therapists.length} therapist${therapists.length !== 1 ? 's' : ''} matching your criteria.`
+            : 'No therapists found matching your search and filters.'
           }
         </Typography>
       )}
 
       {/* No Results Message */}
       {therapists.length === 0 && !loading && (
-        <Box sx={{ 
-          textAlign: 'center', 
+        <Box sx={{
+          textAlign: 'center',
           py: 8,
           backgroundColor: 'white',
           borderRadius: 4,
@@ -269,11 +425,11 @@ export default function FindTherapist() {
             No therapists found
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Try adjusting your search terms or browse all available therapists
+            Try adjusting your search terms or filters.
           </Typography>
           <Button
             variant="outlined"
-            sx={{ 
+            sx={{
               mt: 3,
               borderColor: '#780000',
               color: '#780000',
@@ -282,9 +438,16 @@ export default function FindTherapist() {
                 backgroundColor: 'rgba(120, 0, 0, 0.04)'
               }
             }}
-            onClick={() => setSearchTerm('')}
+            onClick={() => {
+              setSearchTerm('');
+              setSpecializationFilter('');
+              setPricingFilter('any');
+              setMinPrice('');
+              setMaxPrice('');
+              setSessionModeFilter('');
+            }}
           >
-            Clear Search
+            Clear All Filters
           </Button>
         </Box>
       )}
@@ -296,7 +459,7 @@ export default function FindTherapist() {
             <Card
               elevation={0}
               sx={{
-                height: 480, 
+                height: 480,
                 display: 'flex',
                 flexDirection: 'column',
                 borderRadius: 4,
@@ -331,7 +494,7 @@ export default function FindTherapist() {
                     image={therapist.profile_picture}
                     alt={therapist.full_name}
                     className="therapist-image"
-                    sx={{ 
+                    sx={{
                       objectFit: 'cover',
                       transition: 'transform 0.3s ease-in-out'
                     }}
@@ -364,7 +527,7 @@ export default function FindTherapist() {
                     </Avatar>
                   </Box>
                 )}
-                
+
                 {/* Status Badge - Only show if free consultation */}
                 {therapist.is_free_consultation && (
                   <Box
@@ -416,7 +579,7 @@ export default function FindTherapist() {
                   {therapist.full_name}
                 </Typography>
 
-                {/* Client Focus */}
+                {/* Specializations */}
                 <Box>
                   <Typography
                     variant="body2"
@@ -424,10 +587,12 @@ export default function FindTherapist() {
                       color: '#666',
                       fontSize: '0.85rem',
                       fontWeight: 600,
-                      mb: 0.5
+                      mb: 0.5,
+                      display: 'flex',
+                      alignItems: 'center'
                     }}
                   >
-                    Specializes in:
+                    <MedicalServices sx={{ fontSize: 16, mr: 0.5 }} /> Specializes in:
                   </Typography>
                   <Typography
                     variant="body2"
@@ -442,7 +607,40 @@ export default function FindTherapist() {
                       minHeight: '2.5rem'
                     }}
                   >
-                    {therapist.client_focus || 'General mental health support'}
+                    {therapist.specializations || 'General mental health support'}
+                  </Typography>
+                </Box>
+                {/* Session Modes */}
+                <Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: '#666',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      mb: 0.5,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <LocationOn sx={{ fontSize: 16, mr: 0.5 }} /> Session Modes:
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: '#333',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.4,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      minHeight: '2.5rem'
+                    }}
+                  >
+                    {therapist.session_modes === 'online' ? 'Online' :
+                     therapist.session_modes === 'physical' ? 'In-Person' :
+                     therapist.session_modes === 'both' ? 'Online & In-Person' : 'Not specified'}
                   </Typography>
                 </Box>
 
@@ -452,36 +650,36 @@ export default function FindTherapist() {
                 {/* Price/Consultation Chip */}
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 'auto' }}>
                   {therapist.is_free_consultation ? (
-                    <Chip 
-                      label="Free Initial Consultation" 
-                      sx={{ 
+                    <Chip
+                      label="Free Initial Consultation"
+                      sx={{
                         backgroundColor: '#E8F5E8',
                         color: '#2E7D32',
                         fontWeight: 600,
                         fontSize: '0.8rem',
                         border: '1px solid #4CAF50'
-                      }} 
+                      }}
                     />
                   ) : therapist.hourly_rate ? (
-                    <Chip 
+                    <Chip
                       label={`KSh ${parseFloat(therapist.hourly_rate).toLocaleString()}/session`}
-                      sx={{ 
+                      sx={{
                         backgroundColor: '#FFF3E0',
                         color: '#F57C00',
                         fontWeight: 600,
                         fontSize: '0.8rem',
                         border: '1px solid #FFB74D'
-                      }} 
+                      }}
                     />
                   ) : (
-                    <Chip 
+                    <Chip
                       label="Contact for Pricing"
-                      sx={{ 
+                      sx={{
                         backgroundColor: '#F5F5F5',
                         color: '#666',
                         fontWeight: 600,
                         fontSize: '0.8rem'
-                      }} 
+                      }}
                     />
                   )}
                 </Box>
@@ -519,9 +717,6 @@ export default function FindTherapist() {
           </Grid>
         ))}
       </Grid>
-
-      
-     
     </Box>
   );
 }
