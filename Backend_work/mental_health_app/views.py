@@ -56,17 +56,7 @@ else:
     print("WARNING: GEMINI_API_KEY not found in settings. AI features will be disabled.")
     gemini_model = None
 
-# --- TEMPORARY DEBUG CODE: LIST AVAILABLE GEMINI MODELS ---
-if settings.GEMINI_API_KEY:
-    print("\n--- Listing available Gemini models ---")
-    try:
-        for m in genai.list_models():
-            if "generateContent" in m.supported_generation_methods:
-                print(f"  Model Name: {m.name}, Supported Methods: {m.supported_generation_methods}")
-    except Exception as e:
-        print(f"  Error listing models: {e}")
-    print("--- End of model list ---\n")
-# --- END TEMPORARY DEBUG CODE ---
+
 
 # --- Initialize YouTube Data API (NEW) ---
 youtube_service = None
@@ -631,6 +621,15 @@ class SessionRequestCreateView(generics.CreateAPIView):
             status='scheduled'
         ).exists()
 
+        if existing_request:
+            requests_found = SessionRequest.objects.filter(client=self.request.user, status__in=['pending', 'accepted'])
+            print(f"DEBUG: SessionRequestCreateView - Actual pending/accepted requests: {[f'ID: {r.id}, Status: {r.status}, Date: {r.requested_date}' for r in requests_found]}")
+
+        if existing_session:
+            sessions_found = Session.objects.filter(client=self.request.user, status='scheduled')
+            print(f"DEBUG: SessionRequestCreateView - Actual scheduled sessions: {[f'ID: {s.id}, Status: {s.status}, Date: {s.session_date}' for s in sessions_found]}")
+
+
         if existing_request or existing_session:
             return Response(
                 {"detail": "You already have a pending request or an active scheduled session. Please complete it before requesting a new one."},
@@ -665,7 +664,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
 
 
 class TherapistSessionCreateView(generics.CreateAPIView):
-    serializer_class = SessionSerializer # <--- MODIFIED: Changed to SessionSerializer
+    serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
@@ -693,7 +692,8 @@ class TherapistSessionCreateView(generics.CreateAPIView):
             'duration_minutes': session_request.session_duration,
             'session_type': request.data.get('session_type', 'online'),
             'location': request.data.get('location', None),
-            'zoom_meeting_url': request.data.get('zoom_meeting_url', None)
+            'zoom_meeting_url': request.data.get('zoom_meeting_url', None),
+            'status': 'scheduled' # <--- ADD THIS LINE
         }
 
         serializer = self.get_serializer(data=session_data)
@@ -701,6 +701,7 @@ class TherapistSessionCreateView(generics.CreateAPIView):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class TherapistSessionRequestListView(generics.ListAPIView):
     serializer_class = SessionRequestSerializer
@@ -785,7 +786,18 @@ class TherapistSessionListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Session.objects.filter(therapist=self.request.user).order_by('-session_date', '-session_time')
+        # Start with all sessions for the therapist
+        queryset = Session.objects.filter(therapist=self.request.user)
+
+        # Get the 'status' query parameter from the request
+        status_filter = self.request.query_params.get('status')
+
+        # If a status filter is provided, apply it to the queryset
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        # Order the results
+        return queryset.order_by('-session_date', '-session_time')
 
 class SessionDetailUpdateView(generics.UpdateAPIView):
     serializer_class = SessionSerializer
@@ -804,12 +816,21 @@ class SessionDetailUpdateView(generics.UpdateAPIView):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
 
-        if 'status' in request.data and request.data['status'] == 'completed':
-            if instance.status != 'completed':
-                if not all(field in request.data for field in ['notes', 'key_takeaways', 'recommendations']):
-                    pass
+        # Store the original status before performing the update
+        original_status = instance.status
+        
+        self.perform_update(serializer) # This line saves the session with the new status
 
-        self.perform_update(serializer)
+        # After the session is updated, check if its status just transitioned to 'completed'
+        # This is where the magic happens for the SessionRequest status update
+        if original_status != 'completed' and instance.status == 'completed':
+            # If yes, update the status of the associated SessionRequest to 'completed'
+            session_request = instance.session_request
+            if session_request and session_request.status != 'completed': # Avoid redundant updates
+                session_request.status = 'completed'
+                session_request.save()
+                print(f"DEBUG: SessionRequest {session_request.id} status updated to 'completed' after session completion.")
+
 
         if getattr(instance, '_prefetched_objects_cache', None):
             instance = self.get_object()

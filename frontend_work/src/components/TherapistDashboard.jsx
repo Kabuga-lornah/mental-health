@@ -1,4 +1,4 @@
-// Overwriting file: TherapistDashboard.jsx
+// Overwriting file: frontend_work/src/components/TherapistDashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,10 +22,6 @@ import { useSessionFilter } from '../context/SessionFilterContext';
 import axios from 'axios';
 import { format, isBefore, isAfter, addMinutes, subMinutes, parseISO, addDays, startOfDay, isWithinInterval, parse, isToday, isTomorrow } from 'date-fns';
 
-// Recharts imports (will be removed as Monthly Visitors section is removed)
-// import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-
 // Define theme colors
 const themePrimaryColor = '#780000'; // Dark red/maroon
 const themeLightBackground = '#fefae0'; // Light cream/yellowish white
@@ -42,18 +38,18 @@ const TherapistDashboard = () => {
   const [error, setError] = useState(null);
   const [therapistProfile, setTherapistProfile] = useState(null);
   const [sessionRequests, setSessionRequests] = useState([]);
-  const [expandedSessions, setExpandedSessions] = useState({});
+  const [expandedSessions, setExpandedSessions] = useState({}); // Corrected: Initialized with useState({})
   const [scheduledSessions, setScheduledSessions] = useState([]); // Renamed to Upcoming Appointments in UI
   const [completedSessions, setCompletedSessions] = useState([]);
 
   // Availability states (keeping states if backend still uses, UI is removed)
   const [availabilities, setAvailabilities] = useState([]);
-  const [openAvailabilityModal, setOpenAvailabilityModal] = useState(false);
-  const [editingAvailability, setEditingAvailability] = useState(null);
-  const [dayOfWeek, setDayOfWeek] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [slotDuration, setSlotDuration] = useState('');
+  const [openAvailabilityModal, setOpenAvailabilityModal] = useState(false); // Unused, but kept
+  const [editingAvailability, setEditingAvailability] = useState(null); // Unused, but kept
+  const [dayOfWeek, setDayOfWeek] = useState(''); // Unused, but kept
+  const [startTime, setStartTime] = useState(''); // Unused, but kept
+  const [endTime, setEndTime] = useState(''); // Unused, but kept
+  const [slotDuration, setSlotDuration] = useState(''); // Unused, but kept
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -66,11 +62,9 @@ const TherapistDashboard = () => {
   const [keyTakeaways, setKeyTakeaways] = useState('');
   const [recommendations, setRecommendations] = useState('');
 
-  // No longer using dummy data for Monthly Visitors
-  // const [monthlyVisitorsData, setMonthlyVisitorsData] = useState([]);
-  // No longer using dummy data for Important Notifications directly, will derive from sessions/requests
-  // const [importantNotifications, setImportantNotifications] = useState([]);
-
+  // Dialog states for "View All" buttons
+  const [showAllCompletedModal, setShowAllCompletedModal] = useState(false);
+  const [showAllRequestsModal, setShowAllRequestsModal] = useState(false);
 
   // Dynamic Therapist Schedule based on availabilities and scheduled sessions
   const [dynamicTherapistSchedule, setDynamicTherapistSchedule] = useState([]);
@@ -81,7 +75,7 @@ const TherapistDashboard = () => {
 
   // Function to generate schedule blocks from availabilities and sessions
   const generateScheduleBlocks = useCallback(() => {
-    const today = startOfDay(new Date());
+    // const today = startOfDay(new Date()); // Not directly used in filtering here
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const daysOfWeekFull = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -93,7 +87,7 @@ const TherapistDashboard = () => {
       
       const sessionsForDay = scheduledSessions.filter(session => {
         const sessionDate = parseISO(session.session_date);
-        return format(sessionDate, 'iii') === day;
+        return format(sessionDate, 'iii') === day; // Filter by short day name (e.g., 'Mon')
       });
 
       if (availabilityForDay) {
@@ -103,10 +97,10 @@ const TherapistDashboard = () => {
 
         while (isBefore(currentSlotTime, endTime)) {
           const slotEnd = addMinutes(currentSlotTime, slotDuration);
-          if (isAfter(slotEnd, endTime)) break;
+          if (isAfter(slotEnd, endTime)) break; // Prevent overshooting end time
 
           const currentSlotStartFormatted = format(currentSlotTime, 'HH:mm');
-          const currentSlotEndFormatted = format(slotEnd, 'HH:mm');
+          // const currentSlotEndFormatted = format(slotEnd, 'HH:mm'); // Not used
 
           let isBooked = false;
           let bookedClientName = '';
@@ -115,6 +109,7 @@ const TherapistDashboard = () => {
             const sessionStart = parse(session.session_time, 'HH:mm', new Date());
             const sessionEnd = addMinutes(sessionStart, session.duration_minutes || 60);
 
+            // Check if the current slot overlaps with an existing session
             if (
               (isWithinInterval(currentSlotTime, { start: sessionStart, end: sessionEnd }) ||
               isWithinInterval(slotEnd, { start: sessionStart, end: sessionEnd }) ||
@@ -136,6 +131,7 @@ const TherapistDashboard = () => {
           currentSlotTime = slotEnd;
         }
       } else if (sessionsForDay.length > 0) {
+         // If no availability, but sessions exist for the day, list them
          sessionsForDay.forEach(session => {
            dayEntries.push({
              id: `${day}-${session.session_time}-${session.id}`,
@@ -261,11 +257,16 @@ const TherapistDashboard = () => {
         return;
       }
 
+      // Ensure session_duration is converted to minutes if it's in hours or another unit
+      const sessionDurationMinutes = request.session_duration_minutes || request.session_duration * 60 || 60; // Default to 60 if not specified
+
       const response = await axios.post('http://localhost:8000/api/therapist/sessions/create/',
         {
           session_request: request.id,
           session_type: request.session_type || 'online',
           location: request.location || null,
+          duration_minutes: sessionDurationMinutes, // Pass duration in minutes
+          // The backend should handle setting session_date and session_time based on the request
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -273,7 +274,7 @@ const TherapistDashboard = () => {
       setSnackbarMessage("Session created and request confirmed successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchData();
+      fetchData(); // Re-fetch data to update UI
     } catch (err) {
       console.error("Error creating session:", err.response?.data || err);
       const errorMessage = err.response?.data?.detail || "Failed to create session.";
@@ -303,6 +304,7 @@ const TherapistDashboard = () => {
     }
   };
 
+  // Session expansion is not directly used for details anymore with the modal approach, but can be kept for other purposes
   const toggleSessionExpand = (sessionId) => {
     setExpandedSessions(prev => ({ ...prev, [sessionId]: !prev[sessionId] }));
   };
@@ -338,18 +340,20 @@ const TherapistDashboard = () => {
         recommendations: recommendations,
       };
 
-      if (currentSessionToEdit.status === 'scheduled') {
-        updateData.status = 'completed';
-      }
+      // Notes are saved, but the session's status is independently managed by the "Complete" button
+      // Removed automatic status change here to decouple "saving notes" from "completing session"
+      // if (currentSessionToEdit.status === 'scheduled') {
+      //   updateData.status = 'completed';
+      // }
 
       await axios.patch(`http://localhost:8000/api/therapist/sessions/${currentSessionToEdit.id}/`, updateData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      setSnackbarMessage("Session notes and status updated successfully!");
+      setSnackbarMessage("Session notes updated successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchData();
+      fetchData(); // Refresh data to reflect updated notes
       handleCloseNotepad();
     } catch (err) {
       console.error("Error saving notes:", err.response?.data || err);
@@ -357,6 +361,30 @@ const TherapistDashboard = () => {
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
+  };
+
+  // New handler for marking session as complete
+  const handleMarkComplete = async (sessionId) => {
+      try {
+          await axios.patch(`http://localhost:8000/api/therapist/sessions/${sessionId}/`, {
+              status: 'completed'
+          }, {
+              headers: { Authorization: `Bearer ${token}` }
+          });
+
+          // Immediately remove the session from the upcoming list for instant UI feedback
+          setScheduledSessions(prevSessions => prevSessions.filter(session => session.id !== sessionId));
+
+          setSnackbarMessage('Session marked as completed!');
+          setSnackbarSeverity('success');
+          setSnackbarOpen(true);
+          fetchData(); // Still call fetchData to ensure full data consistency from backend
+      } catch (err) {
+          console.error("Error marking session complete:", err.response?.data || err);
+          setSnackbarMessage(err.response?.data?.detail || "Failed to mark session as complete.");
+          setSnackbarSeverity('error');
+          setSnackbarOpen(true);
+      }
   };
 
   const handleScheduleFollowUp = (clientName, clientId) => {
@@ -423,9 +451,9 @@ const TherapistDashboard = () => {
   const upcomingReminders = scheduledSessions.filter(session => {
     const sessionDate = parseISO(session.session_date);
     return isToday(sessionDate) || isTomorrow(sessionDate);
-  }).slice(0, 3);
+  }).slice(0, 3); // Still showing 3 for the reminder panel
 
-  const newRequestReminders = sessionRequests.slice(0, 3);
+  const newRequestRemindersSummary = sessionRequests.slice(0, 2); // Show only 2 requests in summary box
 
 
   return (
@@ -511,10 +539,179 @@ const TherapistDashboard = () => {
           </Grid>
         </Grid>
 
-        {/* Main Content Grid */}
+        {/* New Row for Important Schedule, New Sessions, Completed Sessions (as requested in previous turns) */}
+        {/* This grid container ensures these 3 items are in a single row taking full width */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* Important Schedule / Latest Notifications - No card styling */}
+            <Grid item xs={12} md={4}>
+                <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
+                <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
+                    Important Schedule / Notifications
+                </Typography>
+                {(upcomingReminders.length === 0 && newRequestRemindersSummary.length === 0) ? (
+                    <Typography variant="body2" sx={{ color: themeTextColor }}>No urgent reminders at the moment!</Typography>
+                ) : (
+                    <List dense>
+                    {upcomingReminders.length > 0 && (
+                        <>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Upcoming Sessions:</Typography>
+                        {upcomingReminders.map(session => (
+                            <ListItem key={session.id} sx={{ py: 0.5, borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
+                            <ListItemText
+                                primary={<Typography variant="body2" sx={{ fontWeight: 'bold', color: themeTextColor }}>{session.client_name} - {format(parseISO(session.session_date), 'MMM dd')} at {session.session_time}</Typography>}
+                                secondary={<Chip label={session.session_type} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />}
+                            />
+                            <ListItemSecondaryAction>
+                                <NotificationsOutlined sx={{ color: themePrimaryColor }} />
+                            </ListItemSecondaryAction>
+                            </ListItem>
+                        ))}
+                        </>
+                    )}
+                    {newRequestRemindersSummary.length > 0 && (
+                        <>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: themePrimaryColor, mt: upcomingReminders.length > 0 ? 1 : 0 }}>New Requests:</Typography>
+                        {newRequestRemindersSummary.map(request => (
+                            <ListItem key={request.id} sx={{ py: 0.5, borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
+                            <ListItemText
+                                primary={<Typography variant="body2" sx={{ fontWeight: 'bold', color: themeTextColor }}>{request.client_name} - {format(parseISO(request.requested_date), 'MMM dd')}</Typography>}
+                                secondary={<Chip label="Pending" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />}
+                            />
+                            <ListItemSecondaryAction>
+                                <NotificationsOutlined sx={{ color: themePrimaryColor }} />
+                            </ListItemSecondaryAction>
+                            </ListItem>
+                        ))}
+                        </>
+                    )}
+                    </List>
+                )}
+                </Box>
+            </Grid>
+
+            {/* New Session Requests (Summary) - No card styling */}
+            <Grid item xs={12} md={4}>
+                <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
+                <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
+                    New Session Requests ({sessionRequests.length})
+                </Typography>
+                {sessionRequests.length === 0 ? (
+                    <Typography sx={{ color: themeTextColor }}>No new requests.</Typography>
+                ) : (
+                    <List dense>
+                    {/* Display only 2 requests */}
+                    {newRequestRemindersSummary.map((request) => (
+                        <ListItem key={request.id} sx={{ borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
+                        <ListItemText
+                            primary={<Typography variant="body1" sx={{ fontWeight: 'bold', color: themeTextColor }}>{request.client_name}</Typography>}
+                            secondary={
+                            <>
+                                <Typography variant="body2" color="text.secondary">
+                                {format(new Date(request.requested_date), 'MMM dd,yyyy')} at {request.requested_time}
+                                </Typography>
+                                <Chip
+                                label={request.is_paid ? 'Paid' : 'Pending Payment'}
+                                sx={{ backgroundColor: request.is_paid ? themePrimaryColor : themeUserMessageColor, color: request.is_paid ? themeLightBackground : themeTextColor, mt: 0.5 }}
+                                size="small"
+                                />
+                            </>
+                            }
+                        />
+                        <ListItemSecondaryAction sx={{ alignSelf: 'center' }}> {/* Center vertically */}
+                            <Button
+                            variant="contained"
+                            size="small"
+                            sx={{
+                                backgroundColor: themePrimaryColor,
+                                '&:hover': { backgroundColor: themeButtonHoverColor },
+                                py: 0.5, // Reduced vertical padding
+                                px: 1, // Reduced horizontal padding
+                                fontSize: '0.75rem', // Smaller font size
+                                minWidth: 'auto', // Allow button to shrink
+                            }}
+                            onClick={() => handleCreateSession(request.id)}
+                            disabled={!request.is_paid}
+                            >
+                            Confirm
+                            </Button>
+                        </ListItemSecondaryAction>
+                        </ListItem>
+                    ))}
+                    {sessionRequests.length > 2 && ( // Changed from 3 to 2 for the "View All" threshold
+                        <Box sx={{ textAlign: 'center', mt: 2 }}>
+                        <Button
+                            variant="outlined"
+                            sx={{ borderColor: themePrimaryColor, color: themePrimaryColor }}
+                            onClick={() => setShowAllRequestsModal(true)} // Open modal
+                        >
+                            View All Requests
+                        </Button>
+                        </Box>
+                    )}
+                    </List>
+                )}
+                </Box>
+            </Grid>
+
+            {/* Completed Sessions (Summary) - No card styling */}
+            <Grid item xs={12} md={4}>
+                <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
+                <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
+                    Completed Sessions ({completedSessions.length})
+                </Typography>
+                {completedSessions.length === 0 ? (
+                    <Typography sx={{ color: themeTextColor }}>No completed sessions yet.</Typography>
+                ) : (
+                    <List dense>
+                    {completedSessions.slice(0, 3).map((session) => (
+                        <ListItem key={session.id} sx={{ borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
+                      <ListItemText
+                            primary={<Typography variant="body1" sx={{ fontWeight: 'bold', color: themeTextColor }}>{session.client_name}</Typography>}
+                            secondary={
+                            <>
+                                <Typography variant="body2" color="text.secondary">
+                                {format(new Date(session.session_date), 'MMM dd,yyyy')}
+                                </Typography>
+                                {session.notes && (
+                                <Typography variant="caption" color="text.secondary" noWrap>
+                                    {session.notes.substring(0, 50)}...
+                                </Typography>
+                                )}
+                            </>
+                            }
+                        />
+                        <ListItemSecondaryAction>
+                            <IconButton
+                            size="small"
+                            onClick={() => handleOpenNotepad(session)}
+                            sx={{ color: themePrimaryColor }}
+                            >
+                            <EditIcon />
+                            </IconButton>
+                        </ListItemSecondaryAction>
+                        </ListItem>
+                    ))}
+                    {completedSessions.length > 3 && (
+                        <Box sx={{ textAlign: 'center', mt: 2 }}>
+                        <Button
+                            variant="outlined"
+                            sx={{ borderColor: themePrimaryColor, color: themePrimaryColor }}
+                            onClick={() => setShowAllCompletedModal(true)} // Open modal
+                        >
+                            View All Completed
+                        </Button>
+                        </Box>
+                    )}
+                    </List>
+                )}
+                </Box>
+            </Grid>
+        </Grid>
+
+        {/* Main Content Grid - Now only contains Upcoming Appointments & Your Schedule */}
         <Grid container spacing={3}>
-          {/* Left Column - Upcoming Appointments & Your Schedule */}
-          <Grid item xs={12} md={8}>
+          {/* Upcoming Appointments & Your Schedule will now take full width of this grid */}
+          <Grid item xs={12} md={12}> {/* Changed from md={8} to md={12} */}
             {/* Upcoming Appointments - No card styling */}
             <Box sx={{ p: 4, mb: 3, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
               <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
@@ -532,7 +729,7 @@ const TherapistDashboard = () => {
                         <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Time</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Duration</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Type</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Actions</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Actions</TableCell> {/* New column */}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -570,6 +767,16 @@ const TherapistDashboard = () => {
                             >
                               Takeaways
                             </Button>
+                            {/* New Mark Complete Button */}
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={<CheckCircle />}
+                              sx={{ backgroundColor: themePrimaryColor, '&:hover': { backgroundColor: themeButtonHoverColor } }}
+                              onClick={() => handleMarkComplete(session.id)}
+                            >
+                              Complete
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -600,7 +807,13 @@ const TherapistDashboard = () => {
                               width: '100%',
                               backgroundColor: item.type === 'Session' ? '#DCC8C8' : (item.type === 'Available' ? '#F0F8FF' : '#e0e0e0'),
                               color: themeTextColor,
-                              fontWeight: 'medium'
+                              fontWeight: 'medium',
+                              // New styles for truncation
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: '120px', // Set a max-width for consistent chip size
+                              justifyContent: 'flex-start' // Align text to start
                             }}
                           />
                         ))
@@ -614,167 +827,10 @@ const TherapistDashboard = () => {
             </Box>
           </Grid>
 
-          {/* Right Column - Notifications, Requests, Completed */}
-          <Grid item xs={12} md={4}>
-            {/* IMPORTANT: Monthly Visitors Chart section REMOVED as per user request */}
-            {/* You will need to add backend API to fetch real data for the sections below */}
-
-            {/* Important Schedule / Latest Notifications - No card styling */}
-            <Box sx={{ p: 4, mb: 3, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
-              <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
-                Important Schedule / Notifications
-              </Typography>
-              {/* This section now always shows the content derived from upcomingReminders and newRequestReminders */}
-              {(upcomingReminders.length === 0 && newRequestReminders.length === 0) ? (
-                <Typography variant="body2" sx={{ color: themeTextColor }}>No urgent reminders at the moment!</Typography>
-              ) : (
-                <List dense>
-                  {upcomingReminders.length > 0 && (
-                    <>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Upcoming Sessions:</Typography>
-                      {upcomingReminders.map(session => (
-                        <ListItem key={session.id} sx={{ py: 0.5, borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
-                          <ListItemText
-                            primary={<Typography variant="body2" sx={{ fontWeight: 'bold', color: themeTextColor }}>{session.client_name} - {format(parseISO(session.session_date), 'MMM dd')} at {session.session_time}</Typography>}
-                            secondary={<Chip label={session.session_type} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />}
-                          />
-                          <ListItemSecondaryAction>
-                            <NotificationsOutlined sx={{ color: themePrimaryColor }} />
-                          </ListItemSecondaryAction>
-                        </ListItem>
-                      ))}
-                    </>
-                  )}
-                  {newRequestReminders.length > 0 && (
-                    <>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: themePrimaryColor, mt: upcomingReminders.length > 0 ? 1 : 0 }}>New Requests:</Typography>
-                      {newRequestReminders.map(request => (
-                        <ListItem key={request.id} sx={{ py: 0.5, borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
-                          <ListItemText
-                            primary={<Typography variant="body2" sx={{ fontWeight: 'bold', color: themeTextColor }}>{request.client_name} - {format(parseISO(request.requested_date), 'MMM dd')}</Typography>}
-                            secondary={<Chip label="Pending" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />}
-                          />
-                          <ListItemSecondaryAction>
-                            <NotificationsOutlined sx={{ color: themePrimaryColor }} />
-                          </ListItemSecondaryAction>
-                        </ListItem>
-                      ))}
-                    </>
-                  )}
-                </List>
-              )}
-            </Box>
-
-            {/* New Session Requests (Summary) - No card styling */}
-            <Box sx={{ p: 4, mb: 3, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
-              <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
-                New Session Requests ({sessionRequests.length})
-              </Typography>
-              {sessionRequests.length === 0 ? (
-                <Typography sx={{ color: themeTextColor }}>No new requests.</Typography>
-              ) : (
-                <List dense>
-                  {sessionRequests.slice(0, 3).map((request) => (
-                    <ListItem key={request.id} sx={{ borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
-                      <ListItemText
-                        primary={<Typography variant="body1" sx={{ fontWeight: 'bold', color: themeTextColor }}>{request.client_name}</Typography>}
-                        secondary={
-                          <>
-                            <Typography variant="body2" color="text.secondary">
-                              {format(new Date(request.requested_date), 'MMM dd,yyyy')} at {request.requested_time}
-                            </Typography>
-                            <Chip
-                              label={request.is_paid ? 'Paid' : 'Pending Payment'}
-                              sx={{ backgroundColor: request.is_paid ? themePrimaryColor : themeUserMessageColor, color: request.is_paid ? themeLightBackground : themeTextColor, mt: 0.5 }}
-                              size="small"
-                            />
-                          </>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          sx={{ backgroundColor: themePrimaryColor, '&:hover': { backgroundColor: themeButtonHoverColor } }}
-                          onClick={() => handleCreateSession(request.id)}
-                          disabled={!request.is_paid}
-                        >
-                          Confirm
-                        </Button>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                  {sessionRequests.length > 3 && (
-                    <Box sx={{ textAlign: 'center', mt: 2 }}>
-                      <Button
-                        variant="outlined"
-                        sx={{ borderColor: themePrimaryColor, color: themePrimaryColor }}
-                        onClick={() => { /* Implement navigation to a "View All Requests" page/modal */ }}
-                      >
-                        View All Requests
-                      </Button>
-                    </Box>
-                  )}
-                </List>
-              )}
-            </Box>
-
-            {/* Completed Sessions (Summary) - No card styling */}
-            <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
-              <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
-                Completed Sessions ({completedSessions.length})
-              </Typography>
-              {completedSessions.length === 0 ? (
-                <Typography sx={{ color: themeTextColor }}>No completed sessions yet.</Typography>
-              ) : (
-                <List dense>
-                  {completedSessions.slice(0, 3).map((session) => (
-                    <ListItem key={session.id} sx={{ borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' } }}>
-                      <ListItemText
-                        primary={<Typography variant="body1" sx={{ fontWeight: 'bold', color: themeTextColor }}>{session.client_name}</Typography>}
-                        secondary={
-                          <>
-                            <Typography variant="body2" color="text.secondary">
-                              {format(new Date(session.session_date), 'MMM dd,yyyy')}
-                            </Typography>
-                            {session.notes && (
-                              <Typography variant="caption" color="text.secondary" noWrap>
-                                {session.notes.substring(0, 50)}...
-                              </Typography>
-                            )}
-                          </>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenNotepad(session)}
-                          sx={{ color: themePrimaryColor }}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                  {completedSessions.length > 3 && (
-                    <Box sx={{ textAlign: 'center', mt: 2 }}>
-                      <Button
-                        variant="outlined"
-                        sx={{ borderColor: themePrimaryColor, color: themePrimaryColor }}
-                        onClick={() => { /* Implement navigation to a "View All Completed Sessions" page/modal */ }}
-                      >
-                        View All Completed
-                      </Button>
-                    </Box>
-                  )}
-                </List>
-              )}
-            </Box>
-          </Grid>
-        </Grid>
+        </Grid> {/* End Main Content Grid */}
 
         {/* Floating Important Reminders Panel */}
-        {(upcomingReminders.length > 0 || newRequestReminders.length > 0) && showReminderPanel && (
+        {(upcomingReminders.length > 0 || newRequestRemindersSummary.length > 0) && showReminderPanel && (
           <Slide direction="up" in={showReminderPanel} mountOnEnter unmountOnExit>
             <Box
               sx={{
@@ -818,11 +874,11 @@ const TherapistDashboard = () => {
                   </List>
                 </>
               )}
-              {newRequestReminders.length > 0 && (
+              {newRequestRemindersSummary.length > 0 && (
                 <>
                   <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: themePrimaryColor, mt: upcomingReminders.length > 0 ? 1 : 0 }}>New Requests:</Typography>
                   <List dense disablePadding>
-                    {newRequestReminders.map(request => (
+                    {newRequestRemindersSummary.map(request => (
                       <ListItem key={request.id} sx={{ py: 0.5 }}>
                         <ListItemText
                           primary={<Typography variant="body2" sx={{ fontWeight: 'bold' }}>{request.client_name} - {format(parseISO(request.requested_date), 'MMM dd')}</Typography>}
@@ -833,7 +889,7 @@ const TherapistDashboard = () => {
                   </List>
                 </>
               )}
-              {(upcomingReminders.length === 0 && newRequestReminders.length === 0) && (
+              {(upcomingReminders.length === 0 && newRequestRemindersSummary.length === 0) && (
                 <Typography variant="body2" sx={{ color: themeTextColor }}>No urgent reminders at the moment!</Typography>
               )}
             </Box>
@@ -923,6 +979,107 @@ const TherapistDashboard = () => {
             </Box>
         </Slide>
 
+        {/* Dialog for View All Completed Sessions */}
+        <Dialog open={showAllCompletedModal} onClose={() => setShowAllCompletedModal(false)} maxWidth="md" fullWidth>
+            <DialogTitle sx={{ backgroundColor: themePrimaryColor, color: themeLightBackground, fontWeight: 'bold' }}>All Completed Sessions</DialogTitle>
+            <DialogContent dividers>
+                {completedSessions.length === 0 ? (
+                    <Typography>No completed sessions to display.</Typography>
+                ) : (
+                    <TableContainer>
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow sx={{ backgroundColor: themeLightBackground }}>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Client</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Date</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Time</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Notes</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Actions</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {completedSessions.map((session) => (
+                                    <TableRow key={session.id}>
+                                        <TableCell>{session.client_name}</TableCell>
+                                        <TableCell>{format(new Date(session.session_date), 'PPP')}</TableCell>
+                                        <TableCell>{session.session_time}</TableCell>
+                                        <TableCell>{session.notes ? session.notes.substring(0, 70) + '...' : 'No notes'}</TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                startIcon={<Notes />}
+                                                sx={{ borderColor: themePrimaryColor, color: themePrimaryColor, '&:hover': { backgroundColor: `${themePrimaryColor}10` } }}
+                                                onClick={() => handleOpenNotepad(session)}
+                                            >
+                                                View Notes
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => setShowAllCompletedModal(false)} sx={{ color: themePrimaryColor }}>Close</Button>
+            </DialogActions>
+        </Dialog>
+
+        {/* Dialog for View All Session Requests */}
+        <Dialog open={showAllRequestsModal} onClose={() => setShowAllRequestsModal(false)} maxWidth="md" fullWidth>
+            <DialogTitle sx={{ backgroundColor: themePrimaryColor, color: themeLightBackground, fontWeight: 'bold' }}>All New Session Requests</DialogTitle>
+            <DialogContent dividers>
+                {sessionRequests.length === 0 ? (
+                    <Typography>No new session requests to display.</Typography>
+                ) : (
+                    <TableContainer>
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow sx={{ backgroundColor: themeLightBackground }}>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Client</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Requested Date</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Requested Time</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Status</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Actions</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {sessionRequests.map((request) => (
+                                    <TableRow key={request.id}>
+                                        <TableCell>{request.client_name}</TableCell>
+                                        <TableCell>{format(new Date(request.requested_date), 'PPP')}</TableCell>
+                                        <TableCell>{request.requested_time}</TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={request.is_paid ? 'Paid' : 'Pending Payment'}
+                                                sx={{ backgroundColor: request.is_paid ? themePrimaryColor : themeUserMessageColor, color: request.is_paid ? themeLightBackground : themeTextColor }}
+                                                size="small"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="contained"
+                                                size="small"
+                                                sx={{ backgroundColor: themePrimaryColor, '&:hover': { backgroundColor: themeButtonHoverColor } }}
+                                                onClick={() => handleCreateSession(request.id)}
+                                                disabled={!request.is_paid}
+                                            >
+                                                Confirm
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => setShowAllRequestsModal(false)} sx={{ color: themePrimaryColor }}>Close</Button>
+            </DialogActions>
+        </Dialog>
 
         <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
           <Alert
