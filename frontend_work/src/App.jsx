@@ -1,3 +1,4 @@
+// Overwriting file: kabuga-lornah/mental-health/mental-health-479a95f64f3b24dcb93d7f0b775fd1bf85416c99/frontend_work/src/App.jsx
 import React from "react";
 import {
   createBrowserRouter,
@@ -7,6 +8,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { SessionFilterProvider } from "./context/SessionFilterContext"; // Import SessionFilterProvider
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
 import Dashboard from "./components/Dashboard";
@@ -26,7 +28,7 @@ import Meditation from "./components/Meditation";
 import BreathingLoader from "./components/BreathingLoader";
 import UserProfile from "./components/UserProfile";
 import TherapistProfile from "./components/TherapistProfile";
-import ChatInterface from "./components/ChatInterface"; // Assuming ChatInterface component exists
+import ChatInterface from "./components/ChatInterface";
 
 const AppNavbar = () => {
   const { user, loading } = useAuth();
@@ -297,7 +299,9 @@ const router = createBrowserRouter([
 function App() {
   return (
     <AuthProvider>
-      <RouterProvider router={router} />
+      <SessionFilterProvider> 
+        <RouterProvider router={router} />
+      </SessionFilterProvider>
     </AuthProvider>
   );
 }

@@ -48,10 +48,9 @@ const heroBackgroundZoom = keyframes`
   100% { transform: scale(1.05); } /* Subtle zoom for hero background */
 `;
 
-const heroImage = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80";
-// Changed to a placeholder URL for better compatibility.
-// If you have a local 'brainflower.jpeg', ensure it's in your 'public' folder or adjust the path accordingly.
-const brainflowerImage = "https://placehold.co/600x400/780000/FFFFFF?text=Brainflower+Image+Placeholder";
+const heroImage = "/background.jpeg";
+
+const brainflowerImage = "/brainflower.jpeg";
 
 export default function Homepage() {
   return (

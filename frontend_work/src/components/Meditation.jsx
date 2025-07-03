@@ -3,11 +3,35 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Container, Typography, Paper, Grid,
   Card, CardContent, Button, CircularProgress,
-  Snackbar, Alert, Chip
+  Snackbar, Alert, Chip, Divider
 } from '@mui/material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import SelfImprovementIcon from '@mui/icons-material/SelfImprovement';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+
+// Define theme colors
+const themePrimaryColor = '#780000'; // Dark red/maroon
+const themeLightBackground = '#fefae0'; // Light cream/yellowish white
+const themeButtonHoverColor = '#5a0000'; // Darker red/maroon for hover
+const themeCardBackground = 'white'; // White for cards
+const themeAccentColor = '#DCC8C8'; // A subtle accent for chips
+
+// Define animations
+import { keyframes } from '@emotion/react';
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
+
+const scaleIn = keyframes`
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+`;
+
 
 // API Keys - In production, these should be environment variables
 const GEMINI_API_KEY = 'AIzaSyCzfeeSL53b5qVuGp2UyKyWQJ_rctM3Kjc';
@@ -69,7 +93,7 @@ function Meditation() {
       const data = await response.json();
       return data.items || [];
     } catch (error) {
-      console.error('YouTube search error:', error);
+      console.error('Youtube error:', error);
       return [];
     }
   };
@@ -89,12 +113,27 @@ function Meditation() {
     setAiRecommendation(null);
 
     try {
-      // Prepare recent journal entries for analysis
-      const recentEntries = journalEntries.slice(0, 10).map(entry => ({
+      // Filter journal entries for the last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const recentEntries = journalEntries.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= sevenDaysAgo;
+      }).map(entry => ({
         date: new Date(entry.date).toLocaleDateString(),
         mood: entry.mood || 'neutral',
         content: entry.entry || 'No content'
       }));
+
+      if (recentEntries.length === 0) {
+        setSnackbarMessage("No journal entries found for the last 7 days to analyze.");
+        setSnackbarSeverity('info');
+        setSnackbarOpen(true);
+        setLoadingRecommendation(false);
+        return;
+      }
+
 
       // Create prompt for Gemini AI
       const prompt = `
@@ -109,7 +148,7 @@ function Meditation() {
           "recommended_technique": "Name of the meditation/mindfulness technique",
           "technique_explanation": "Detailed explanation of how to practice this technique (2-3 sentences)",
           "reason_for_choice": "Why this technique is specifically recommended based on their journal entries",
-          "youtube_search_query": "Specific search term for finding relevant YouTube videos about this technique"
+          "Youtube_query": "Specific search term for finding relevant YouTube videos about this technique"
         }
 
         Focus on evidence-based meditation techniques like mindfulness, breathing exercises, body scan, loving-kindness, etc.
@@ -135,7 +174,7 @@ function Meditation() {
       }
 
       // Search for YouTube videos
-      const youtubeVideos = await searchYouTubeVideos(aiData.youtube_search_query);
+      const youtubeVideos = await searchYouTubeVideos(aiData.Youtube_query);
 
       // Set the recommendation with YouTube videos
       setAiRecommendation({
@@ -162,170 +201,194 @@ function Meditation() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#fefae0', py: 8, fontFamily: 'Inter, sans-serif' }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: themeLightBackground, py: 8, fontFamily: 'Inter, sans-serif' }}>
       <Container maxWidth="lg">
-        <Paper elevation={6} sx={{ p: { xs: 2, sm: 4 }, borderRadius: 3, backgroundColor: 'white' }}>
-          <Typography variant="h4" align="center" sx={{ color: '#780000', mb: 4, fontWeight: 'bold' }}>
-            Mindfulness & Meditation Hub
+        {/* Removed Paper elevation and styling here */}
+        <Typography variant="h4" align="center" sx={{ color: themePrimaryColor, mb: 4, fontWeight: 'bold', fontFamily: 'Poppins, sans-serif' }}>
+          <SelfImprovementIcon sx={{ mr: 1, fontSize: '2.5rem', verticalAlign: 'bottom' }} /> Mindfulness & Meditation Hub
+        </Typography>
+
+        <Box sx={{ mb: 5, p: { xs: 2, sm: 4 }, borderRadius: 3, backgroundColor: themeCardBackground, boxShadow: '0px 6px 15px rgba(0,0,0,0.1)', animation: `${fadeIn} 1s ease-out forwards 0.2s`, animationFillMode: 'backwards' }}>
+          <Typography variant="h5" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold', borderBottom: `2px solid ${themeAccentColor}50`, pb: 1 }}>
+            Your Recent Moods (from Journal Entries)
           </Typography>
 
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 2, fontWeight: 'bold' }}>
-              Your Recent Moods (from Journal Entries)
-            </Typography>
-
-            {loadingJournals ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 100 }}>
-                <CircularProgress size={20} sx={{ color: '#780000' }} />
-                <Typography sx={{ ml: 1, color: '#780000' }}>Loading journal insights...</Typography>
-              </Box>
-            ) : journalEntries.length > 0 ? (
-              <Grid container spacing={2}>
-                {journalEntries.slice(0, 5).map((entry) => (
-                  <Grid item xs={12} sm={6} md={4} key={entry.id}>
-                    <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: '#fdf8f5', p: 2, height: '100%' }}>
-                      <CardContent>
-                        <Typography variant="subtitle2" sx={{ color: '#780000', mb: 1 }}>
-                          Date: {new Date(entry.date).toLocaleDateString()}
-                        </Typography>
-                        <Box sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                          <Typography variant="body1" component="span" sx={{ mr: 1 }}>Mood:</Typography>
-                          <Chip label={entry.mood || 'N/A'} size="small" sx={{ bgcolor: '#DCC8C8', color: '#333' }} />
-                        </Box>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{
-                            mt: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: 'vertical'
-                          }}
-                        >
-                          {entry.entry
-                            ? `"${entry.entry.length > 100 ? entry.entry.substring(0, 100) + '...' : entry.entry}"`
-                            : "No entry content available."}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-                <Grid item xs={12}>
-                  <Button
-                    variant="contained"
-                    onClick={analyzeMoodAndRecommend}
-                    disabled={loadingRecommendation}
-                    sx={{
-                      backgroundColor: '#780000',
-                      color: 'white',
-                      mt: 2,
-                      '&:hover': {
-                        backgroundColor: '#a4161a'
-                      },
-                      '&:disabled': {
-                        backgroundColor: '#ccc'
-                      }
-                    }}
-                  >
-                    {loadingRecommendation ? (
-                      <>
-                        <CircularProgress size={20} sx={{ mr: 1, color: 'white' }} />
-                        Analyzing...
-                      </>
-                    ) : (
-                      'Analyze Mood & Get Recommendations'
-                    )}
-                  </Button>
+          {loadingJournals ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 100 }}>
+              <CircularProgress size={20} sx={{ color: themePrimaryColor }} />
+              <Typography sx={{ ml: 1, color: themePrimaryColor }}>Loading journal insights...</Typography>
+            </Box>
+          ) : journalEntries.length > 0 ? (
+            <Grid container spacing={3}>
+              {journalEntries.slice(0, 5).map((entry, index) => (
+                <Grid item xs={12} sm={6} md={4} key={entry.id} sx={{ animation: `${scaleIn} 0.8s ease-out forwards ${0.1 * index + 0.3}s`, animationFillMode: 'backwards' }}>
+                  <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: themeLightBackground, p: 2, height: '100%', boxShadow: '0px 4px 10px rgba(0,0,0,0.05)' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" sx={{ color: themePrimaryColor, mb: 1, fontWeight: 'bold' }}>
+                        Date: {new Date(entry.date).toLocaleDateString()}
+                      </Typography>
+                      <Box sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <Typography variant="body1" component="span" sx={{ mr: 1, color: '#555' }}>Mood:</Typography>
+                        <Chip label={entry.mood || 'N/A'} size="small" sx={{ bgcolor: themeAccentColor, color: themePrimaryColor, fontWeight: 'bold' }} />
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          mt: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          color: '#444'
+                        }}
+                      >
+                        {entry.entry
+                          ? `"${entry.entry.length > 100 ? entry.entry.substring(0, 100) + '...' : entry.entry}"`
+                          : "No entry content available."}
+                      </Typography>
+                    </CardContent>
+                  </Card>
                 </Grid>
+              ))}
+              <Grid item xs={12} sx={{ textAlign: 'center', mt: 3 }}>
+                <Button
+                  variant="contained"
+                  onClick={analyzeMoodAndRecommend}
+                  disabled={loadingRecommendation}
+                  sx={{
+                    backgroundColor: themePrimaryColor,
+                    color: themeCardBackground,
+                    py: 1.5,
+                    px: 4,
+                    borderRadius: 2,
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    '&:hover': {
+                      backgroundColor: themeButtonHoverColor,
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 15px rgba(120, 0, 0, 0.4)'
+                    },
+                    '&:disabled': {
+                      backgroundColor: '#ccc',
+                      color: '#666'
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  {loadingRecommendation ? (
+                    <>
+                      <CircularProgress size={20} sx={{ mr: 1, color: themeCardBackground }} />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <AutoFixHighIcon sx={{ mr: 1 }} /> Analyze Mood & Get Recommendations
+                    </>
+                  )}
+                </Button>
               </Grid>
-            ) : (
-              <Typography>No journal entries available yet.</Typography>
-            )}
-          </Box>
-
-          {aiRecommendation && (
-            <Box sx={{ mt: 4, p: 3, border: '2px solid #780000', borderRadius: 3, backgroundColor: '#fdf8f5' }}>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#780000', mb: 3 }}>
-                🧘 Your Personalized Meditation Recommendation
+            </Grid>
+          ) : (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+                Start journaling to unlock personalized meditation recommendations!
               </Typography>
-              
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#780000', mb: 1 }}>
-                  Mood Analysis:
-                </Typography>
-                <Typography variant="body1" sx={{ mb: 2, p: 2, backgroundColor: 'white', borderRadius: 2 }}>
-                  {aiRecommendation.mood_summary}
-                </Typography>
-              </Box>
-
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#780000', mb: 1 }}>
-                  Recommended Technique: {aiRecommendation.recommended_technique}
-                </Typography>
-                <Typography variant="body1" sx={{ mb: 2, p: 2, backgroundColor: 'white', borderRadius: 2 }}>
-                  <strong>How to practice:</strong> {aiRecommendation.technique_explanation}
-                </Typography>
-                <Typography variant="body1" sx={{ p: 2, backgroundColor: 'white', borderRadius: 2 }}>
-                  <strong>Why this technique:</strong> {aiRecommendation.reason_for_choice}
-                </Typography>
-              </Box>
-
-              {aiRecommendation.youtube_videos && aiRecommendation.youtube_videos.length > 0 && (
-                <Box sx={{ mt: 3 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#780000', mb: 2 }}>
-                    📺 Recommended Videos:
-                  </Typography>
-                  <Grid container spacing={2}>
-                    {aiRecommendation.youtube_videos.map((video, index) => (
-                      <Grid item xs={12} md={6} key={video.id.videoId}>
-                        <Card sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                          <Box sx={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-                            <iframe
-                              src={`https://www.youtube.com/embed/${video.id.videoId}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allowFullScreen
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%'
-                              }}
-                            />
-                          </Box>
-                          <CardContent>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {video.snippet.description.length > 100 
-                                ? video.snippet.description.substring(0, 100) + '...'
-                                : video.snippet.description}
-                            </Typography>
-                            <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#780000' }}>
-                              Channel: {video.snippet.channelTitle}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Box>
-              )}
-
-              <Box sx={{ mt: 3, p: 2, backgroundColor: '#fff3cd', borderRadius: 2, border: '1px solid #ffeaa7' }}>
-                <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#856404' }}>
-                  💡 <strong>Tip:</strong> Practice this technique for 5-10 minutes daily for best results. 
-                  Remember, meditation is a practice - be patient and kind with yourself as you develop this skill.
-                </Typography>
-              </Box>
+              <img src="https://assets.website-files.com/5f76269b52a16d2b36a103c8/603e913a1727768565a4e5ed_undraw_empty_re_opql.svg" alt="No journal entries" style={{ maxWidth: '200px', opacity: 0.7 }} />
+              <Button
+                component={Link}
+                to="/journal"
+                variant="outlined"
+                sx={{ mt: 3, borderColor: themePrimaryColor, color: themePrimaryColor, '&:hover': { backgroundColor: `${themePrimaryColor}10` } }}
+              >
+                Go to Journal
+              </Button>
             </Box>
           )}
+        </Box>
 
-        </Paper>
+        {aiRecommendation && (
+          <Box sx={{ mt: 4, p: 4, border: `2px solid ${themePrimaryColor}`, borderRadius: 3, backgroundColor: themeLightBackground, boxShadow: '0 8px 20px rgba(0,0,0,0.15)', animation: `${scaleIn} 1s ease-out forwards` }}>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', color: themePrimaryColor, mb: 3, display: 'flex', alignItems: 'center', borderBottom: `2px solid ${themePrimaryColor}20`, pb: 1 }}>
+              <LightbulbOutlinedIcon sx={{ mr: 1, fontSize: '2.5rem' }} /> Your Personalized Meditation Recommendation
+            </Typography>
+            
+            <Box sx={{ mb: 3, p: 2, backgroundColor: themeCardBackground, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', color: themePrimaryColor, mb: 1 }}>
+                Mood Analysis:
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 0, color: '#333' }}>
+                {aiRecommendation.mood_summary}
+              </Typography>
+            </Box>
+
+            <Box sx={{ mb: 3, p: 2, backgroundColor: themeCardBackground, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', color: themePrimaryColor, mb: 1 }}>
+                Recommended Technique: <span style={{ color: '#555', fontWeight: 'normal' }}>{aiRecommendation.recommended_technique}</span>
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 1, color: '#333' }}>
+                <strong>How to practice:</strong> {aiRecommendation.technique_explanation}
+              </Typography>
+              <Typography variant="body1" sx={{ color: '#333' }}>
+                <strong>Why this technique:</strong> {aiRecommendation.reason_for_choice}
+              </Typography>
+            </Box>
+
+            {aiRecommendation.youtube_videos && aiRecommendation.youtube_videos.length > 0 && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: themePrimaryColor, mb: 2, borderBottom: `1px dashed ${themeAccentColor}`, pb: 1 }}>
+                  📺 Recommended Videos:
+                </Typography>
+                <Grid container spacing={3}>
+                  {aiRecommendation.youtube_videos.map((video, index) => (
+                    <Grid item xs={12} md={6} key={video.id.videoId} sx={{ animation: `${scaleIn} 0.8s ease-out forwards ${0.1 * index + 0.8}s`, animationFillMode: 'backwards' }}>
+                      <Card sx={{ borderRadius: 2, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                        <Box sx={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+                          <iframe
+                            src={`https://www.youtube.com/embed/${video.id.videoId}`}
+                            title={video.snippet.title}
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%'
+                            }}
+                          />
+                        </Box>
+                        <CardContent sx={{ bgcolor: themeCardBackground }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: themePrimaryColor }}>
+                            {video.snippet.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ color: '#444' }}>
+                            {video.snippet.description.length > 100 
+                              ? video.snippet.description.substring(0, 100) + '...'
+                              : video.snippet.description}
+                          </Typography>
+                          <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#666', fontStyle: 'italic' }}>
+                            Channel: {video.snippet.channelTitle}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
+
+            <Box sx={{ mt: 4, p: 2.5, backgroundColor: `${themePrimaryColor}10`, borderRadius: 2, border: `1px solid ${themePrimaryColor}30`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+              <Typography variant="body2" sx={{ fontStyle: 'italic', color: themePrimaryColor, fontWeight: 'medium' }}>
+                💡 <strong>Tip:</strong> Consistency is key. Practice this technique for 5-10 minutes daily for best results. 
+                Remember, meditation is a practice - be patient and kind with yourself as you develop this skill.
+              </Typography>
+            </Box>
+          </Box>
+        )}
+
       </Container>
 
       <Snackbar
@@ -334,7 +397,7 @@ function Meditation() {
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>

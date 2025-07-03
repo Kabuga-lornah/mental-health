@@ -1,5 +1,7 @@
+// Overwriting file: TherapistNavbar_OLD.jsx
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useSessionFilter } from "../context/SessionFilterContext"; // Import useSessionFilter
 import {
   AppBar,
   Toolbar,
@@ -9,10 +11,15 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  IconButton
+  IconButton,
+  TextField, // Added TextField
+  InputAdornment // Added InputAdornment
 } from "@mui/material";
 import { useState, useEffect } from "react";
-
+import { DatePicker } from "@mui/x-date-pickers/DatePicker"; // Added DatePicker
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"; // Added LocalizationProvider
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"; // Added AdapterDateFns
+import { Search as SearchIcon, Clear as ClearIcon } from "@mui/icons-material"; // Added Icons
 
 const loadCinzelFont = () => {
   const link = document.createElement("link");
@@ -23,6 +30,7 @@ const loadCinzelFont = () => {
 
 export default function TherapistNavbar() {
   const { user, logout } = useAuth();
+  const { clientSearchTerm, setClientSearchTerm, sessionDateFilter, setSessionDateFilter } = useSessionFilter(); // Use session filter context
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -39,6 +47,10 @@ export default function TherapistNavbar() {
     navigate("/");
   };
 
+  const handleClearFilters = () => {
+    setClientSearchTerm('');
+    setSessionDateFilter(null);
+  };
 
   if (!user || !user.is_therapist) return null;
 
@@ -52,7 +64,7 @@ export default function TherapistNavbar() {
         fontFamily: "'Cinzel', serif",
       }}
     >
-      <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+      <Toolbar sx={{ display: "flex", justifyContent: "space-between", flexWrap: 'wrap' }}>
         <Typography
           variant="h5"
           component={Link}
@@ -66,10 +78,87 @@ export default function TherapistNavbar() {
             letterSpacing: "1px",
             textTransform: "uppercase",
             "&:hover": { color: "white" },
+            minWidth: 'fit-content' // Prevent text from shrinking too much
           }}
         >
           {/* MindWell */}
         </Typography>
+
+        {/* Search and Filter Bar in Navbar */}
+        <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, alignItems: 'center', mx: 2, my: { xs: 1, sm: 0 }, maxWidth: 600 }}>
+          <TextField
+            label="Search Client"
+            variant="outlined"
+            size="small"
+            value={clientSearchTerm}
+            onChange={(e) => setClientSearchTerm(e.target.value)}
+            sx={{
+              flexGrow: 1,
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              borderRadius: 1,
+              '& .MuiInputBase-root': { color: '#fefae0' },
+              '& .MuiInputLabel-root': { color: '#fefae0' },
+              '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.4)' },
+              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#fefae0' },
+              '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#fefae0' },
+              input: { color: '#fefae0' }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#fefae0' }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                clientSearchTerm && (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setClientSearchTerm('')} size="small">
+                      <ClearIcon sx={{ color: '#fefae0' }} />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              ),
+            }}
+          />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DatePicker
+              label="Filter Date"
+              value={sessionDateFilter}
+              onChange={(newValue) => setSessionDateFilter(newValue)}
+              slotProps={{
+                textField: {
+                  variant: 'outlined',
+                  size: 'small',
+                  sx: {
+                    minWidth: 120,
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    borderRadius: 1,
+                    '& .MuiInputBase-root': { color: '#fefae0' },
+                    '& .MuiInputLabel-root': { color: '#fefae0' },
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.4)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#fefae0' },
+                    '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#fefae0' },
+                    input: { color: '#fefae0' }
+                  },
+                  clearButton: {
+                    size: 'small',
+                    sx: { color: '#fefae0' }
+                  }
+                },
+              }}
+            />
+          </LocalizationProvider>
+          {(clientSearchTerm || sessionDateFilter) && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleClearFilters}
+              sx={{ borderColor: '#fefae0', color: '#fefae0', '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}
+            >
+              Clear
+            </Button>
+          )}
+        </Box>
 
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           {user && user.is_therapist ? (
@@ -84,7 +173,7 @@ export default function TherapistNavbar() {
 
               <Button
                 component={Link}
-                to="/journal" // Assuming therapists can also journal
+                to="/journal"
                 sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
               >
                 Journal
@@ -92,7 +181,7 @@ export default function TherapistNavbar() {
 
               <Button
                 component={Link}
-                to="/meditation" // Assuming therapists can also use meditation
+                to="/meditation"
                 sx={{ color: "#fefae0", fontFamily: "'Cinzel', serif" }}
               >
                 Meditation
@@ -121,7 +210,7 @@ export default function TherapistNavbar() {
                 </MenuItem>
                 <MenuItem
                   component={Link}
-                  to="/therapist/profile" // NEW: Point to therapist profile route
+                  to="/therapist/profile"
                   onClick={handleMenuClose}
                   sx={{ fontFamily: "'Cinzel', serif" }}
                 >
@@ -139,7 +228,6 @@ export default function TherapistNavbar() {
               </Menu>
             </>
           ) : (
-         
             <Button
               component={Link}
               to="/login"
