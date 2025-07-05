@@ -1,16 +1,17 @@
+// File: frontend_work/src/components/Admin.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Container, Paper, Grid, Button, CircularProgress,
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Select, MenuItem, FormControl, InputLabel, TextField, Link as MuiLink,
-  // Tabs, Tab, // Removed Tabs and Tab import
   Chip
 } from '@mui/material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { format } from 'date-fns';
 
 export default function AdminDashboard() {
   const { user, token, loading: authLoading } = useAuth();
@@ -30,7 +31,18 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [journalEntries, setJournalEntries] = useState([]);
-  const [analyticsData, setAnalyticsData] = useState(null);
+  const [payments, setPayments] = useState([]); // New state for payments
+
+  // Initialize analyticsData with default empty arrays to prevent undefined errors
+  const [analyticsData, setAnalyticsData] = useState({
+    totalUsers: 0,
+    totalTherapists: 0,
+    sessionData: [],
+    moodData: [],
+    totalRevenue: 0,
+    revenueTrendData: [],
+    sessionTypeData: [],
+  });
 
   // Modals specific to applications
   const [openReviewModal, setOpenReviewModal] = useState(false);
@@ -103,18 +115,34 @@ export default function AdminDashboard() {
     }
   }, [token]);
 
+  const fetchPayments = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('http://localhost:8000/api/admin/payments/', { headers: { Authorization: `Bearer ${token}` } });
+      setPayments(response.data);
+    } catch (err) {
+      console.error("Error fetching payments:", err.response?.data || err);
+      setError("Failed to load payment data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+
   const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
-      const [usersRes, sessionsRes, journalsRes] = await Promise.all([
+      const [usersRes, sessionsRes, journalsRes, paymentsRes] = await Promise.all([
         axios.get('http://localhost:8000/api/admin/users/', { headers: { Authorization: `Bearer ${token}` } }),
         axios.get('http://localhost:8000/api/admin/sessions/', { headers: { Authorization: `Bearer ${token}` } }),
         axios.get('http://localhost:8000/api/admin/journal-entries/', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('http://localhost:8000/api/admin/payments/', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       const allUsers = usersRes.data;
       const allSessions = sessionsRes.data;
       const allJournalEntries = journalsRes.data;
+      const allPayments = paymentsRes.data; // Use the fetched payments
 
       // Calculate total users and therapists
       const totalUsers = allUsers.length;
@@ -144,16 +172,60 @@ export default function AdminDashboard() {
         count: moodCounts[mood],
       }));
 
+      // Calculate Financial Data
+      let totalRevenue = 0;
+      let paidSessionsCount = 0;
+      let freeSessionsCount = 0;
+      const monthlyRevenue = {}; // { 'YYYY-MM': amount }
+
+      allSessions.forEach(session => {
+        if (session.session_request_is_paid) {
+          paidSessionsCount++;
+        } else {
+          freeSessionsCount++;
+        }
+      });
+
+      allPayments.filter(p => p.status === 'completed').forEach(payment => {
+        totalRevenue += parseFloat(payment.amount);
+        const monthYear = format(new Date(payment.payment_date), 'yyyy-MM');
+        monthlyRevenue[monthYear] = (monthlyRevenue[monthYear] || 0) + parseFloat(payment.amount);
+      });
+
+      const revenueTrendData = Object.keys(monthlyRevenue).sort().map(month => ({
+        name: format(new Date(month), 'MMM yyyy'), // Corrected format string
+        Revenue: monthlyRevenue[month],
+      }));
+
+      const sessionTypeData = [
+        { name: 'Paid Sessions', value: paidSessionsCount, color: primaryColor },
+        { name: 'Free Sessions', value: freeSessionsCount, color: secondaryColor },
+      ];
+
+
       setAnalyticsData({
         totalUsers,
         totalTherapists,
         sessionData,
         moodData,
+        totalRevenue,
+        revenueTrendData,
+        sessionTypeData,
       });
 
     } catch (err) {
       console.error("Error fetching analytics data:", err.response?.data || err);
       setError("Failed to load analytics data.");
+      // Set to default empty state on error, rather than null, to prevent style errors
+      setAnalyticsData({
+        totalUsers: 0,
+        totalTherapists: 0,
+        sessionData: [],
+        moodData: [],
+        totalRevenue: 0,
+        revenueTrendData: [],
+        sessionTypeData: [],
+      });
     } finally {
       setLoading(false);
     }
@@ -262,7 +334,6 @@ export default function AdminDashboard() {
     setOpenUserDetailsModal(true);
   };
   const handleCloseUserDetailsModal = () => {
-    setSelectedUser(null);
     setOpenUserDetailsModal(false);
   };
 
@@ -432,6 +503,7 @@ export default function AdminDashboard() {
                                 <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Duration (min)</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Status</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Type</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Paid</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -450,6 +522,13 @@ export default function AdminDashboard() {
                                       />
                                     </TableCell>
                                     <TableCell>{s.session_type}</TableCell>
+                                    <TableCell>
+                                        <Chip
+                                            label={s.session_request_is_paid ? 'Yes' : 'No'}
+                                            size="small"
+                                            color={s.session_request_is_paid ? 'success' : 'default'}
+                                        />
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -506,30 +585,33 @@ export default function AdminDashboard() {
 
         {/* Tab Panel for Analytics */}
         {currentTab === 4 && (
-          <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
-            <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold' }}>
+          <Box sx={{ p: 3, backgroundColor: neutralBg, borderRadius: 2 }}>
+            <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold', textAlign: 'center' }}>
               Website Analytics
             </Typography>
             {error ? (
               <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
-            ) : analyticsData ? (
-              <Grid container spacing={3}>
+            ) : ( // Removed the `analyticsData ?` check here to ensure the structure is always rendered if no error
+              <Grid container spacing={4} sx={{mt: 2}}>
                 <Grid item xs={12} md={6}>
-                  <Paper elevation={1} sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  
                     <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Overview</Typography>
+                    {/* Access analyticsData properties directly as they are now initialized with defaults */}
                     <Typography variant="body1">Total Users: <Chip label={analyticsData.totalUsers} color="primary" sx={{ bgcolor: primaryColor, color: 'white' }} /></Typography>
                     <Typography variant="body1" sx={{ mt: 1 }}>Total Therapists: <Chip label={analyticsData.totalTherapists} color="secondary" sx={{ bgcolor: secondaryColor, color: 'white' }} /></Typography>
                     <Typography variant="body1" sx={{ mt: 1 }}>Total Sessions: <Chip label={sessions.length} color="info" /></Typography>
                     <Typography variant="body1" sx={{ mt: 1 }}>Total Journal Entries: <Chip label={journalEntries.length} color="success" /></Typography>
-                  </Paper>
+                    <Typography variant="body1" sx={{ mt: 1 }}>Total Revenue: <Chip label={`Ksh ${analyticsData.totalRevenue.toFixed(2)}`} sx={{ bgcolor: accentColor, color: 'white', fontWeight: 'bold' }} /></Typography>
+             
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Paper elevation={1} sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ p: 2, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', border: '1px solid #ccc', borderRadius: 2 }}>
                     <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Session Status Distribution</Typography>
-                    <ResponsiveContainer width="100%" height={250}>
+                    {/* Pass data directly, Recharts handles empty arrays */}
+                    <ResponsiveContainer width="100%" height={300}>
                       <BarChart
                         data={analyticsData.sessionData}
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" stroke={primaryColor} />
@@ -539,23 +621,82 @@ export default function AdminDashboard() {
                         <Bar dataKey="count" fill={primaryColor} name="Number of Sessions" />
                       </BarChart>
                     </ResponsiveContainer>
-                  </Paper>
+                    {analyticsData.sessionData.length === 0 && (
+                      <Typography variant="body2" sx={{ textAlign: 'center', mt: 2 }}>No session status data available.</Typography>
+                    )}
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 2, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', border: '1px solid #ccc', borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Monthly Revenue Trend</Typography>
+                    {/* Pass data directly, Recharts handles empty arrays */}
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={analyticsData.revenueTrendData}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" stroke={primaryColor} />
+                        <YAxis stroke={primaryColor} />
+                        <Tooltip formatter={(value) => `Ksh ${value.toFixed(2)}`} />
+                        <Legend />
+                        <Bar dataKey="Revenue" fill={accentColor} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    {analyticsData.revenueTrendData.length === 0 && (
+                      <Typography variant="body2" sx={{ textAlign: 'center', mt: 2 }}>No revenue trend data available.</Typography>
+                    )}
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 2, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', border: '1px solid #ccc', borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Free vs. Paid Sessions</Typography>
+                    {/* Pass data directly, Recharts handles empty arrays */}
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={analyticsData.sessionTypeData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={120}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {/* Ensure `Cell` always has a fill property, which it does from COLORS or entry.color */}
+                          {
+                            analyticsData.sessionTypeData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))
+                          }
+                        </Pie>
+                        <Tooltip formatter={(value, name, props) => [`${value} sessions`, name]} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {analyticsData.sessionTypeData.length === 0 && (
+                      <Typography variant="body2" sx={{ textAlign: 'center', mt: 2 }}>No free vs. paid session data available.</Typography>
+                    )}
+                  </Box>
                 </Grid>
                 <Grid item xs={12}>
-                  <Paper elevation={1} sx={{ p: 2 }}>
-                    <Typography variant="h6" sx={{ color: primaryColor, mb: 2 }}>Journal Entry Mood Distribution</Typography>
-                    <ResponsiveContainer width="100%" height={300}>
+                  <Box sx={{ p: 2, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', border: '1px solid #ccc', borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ color: primaryColor, mb: 2, }}>Journal Entry Mood Distribution</Typography>
+                    {/* Pass data directly, Recharts handles empty arrays */}
+                    <ResponsiveContainer width="100%" height={450}>
                       <PieChart>
                         <Pie
                           data={analyticsData.moodData}
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          outerRadius={100}
+                          outerRadius={150}
                           fill="#8884d8"
                           dataKey="count"
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         >
+                          {/* Ensure `Cell` always has a fill property */}
                           {
                             analyticsData.moodData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -566,15 +707,14 @@ export default function AdminDashboard() {
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
-                  </Paper>
+                    {analyticsData.moodData.length === 0 && (
+                      <Typography variant="body2" sx={{ textAlign: 'center', mt: 2 }}>No journal entry mood data available.</Typography>
+                    )}
+                 </Box>
                 </Grid>
               </Grid>
-            ) : (
-              <Typography variant="h6" sx={{ textAlign: 'center', color: primaryColor, mt: 2 }}>
-                No analytics data available or still loading.
-              </Typography>
             )}
-          </Paper>
+          </Box>
         )}
 
         {/* Snackbar for feedback */}

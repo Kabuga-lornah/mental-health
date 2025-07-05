@@ -49,26 +49,6 @@ else:
     print("WARNING: GEMINI_API_KEY not found in settings. AI features will be disabled.")
     gemini_model = None
 
-if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel('gemini-1.0-pro')
-else:
-    print("WARNING: GEMINI_API_KEY not found in settings. AI features will be disabled.")
-    gemini_model = None
-
-
-
-# --- Initialize YouTube Data API (NEW) ---
-youtube_service = None
-if settings.YOUTUBE_API_KEY:
-    try:
-        youtube_service = build('youtube', 'v3', developerKey=settings.YOUTUBE_API_KEY)
-    except Exception as e:
-        print(f"WARNING: Could not build YouTube service: {e}. YouTube video search might not work.")
-else:
-    print("WARNING: YOUTUBE_API_KEY not found in settings. YouTube video search features will be limited.")
-
-
 # --- Initialize YouTube Data API (NEW) ---
 youtube_service = None
 if settings.YOUTUBE_API_KEY:
@@ -305,6 +285,10 @@ class AdminJournalEntryListView(generics.ListAPIView):
     permission_classes = [IsAdminUser]
     queryset = JournalEntry.objects.all().order_by('-date')
 
+class AdminPaymentListView(generics.ListAPIView):
+    serializer_class = PaymentSerializer
+    permission_classes = [IsAdminUser]
+    queryset = Payment.objects.all().order_by('-payment_date')
 
 class JournalEntryView(generics.ListCreateAPIView):
     serializer_class = JournalEntrySerializer
@@ -535,8 +519,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
             requested_date=requested_date
         ).values('requested_date', 'requested_time', 'session_duration')
 
-
-        for session in scheduled_sessions_on_date:
+        for session in scheduled_sessions_on_date: # FIX: Change 'scheduled_sessions' to 'scheduled_sessions_on_date'
             session_date_obj = session['session_date']
             # Ensure session_date_obj is a date object, converting if it's a string
             if isinstance(session_date_obj, str):
@@ -554,7 +537,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
                 print(f"DEBUG: Slot check - Slot {slot_start_dt.time()}-{slot_end_dt.time()} conflicts with scheduled session {booked_start_dt.time()}-{booked_end_dt.time()}")
                 return False, "Requested slot is already booked."
 
-        for req in paid_pending_requests_on_date:
+        for req in paid_pending_requests_on_date: # FIX: Change 'paid_pending_requests' to 'paid_pending_requests_on_date'
             req_date_obj = req['requested_date']
             # Ensure req_date_obj is a date object, converting if it's a string
             if isinstance(req_date_obj, str):
@@ -649,7 +632,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
         # Set is_paid to True immediately if it's a free consultation
         is_paid_status = False
         if therapist.is_free_consultation:
-            is_paid_status = True
+            is_paid_status = not therapist.is_free_consultation
             print(f"DEBUG: Free consultation detected for therapist {therapist.id}. Setting is_paid=True for session request.")
 
         session_request_instance = serializer.save(client=self.request.user, therapist=therapist, is_paid=is_paid_status, status='pending')
@@ -1003,9 +986,9 @@ def MpesaCallbackView(request):
 
         payment = None
         max_retries = 10 # Increased retries
-        retry_delay_seconds = 2 # Increased delay
-        # --- MODIFICATION START ---
-        # Using a transactional atomic block for safety during retries
+        retry_delay_seconds = 2 
+       
+       # --- MODIFICATION START ---
         for i in range(max_retries):
             try:
                 with transaction.atomic():
@@ -1356,6 +1339,8 @@ class AiRecommendationView(APIView):
             print(f"ERROR: Error calling Gemini API: {e}")
             return Response({"error": "Failed to get AI recommendation. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
 # --- NEW: AI Chatbot Proxy View ---
 class ChatWithGeminiView(APIView):
     permission_classes = [permissions.IsAuthenticated] # Or adjust as needed for public access
@@ -1370,11 +1355,43 @@ class ChatWithGeminiView(APIView):
         if not current_message_text:
             return Response({"error": "No message provided for chat."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Prepare chat history for Gemini
-        formatted_history = []
+        # Initialize the AI's persona and STRICT limitations for each new chat session.
+        # This prompt is designed to be highly restrictive for external knowledge.
+        system_instruction = {
+            "role": "user", # This will be the first "user" turn setting the context
+            "parts": [{ "text": """
+                You are MindWell's AI assistant. Your sole purpose is to provide information **ONLY** about:
+                1.  **The MindWell platform itself:** Its features (Smart Digital Journaling, Professional Therapist Connections, AI-Powered Support, Self-Care & Meditation Library, Engaging Challenges & Rewards), how to use them, and general information about the platform's mission in Kenya.
+                2.  **General mental wellness topics related to journaling and meditation:** Concepts, benefits, basic techniques for self-care.
+
+                **CRITICAL RESTRICTIONS - Adhere to these ABSOLUTELY:**
+                * **NO EXTERNAL KNOWLEDGE:** You MUST NOT access or provide information from outside the scope explicitly defined above. This means you **CANNOT** search the web, answer questions about famous people (like musicians, actors, politicians), current events, geography, science, history, or any topic not directly about MindWell or general self-care mental wellness concepts.
+                * **NO MEDICAL OR THERAPEUTIC ADVICE:** You MUST NOT provide diagnoses, medical advice, or specific therapeutic interventions. Always advise consulting a qualified professional for personalized help.
+                * **REFUSAL PROTOCOL:** If a user asks a question that falls outside your defined scope, you MUST gracefully refuse to answer. Use a concise refusal, such as:
+                    * "My apologies, but I am limited to providing information about the MindWell platform and general mental wellness topics. I cannot answer questions outside of this scope."
+                    * "I cannot provide information on that topic as it falls outside my designated area of expertise, which is MindWell and mental well-being."
+                * **PRIORITIZE REFUSAL:** Do NOT attempt to infer, guess, or vaguely relate an out-of-scope query to your domain. Direct refusal as per the protocol is required.
+
+                Be empathetic and supportive within your strict boundaries. Your performance depends on adhering to these rules.
+                """
+            }]
+        }
+
+        # Prepare chat history for Gemini, including the system instruction
+        formatted_history = [system_instruction]
         for msg in chat_history:
-            if 'text' in msg and 'type' in msg:
-                formatted_history.append({'role': 'user' if msg['type'] == 'user' else 'model', 'parts': [{'text': msg['text']}]})
+            # Only include actual user/model messages, not previous system instructions if any
+            # We explicitly prevent the AI from seeing its own previous disclaimer, as it's added on the frontend.
+            # Only include actual dialogue turns.
+            if msg.get('type') == 'user':
+                formatted_history.append({'role': 'user', 'parts': [{'text': msg['text']}]})
+            elif msg.get('type') == 'bot':
+                # Filter out the static disclaimer added by the frontend from AI's memory
+                clean_text = msg['text'].split("\n\n*Please remember I am an AI assistant")[0].strip()
+                if clean_text: # Only add if there's actual content left
+                    formatted_history.append({'role': 'model', 'parts': [{'text': clean_text}]})
+        
+        # Add the current user message
         formatted_history.append({'role': 'user', 'parts': [{'text': current_message_text}]})
 
 
@@ -1388,11 +1405,9 @@ class ChatWithGeminiView(APIView):
             response = gemini_model.generate_content(formatted_history, generation_config=generation_config)
             bot_response_text = response.text.strip()
 
-           
-            if not "mindwell" in bot_response_text.lower() and \
-               not "journaling" in bot_response_text.lower() and \
-               not "platform" in bot_response_text.lower():
-                bot_response_text += "\n\n*Please remember I am an AI assistant and not a substitute for professional medical advice or therapy. If you are in crisis, please seek immediate professional help.*"
+            # Add a consistent disclaimer on the backend regardless of AI's output content
+            # This ensures it's always present and we can enforce it.
+            bot_response_text += "\n\n*Please remember I am an AI assistant and not a substitute for professional medical advice or therapy. If you are in crisis, please seek immediate professional help.*"
 
             return Response({"bot_response": bot_response_text}, status=status.HTTP_200_OK)
 
@@ -1400,19 +1415,8 @@ class ChatWithGeminiView(APIView):
             print(f"ERROR: Error calling Gemini API for chat: {e}")
             return Response({"error": "Failed to get response from AI chat. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-class ChatMessageListView(generics.ListAPIView):
-    serializer_class = ChatMessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        room_name = self.kwargs['room_name']
-      
-        sender_id, receiver_id = self._parse_room_name(room_name) 
-        if self.request.user.id not in [sender_id, receiver_id]:
-            raise PermissionDenied("You are not authorized to view this chat.")
-
-        return ChatMessage.objects.filter(room_name=room_name).order_by('timestamp')
-    
+# ... (rest of the file, including ChatMessageListView) ...
+        
 class ChatMessageListView(generics.ListAPIView):
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]

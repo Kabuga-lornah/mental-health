@@ -4,7 +4,6 @@ import {
   Box,
   Typography,
   Container,
-  Paper,
   Grid,
   Button,
   CircularProgress,
@@ -19,23 +18,27 @@ import {
   Stack,
   Divider,
 } from '@mui/material';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { format, addDays } from 'date-fns';
 
-// Define theme colors for consistency based on tailwind.config.js
-const themePrimaryColor = '#780000'; // maroon-800
-const themeLightBackground = '#fff8e1'; // cream-100 (Overall page background)
-const themeCardBackground = 'white'; // Used for main content blocks like the top photo/intro section
-const themeSectionBackground = '#fdf8f5'; // A slightly off-white for internal sections (like 'My Philosophy', 'My Approach', etc.)
-const themeButtonHoverColor = '#5a0000'; // Darker maroon for hover
-const themeAccentColor = '#DCC8C8'; // A subtle accent for chips and borders
-const themeTextColor = '#333'; // Standard dark text
-const themeLightTextColor = '#666'; // Lighter text for secondary info
-const themeBorderColor = '#e0e0e0'; // Neutral gray for borders
+// Define colors based on user's strict request: "#fefae0" and "#780000"
+const mainMaroon = '#780000'; // Primary color
+const lightCream = '#fefae0'; // Secondary color
+
+// Derived colors, strictly from the two main colors or variations thereof
+const themePrimaryColor = mainMaroon;
+const themeLightBackground = lightCream;
+const themeCardBackground = lightCream; // Used for main content blocks like sections
+const themeSectionBackground = '#f8f2de'; // A slightly darker cream derived from lightCream
+const themeButtonHoverColor = '#5a0000'; // Darker shade of mainMaroon
+const themeAccentColor = '#d3a9a9'; // A muted, lighter tint of mainMaroon for subtle accents/borders
+const themeTextColor = mainMaroon; // Using mainMaroon for primary text
+const themeLightTextColor = '#9f8585'; // A softer, lighter shade of mainMaroon for secondary text
+const themeBorderColor = '#b39494'; // A mid-tone derived from mainMaroon for borders
 
 export default function TherapistDetail() {
   const { id } = useParams();
@@ -48,7 +51,8 @@ export default function TherapistDetail() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [availableSlots, setAvailableSlots] = useState({});
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(''); // State for therapist message
+  const [messageWordCount, setMessageWordCount] = useState(0); // State for word count
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
@@ -59,9 +63,13 @@ export default function TherapistDetail() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
-  // State to control visibility of the booking form (unchanged)
   const [showBookingForm, setShowBookingForm] = useState(false);
 
+  // Update word count whenever message changes
+  useEffect(() => {
+    const words = message.split(/\s+/).filter(Boolean); // Split by whitespace and remove empty strings
+    setMessageWordCount(words.length);
+  }, [message]);
 
   const fetchTherapistDetailsAndAvailability = useCallback(async () => {
     setLoading(true);
@@ -118,6 +126,14 @@ export default function TherapistDetail() {
     }
     if (!user) {
       navigate('/login');
+      return;
+    }
+
+    // Word limit validation
+    if (messageWordCount > 100) {
+      setSnackbarMessage("Your message exceeds the 100-word limit.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
       return;
     }
 
@@ -270,237 +286,175 @@ export default function TherapistDetail() {
   const isButtonDisabled = (user && user.is_therapist) || !therapist.is_available;
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: themeLightBackground, py: { xs: 4, md: 8 } }}>
-      {/* Container wraps the main Paper and ensures it's horizontally centered */}
-      <Container maxWidth="lg" sx={{ display: 'flex', justifyContent: 'center' }}>
-        {/* Main Paper container acts as the overall background for the profile content */}
-        <Paper elevation={8} sx={{
-            p: { xs: 0, sm: 0 }, // No padding on the paper itself, Grid items handle it
-            borderRadius: 4,
-            backgroundColor: themeCardBackground,
-            overflow: 'hidden',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-            width: '100%', // Take full width of its container
-            maxWidth: '1200px', // Explicit max-width for the entire card to control overall size
-          }}>
-          {/* Top Section: Layered Photo on Left, Meet [Name] + Intro + Session Info on Right */}
-          <Grid container spacing={0} sx={{ minHeight: { md: '450px' } }}>
-            {/* Layered Photo Section - Left side */}
-            <Grid item xs={12} md={6}>
-              <Box 
-                sx={{
-                  position: 'relative',
+    <Box sx={{ minHeight: '100vh', backgroundColor: lightCream }}> {/* Main page background */}
+      {/* Main Content Area */}
+      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 8 } }}>
+        {/* Meet [Name] Section */}
+        <Grid container spacing={0} sx={{ mb: { xs: 4, md: 8 }, backgroundColor: lightCream }}>
+          {/* Image Section (Left) */}
+          <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: { xs: 2, md: 4 } }}> {/* Changed justifyContent to center */}
+            <Box
+              sx={{
+                width: { xs: 250, md: 350 }, // Set fixed width for square shape
+                height: { xs: 250, md: 350 }, // Set fixed height equal to width for square shape
+                mx: 'auto', // Center this box horizontally within its grid item
+                my: 'auto', // Center this box vertically within its grid item
+                overflow: 'hidden',
+                borderRadius: '8px',
+                boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: themeSectionBackground, // This is the background of the box containing the image
+                flexShrink: 0, // Prevent shrinking if content is too large
+              }}
+            >
+              <img
+                src={therapist.profile_picture || `https://via.placeholder.com/300x400/${mainMaroon.substring(1)}/${lightCream.substring(1)}?text=Therapist`}
+                alt={therapist.full_name}
+                style={{
                   width: '100%',
                   height: '100%',
-                  minHeight: { xs: '300px', md: '450px' },
-                  overflow: 'hidden',
-                  borderRadius: { xs: '4px 4px 0 0', md: '4px 0 0 4px' },
-                  backgroundImage: 'url(/photo.jpeg)', // Ensure photo.jpeg exists in public folder
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  display: 'flex', // Use flexbox to center the inner image
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: themeSectionBackground, // Fallback background if photo.jpeg is missing
-                  // Add padding to create space from the frame/edge
-                  p: { xs: 2, sm: 4 }, // Add padding directly here
+                  objectFit: 'cover',
                 }}
-              >
-                {/* Therapist's actual profile image positioned at an angle */}
-                <Box
-                  sx={{
-                    position: 'relative', // Relative positioning within flex parent for z-index and transformations
-                    width: { xs: '70%', sm: '60%', md: '80%' }, // Adjusted size to ensure it doesn't touch the edge
-                    maxWidth: 320, // Max size for inner image
-                    height: { xs: '70%', sm: '60%', md: '80%' }, // Maintain aspect ratio
-                    maxHeight: 320, // Max height for inner image
-                    overflow: 'hidden',
-                    borderRadius: '8px', // Slight rounding for the angled image
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.3)',
-                    transform: 'rotate(-5deg)', // Apply rotation for the angled effect
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: themeCardBackground, // Fallback background if no profile picture
-                    zIndex: 1, // Ensure it's above the background image
-                  }}
-                >
-                  <img
-                    src={therapist.profile_picture || `https://placehold.co/300x300/${themePrimaryColor.substring(1)}/${themeLightBackground.substring(1)}?text=Therapist`}
-                    alt={therapist.full_name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                  />
-                </Box>
-              </Box>
-            </Grid>
-
-            {/* "Meet [Name]" + Intro + Session Information - Right side */}
-            <Grid item xs={12} md={6}>
-              <Box sx={{ p: { xs: 3, sm: 5 } }}> {/* Generous padding inside this content box */}
-                {/* Meet [Name] */}
-                <Typography variant="h4" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 1 }}>
-                  Meet {therapist.first_name}
+              />
+            </Box>
+          </Grid>
+          {/* Text Introduction Section (Right) */}
+          <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', p: { xs: 3, md: 4 } }}>
+            <Typography variant="h4" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2 }}>
+              {therapist.license_credentials || 'Therapist'} {therapist.full_name}
+            </Typography>
+            
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="body1" sx={{ color: themeTextColor, mb: 1 }}>
+                <strong>Session Modes:</strong> {therapist.session_modes ? therapist.session_modes.replace('both', 'Online & Physical') : 'N/A'}
+              </Typography>
+              {therapist.session_modes && (therapist.session_modes === 'physical' || therapist.session_modes === 'both') && (
+                <Typography variant="body1" sx={{ color: themeTextColor, mt: 1 }}>
+                  <strong>Physical Location:</strong> {therapist.physical_address || 'Not specified'}
                 </Typography>
-                <Typography variant="h6" color={themeLightTextColor} sx={{ mb: 3, fontStyle: 'italic', fontSize: '1.15rem' }}>
-                  {therapist.license_credentials || 'Licensed Professional'}
+              )}
+              {!therapist.is_free_consultation && (
+                <>
+                  <Typography variant="body1" sx={{ color: themeTextColor, mt: 1 }}>
+                    <strong>Hourly Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}` : 'N/A'}
+                  </Typography>
+                  <Typography variant="body1" sx={{ color: themeTextColor, mt: 1 }}>
+                    <strong>Accepts Insurance:</strong> {therapist.insurance_accepted ? 'Yes' : 'No'}
+                  </Typography>
+                </>
+              )}
+              {therapist.is_free_consultation && (
+                <Typography variant="body1" sx={{ color: mainMaroon, fontWeight: 'bold', mt: 1 }}>
+                  <strong>Consultation Fee:</strong> Free Initial Consultation
                 </Typography>
-                
-                {/* Main Intro Bio */}
-                <Typography variant="body1" color={themeTextColor} sx={{ lineHeight: 1.8, mb: 3 }}>
-                    {therapist.bio || `Dr. ${therapist.full_name} is a dedicated and compassionate therapist. Learn more about their approach and how they can support you on your wellness journey.`}
-                </Typography>
+              )}
+            </Box>
+           
+          </Grid>
+        </Grid>
 
-                {/* Session Information - NOW CORRECTLY PLACED HERE on the right of the photo */}
-                <Box sx={{ mb: 3 }}>
-                    <Typography variant="body1" sx={{ color: themeTextColor, mb: 1 }}>
-                        <strong>Session Modes:</strong> {therapist.session_modes ? therapist.session_modes.replace('both', 'Online & Physical') : 'N/A'}
-                    </Typography>
-                    {therapist.session_modes && (therapist.session_modes === 'physical' || therapist.session_modes === 'both') && (
-                        <Typography variant="body1" sx={{ color: themeTextColor, mt: 1 }}>
-                            <strong>Physical Location:</strong> {therapist.physical_address || 'Not specified'}
-                        </Typography>
-                    )}
-                    {!therapist.is_free_consultation && (
-                        <>
-                            <Typography variant="body1" sx={{ color: themeTextColor, mt: 1 }}>
-                                <strong>Hourly Rate:</strong> {therapist.hourly_rate ? `Ksh ${parseFloat(therapist.hourly_rate).toFixed(2)}` : 'N/A'}
-                            </Typography>
-                            <Typography variant="body1" sx={{ color: themeTextColor, mt: 1 }}>
-                                <strong>Accepts Insurance:</strong> {therapist.insurance_accepted ? 'Yes' : 'No'}
-                            </Typography>
-                        </>
-                    )}
-                    {therapist.is_free_consultation && (
-                        <Typography variant="body1" sx={{ color: 'green', fontWeight: 'bold', mt: 1 }}>
-                            <strong>Consultation Fee:</strong> Free Initial Consultation
-                        </Typography>
-                    )}
-                </Box>
+        {/* About Me, My Philosophy & My Approach Sections */}
+        <Grid container spacing={4} sx={{ mb: { xs: 8, md: 10 }, alignItems: 'stretch' }}>
+          {/* Left Column: About Me & My Philosophy */}
+          <Grid item xs={12} md={5.8}> {/* Adjusted width slightly to make space for divider */}
+            {/* About Me Section */}
+            <Box sx={{ p: { xs: 3, md: 4 }, height: 'auto', display: 'flex', flexDirection: 'column', mb: 4, backgroundColor: themeSectionBackground, borderRadius: 3, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}> {/* Added mb: 4 and section background/shadow */}
+              <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5, textAlign: 'center' }}>
+                About Me
+              </Typography>
+              <Typography variant="body1" sx={{ lineHeight: 1.8, color: themeTextColor, flexGrow: 1, textAlign: 'center' }}>
+                {therapist.bio || `Dr. ${therapist.full_name} is a dedicated and compassionate therapist. Learn more about their approach and how they can support you on your wellness journey.`}
+              </Typography>
+            </Box>
 
-                {/* Chat Button */}
-                {user && user.id !== therapist.id && (
-                  <Button
-                      variant="outlined"
-                      onClick={handleStartChat}
-                      sx={{
-                          borderColor: themePrimaryColor,
-                          color: themePrimaryColor,
-                          '&:hover': {
-                              backgroundColor: `${themePrimaryColor}10`,
-                              borderColor: themeButtonHoverColor,
-                              color: themeButtonHoverColor,
-                          },
-                          mt: 2,
-                          py: 1,
-                          px: 3,
-                          borderRadius: 2,
-                          fontSize: '1rem',
-                          fontWeight: 'bold',
-                      }}
-                  >
-                      Chat with {therapist.first_name}
-                  </Button>
-                )}
-              </Box>
-            </Grid>
+            {/* My Philosophy Section */}
+            
           </Grid>
 
-          {/* Two-Card Section: My Philosophy & My Approach (with corrected colors and content) */}
-          <Grid container spacing={{ xs: 4, md: 6 }} sx={{ p: { xs: 3, sm: 5 }, pt: 0, pb: 0, mt: 0, mb: 6 }}>
-            {/* My Philosophy Card (uses therapist.bio) */}
-            <Grid item xs={12} md={6}>
-              <Paper elevation={0} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 3, backgroundColor: themeSectionBackground, boxShadow: '0 5px 15px rgba(0,0,0,0.08)', height: '100%', color: themeTextColor }}>
-                <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
-                  My Philosophy
-                </Typography>
-                <Typography variant="body1" sx={{ lineHeight: 1.8 }}>
-                  {therapist.bio || 'This therapist has not yet provided a personal philosophy statement. Typically, this section would cover their core beliefs and guiding principles in therapy, how they view mental health, and their overall approach to healing.'}
-                </Typography>
-              </Paper>
-            </Grid>
-
-            {/* My Approach Card (uses therapist.approach_modalities) */}
-            <Grid item xs={12} md={6}>
-              <Paper elevation={0} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 3, backgroundColor: themeSectionBackground, boxShadow: '0 5px 15px rgba(0,0,0,0.08)', height: '100%', color: themeTextColor }}>
-                <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
-                  My Approach
-                </Typography>
-                <Typography variant="body1" sx={{ lineHeight: 1.8 }}>
-                  {therapist.approach_modalities || 'This section outlines the specific therapeutic modalities and methods used by the therapist to help clients achieve their goals, such as CBT, EMDR, Psychodynamic therapy, etc.'}
-                </Typography>
-              </Paper>
-            </Grid>
+          <Grid item xs={false} md={0.4} sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', justifyContent: 'center' }}>
+            <Divider orientation="vertical" flexItem sx={{ borderColor: themeBorderColor, height: '80%' }} /> {/* Vertical Divider */}
           </Grid>
           
-          {/* Education and Experience (Full-Width Block - Corrected to be here) */}
-          <Box sx={{ width: '100%', px: { xs: 3, sm: 5 }, mb: 6, py: { xs: 3, sm: 4 }, borderRadius: 3, backgroundColor: themeSectionBackground, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
-              <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
-                Education and Experience
+          {/* My Approach (right column) */}
+          <Grid item xs={12} md={5.8}> {/* Adjusted width slightly */}
+            <Box sx={{ p: { xs: 3, md: 4 }, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: themeSectionBackground, borderRadius: 3, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}> {/* Added section background/shadow */}
+              <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5, textAlign: 'center' }}>
+                My Approach
               </Typography>
-              <Grid container spacing={1}>
-                <Grid item xs={12}>
-                  <Typography variant="body1" sx={{ color: themeTextColor }}><strong>Years of Experience:</strong> {therapist.years_of_experience || 'N/A'}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="body1" sx={{ color: themeTextColor }}><strong>License Credentials:</strong> {therapist.license_credentials || 'N/A'}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="body1" sx={{ color: themeTextColor }}><strong>Languages Spoken:</strong> {therapist.languages_spoken || 'Not specified'}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="body1" sx={{ color: themeTextColor }}><strong>Client Focus:</strong> {therapist.client_focus || 'Not specified'}</Typography>
-                </Grid>
-              </Grid>
-          </Box>
-
-          {/* Specializations (Full-Width Block) */}
-          {therapist.specializations && therapist.specializations.length > 0 && (
-            <Box sx={{ width: '100%', px: { xs: 3, sm: 5 }, mb: 6, py: { xs: 3, sm: 4 }, borderRadius: 3, backgroundColor: themeSectionBackground, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
-              <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
-                Specializations
+              <Typography variant="body1" sx={{ lineHeight: 1.8, color: themeTextColor, flexGrow: 1, textAlign: 'center' }}>
+                {therapist.approach_modalities || 'This section outlines the specific therapeutic modalities and methods used by the therapist to help clients achieve their goals, such as CBT, EMDR, Psychodynamic therapy, etc.'}
               </Typography>
-              <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap">
-                {therapist.specializations.split(',').map((spec, index) => (
-                  <Chip key={index} label={spec.trim()} size="medium"
-                    sx={{
-                      backgroundColor: themeAccentColor,
-                      color: themeTextColor,
-                      fontWeight: 'medium',
-                      fontSize: '0.9rem',
-                      p: '5px 10px',
-                      borderRadius: '16px',
-                    }}
-                  />
-                ))}
-              </Stack>
             </Box>
-          )}
+          </Grid>
+        </Grid>
 
-          {/* Video Introduction - (Full-Width Block if it exists) */}
-          {therapist.video_introduction_url && (
-            <Box sx={{ width: '100%', px: { xs: 3, sm: 5 }, mb: 6, py: { xs: 3, sm: 4 }, borderRadius: 3, backgroundColor: themeSectionBackground, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
-              <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
-                Video Introduction
+        {/* Education and Experience */}
+        <Box sx={{ backgroundColor: themeSectionBackground, p: { xs: 3, md: 4 }, mb: { xs: 4, md: 8 }, borderRadius: 3, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+          <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
+            Education and Experience
+          </Typography>
+          <Grid container spacing={1}>
+            <Grid item xs={12}>
+              <Typography variant="body1" sx={{ color: themeTextColor }}><strong>Years of Experience:</strong> {therapist.years_of_experience || 'N/A'}</Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="body1" sx={{ color: themeTextColor }}><strong>License Credentials:</strong> {therapist.license_credentials || 'N/A'}</Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="body1" sx={{ color: themeTextColor }}><strong>Languages Spoken:</strong> {therapist.languages_spoken || 'Not specified'}</Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="body1" sx={{ color: themeTextColor }}><strong>Client Focus:</strong> {therapist.client_focus || 'Not specified'}</Typography>
+            </Grid>
+          </Grid>
+        </Box>
+
+        {/* Specializations */}
+        {therapist.specializations && therapist.specializations.length > 0 && (
+          <Box sx={{ backgroundColor: themeSectionBackground, p: { xs: 3, md: 4 }, mb: { xs: 4, md: 8 }, borderRadius: 3, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+            <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
+              Specializations
+            </Typography>
+            <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap"> {/* Increased spacing to 2 */}
+              {therapist.specializations.split(',').map((spec, index) => (
+                <Chip key={index} label={spec.trim()} size="medium"
+                  sx={{
+                    backgroundColor: themeSectionBackground, // Changed background to a lighter cream
+                    color: themeTextColor,
+                    fontWeight: 'medium',
+                    fontSize: '0.9rem',
+                    px: 2, // Increased horizontal padding
+                    py: 1, // Increased vertical padding
+                    borderRadius: '16px',
+                    border: `1px solid ${themeAccentColor}`, // Added a subtle border
+                  }}
+                />
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        {/* Video Introduction */}
+        {therapist.video_introduction_url && (
+          <Box sx={{ backgroundColor: themeSectionBackground, p: { xs: 3, md: 4 }, mb: { xs: 4, md: 8 }, borderRadius: 3, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}>
+            <Typography variant="h5" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2, borderBottom: `2px solid ${themeAccentColor}`, pb: 1.5 }}>
+              Video Introduction
+            </Typography>
+            <Box sx={{ maxWidth: 600, mx: 'auto', bgcolor: themeCardBackground, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', borderRadius: 2, p: 2 }}>
+              <Typography variant="body2" color={themeLightTextColor} sx={{ mb: 2, textAlign: 'center' }}>
+                Watch this brief video to learn more about the therapist's approach.
               </Typography>
-              <Box sx={{ maxWidth: 600, mx: 'auto', bgcolor: themeCardBackground, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', borderRadius: 2, p: 2 }}>
-                <Typography variant="body2" color={themeLightTextColor} sx={{ mb: 2 }}>
-                  Watch this brief video to learn more about the therapist's approach.
-                </Typography>
-                <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', borderRadius: 1, overflow: 'hidden' }}>
-                  <iframe
-                    src={therapist.video_introduction_url}
-                    title="Therapist Introduction"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-                  ></iframe>
-                </Box>
+              <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', borderRadius: 1, overflow: 'hidden' }}>
+                <iframe
+                  src={therapist.video_introduction_url}
+                  title="Therapist Introduction"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                ></iframe>
               </Box>
               <Typography variant="caption" display="block" sx={{ mt: 1.5, textAlign: 'center', color: themeLightTextColor }}>
                 <a href={therapist.video_introduction_url} target="_blank" rel="noopener noreferrer" style={{ color: themePrimaryColor, textDecoration: 'none', fontWeight: 'bold' }}>
@@ -508,167 +462,200 @@ export default function TherapistDetail() {
                 </a>
               </Typography>
             </Box>
-          )}
+          </Box>
+        )}
 
-          {/* Call to Action for Booking - Styled like the "Connect with Me" button in the image */}
-          <Box sx={{ textAlign: 'center', my: 6, px: { xs: 3, sm: 5 } }}>
-            <Typography variant="h5" sx={{ color: themePrimaryColor, mb: 3, fontWeight: 'bold' }}>
-              Ready to start your healing journey?
-            </Typography>
+        {/* Call to Action for Booking */}
+        <Box sx={{ textAlign: 'center', my: { xs: 4, md: 6 } }}>
+          <Typography variant="h5" sx={{ color: themePrimaryColor, mb: 3, fontWeight: 'bold' }}>
+            Ready to start your healing journey?
+          </Typography>
+          <Button
+            variant="contained"
+            sx={{
+              backgroundColor: mainMaroon, // Match button color from image
+              color: 'white',
+              py: 2,
+              px: 6,
+              borderRadius: 3,
+              fontSize: '1.2rem',
+              fontWeight: 'bold',
+              boxShadow: '0 6px 15px rgba(0,0,0,0.2)',
+              transition: 'all 0.3s ease-in-out',
+              '&:hover': {
+                backgroundColor: themeButtonHoverColor, // Darker color on hover
+                transform: 'translateY(-3px)',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
+              },
+            }}
+            onClick={() => setShowBookingForm(!showBookingForm)}
+            disabled={isButtonDisabled}
+          >
+            {isButtonDisabled ?
+              (user && user.is_therapist ? "Therapists Cannot Book Sessions" : "Therapist Not Available for Booking")
+              : (showBookingForm ? "Hide Booking Options" : "Connect With Me")}
+          </Button>
+        </Box>
+
+        {/* Booking Section */}
+        {showBookingForm && (
+          <Box sx={{ p: { xs: 3, sm: 5 }, mt: { xs: 4, md: 6 }, pb: { xs: 3, sm: 5 }, borderRadius: 4, backgroundColor: themeSectionBackground, boxShadow: '0 8px 20px rgba(0,0,0,0.15)' }}>
+          
+
+            {therapist.is_free_consultation ? (
+              <Typography variant="h6" sx={{ mb: 3, color: mainMaroon, fontWeight: 'bold', textAlign: 'center' }}>
+                This therapist offers a FREE initial consultation. No payment is required!
+              </Typography>
+            ) : (
+              <Typography variant="h6" sx={{ mb: 3, color: themePrimaryColor, fontWeight: 'bold', textAlign: 'center' }}>
+                Session Rate: Ksh {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'} per session
+              </Typography>
+            )}
+
+            <Grid container spacing={4}>
+              <Grid item xs={12} sm={selectedDate ? 4 : 6}> {/* Adjust width if slots are hidden */}
+                <Typography variant="h6" sx={{ mb: 1.5, color: themePrimaryColor, fontWeight: 'bold' }}>Select Date:</Typography>
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={(date) => {
+                    setSelectedDate(date);
+                    setSelectedSlot(null);
+                  }}
+                  minDate={new Date()}
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Click to select a date"
+                  customInput={<TextField fullWidth variant="outlined" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, borderColor: themeBorderColor }, '& .MuiInputLabel-root': { color: themeLightTextColor } }} />}
+                  filterDate={(date) => date.getDay() !== 0 && date.getDay() !== 6}
+                />
+              </Grid>
+              {/* Conditional rendering for Available Time Slots */}
+              {selectedDate && ( // Only render this Grid item if a date is selected
+                <Grid item xs={12} sm={4}> {/* Adjusted width */}
+                  <Typography variant="h6" sx={{ mb: 1.5, color: themePrimaryColor, fontWeight: 'bold' }}>Available Time Slots:</Typography>
+                  <Box sx={{ p: 2.5, minHeight: 150, maxHeight: 250, overflowY: 'auto', bgcolor: themeCardBackground, borderRadius: 2, border: `1px solid ${themeAccentColor}` }}>
+                    {/* The content inside this Box remains the same */}
+                    {(() => {
+                      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+                      const slots = availableSlots[formattedDate];
+                      if (slots && slots.length > 0) {
+                        return (
+                          <Grid container spacing={1.5}>
+                            {slots.map((slot, index) => (
+                              <Grid item key={index} xs={6}>
+                                <Button
+                                  fullWidth
+                                  variant={selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? 'contained' : 'outlined'}
+                                  onClick={() => setSelectedSlot({ date: formattedDate, start_time: slot.start_time, end_time: slot.end_time, duration_minutes: slot.duration_minutes })}
+                                  sx={{
+                                    borderColor: themePrimaryColor,
+                                    color: selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? themeCardBackground : themePrimaryColor,
+                                    backgroundColor: selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? themePrimaryColor : 'transparent',
+                                    '&:hover': {
+                                      backgroundColor: themeButtonHoverColor,
+                                      color: themeCardBackground,
+                                      borderColor: themeButtonHoverColor,
+                                    },
+                                    textTransform: 'none',
+                                    borderRadius: 1.5,
+                                    py: 1,
+                                  }}
+                                >
+                                  {slot.start_time} - {slot.end_time}
+                                </Button>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        );
+                      } else {
+                        return <Typography variant="body1" color={themeLightTextColor} sx={{ mt: 2, textAlign: 'center' }}>No available slots for this date. Please try another date.</Typography>;
+                      }
+                    })()}
+                  </Box>
+                </Grid>
+              )}
+              <Grid item xs={12} sm={selectedDate ? 4 : 6}> {/* Adjusted width */}
+                <Typography variant="h6" sx={{ mb: 1.5, color: themePrimaryColor, fontWeight: 'bold' }}>Message to Therapist (Optional) - Max 100 words</Typography>
+                <Box
+                  sx={{
+                    p: 2, // Padding inside the "page"
+                    backgroundColor: themeCardBackground, // Light cream for page background
+                    border: `1px solid ${themeBorderColor}`, // Subtle border for the page
+                    borderRadius: '4px',
+                    overflow: 'hidden', // Ensure lines are clipped if overflowing
+                    backgroundImage: 'repeating-linear-gradient(rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 20px)', // Ruled lines
+                    backgroundSize: '100% 20px', // Adjust line spacing as needed
+                    backgroundPositionY: '30px', // Offset to make lines appear below the first line of text
+                    minHeight: 150, // Minimum height for the page
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={5} // Set initial rows for a reasonable height
+                    variant="standard" // Remove outline
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    sx={{
+                      '& .MuiInputBase-root': {
+                        backgroundColor: 'transparent',
+                        padding: 0, // Remove default textfield padding
+                        lineHeight: '20px', // Match line height to line spacing
+                      },
+                      '& .MuiInputBase-input': {
+                        padding: 0,
+                        lineHeight: '20px',
+                        color: themeTextColor, // Ensure text color is consistent
+                      },
+                      '& .MuiInput-underline:before, & .MuiInput-underline:after': {
+                        borderBottom: 'none !important', // Remove underline
+                      },
+                      overflow: 'visible',
+                    }}
+                    placeholder="Type your message here..."
+                    inputProps={{ style: { padding: 0 } }} // Attempt to remove internal padding
+                  />
+                </Box>
+                <Typography variant="caption" color={messageWordCount > 100 ? 'error' : 'text.secondary'} sx={{ mt: 1 }}>
+                  Word count: {messageWordCount}/100
+                </Typography>
+              </Grid>
+            </Grid>
             <Button
               variant="contained"
+              fullWidth
               sx={{
                 backgroundColor: themePrimaryColor,
-                color: themeCardBackground,
-                py: 2,
-                px: 6,
-                borderRadius: 3,
-                fontSize: '1.2rem',
+                '&:hover': { backgroundColor: themeButtonHoverColor },
+                mt: 4,
+                py: 1.8,
+                borderRadius: 2.5,
+                fontSize: '1.1rem',
                 fontWeight: 'bold',
-                boxShadow: '0 6px 15px rgba(0,0,0,0.2)',
-                transition: 'all 0.3s ease-in-out',
-                '&:hover': {
-                  backgroundColor: themeButtonHoverColor,
-                  transform: 'translateY(-3px)',
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
-                },
+                boxShadow: '0 4px 10px rgba(120, 0, 0, 0.4)', // Using a maroon shadow for consistency
               }}
-              onClick={() => setShowBookingForm(!showBookingForm)}
-              disabled={isButtonDisabled}
+              onClick={handleSessionRequest}
+              disabled={isButtonDisabled || !selectedSlot || paymentProcessing || messageWordCount > 100}
             >
               {isButtonDisabled ?
                 (user && user.is_therapist ? "Therapists Cannot Book Sessions" : "Therapist Not Available for Booking")
-                : (showBookingForm ? "Hide Booking Options" : "Connect With Me")}
+                : (paymentProcessing ? <CircularProgress size={26} color="inherit" /> : 'Request Session Now')}
             </Button>
           </Box>
-
-          {/* Booking Section - Conditionally rendered */}
-          {showBookingForm && (
-            <Box sx={{ width: '100%', px: { xs: 3, sm: 5 }, mt: { xs: 4, md: 6 }, pb: { xs: 3, sm: 5 }, borderRadius: 4, backgroundColor: themeLightBackground, boxShadow: '0 8px 20px rgba(0,0,0,0.15)' }}>
-              <Typography variant="h4" sx={{ color: themePrimaryColor, mb: 4, fontWeight: 'bold', textAlign: 'center' }}>
-                Book a Session
-              </Typography>
-
-              {therapist.is_free_consultation ? (
-                <Typography variant="h6" sx={{ mb: 3, color: 'green', fontWeight: 'bold', textAlign: 'center' }}>
-                  This therapist offers a FREE initial consultation. No payment is required!
-                </Typography>
-              ) : (
-                <Typography variant="h6" sx={{ mb: 3, color: themePrimaryColor, fontWeight: 'bold', textAlign: 'center' }}>
-                  Session Rate: Ksh {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'} per session
-                </Typography>
-              )}
-
-              <Grid container spacing={4}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="h6" sx={{ mb: 1.5, color: themePrimaryColor, fontWeight: 'bold' }}>Select Date:</Typography>
-                  <DatePicker
-                    selected={selectedDate}
-                    onChange={(date) => {
-                      setSelectedDate(date);
-                      setSelectedSlot(null);
-                    }}
-                    minDate={new Date()}
-                    dateFormat="yyyy-MM-dd"
-                    placeholderText="Click to select a date"
-                    customInput={<TextField fullWidth variant="outlined" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, borderColor: themeBorderColor }, '& .MuiInputLabel-root': { color: themeLightTextColor } }} />}
-                    filterDate={(date) => date.getDay() !== 0 && date.getDay() !== 6}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="h6" sx={{ mb: 1.5, color: themePrimaryColor, fontWeight: 'bold' }}>Available Time Slots:</Typography>
-                  <Paper variant="outlined" sx={{ p: 2.5, minHeight: 150, maxHeight: 250, overflowY: 'auto', bgcolor: themeSectionBackground, borderRadius: 2, border: `1px solid ${themeAccentColor}` }}>
-                    {selectedDate ? (
-                      (() => {
-                        const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-                        const slots = availableSlots[formattedDate];
-                        if (slots && slots.length > 0) {
-                          return (
-                            <Grid container spacing={1.5}>
-                              {slots.map((slot, index) => (
-                                <Grid item key={index} xs={6}>
-                                  <Button
-                                    fullWidth
-                                    variant={selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? 'contained' : 'outlined'}
-                                    onClick={() => setSelectedSlot({ date: formattedDate, start_time: slot.start_time, end_time: slot.end_time, duration_minutes: slot.duration_minutes })}
-                                    sx={{
-                                      borderColor: themePrimaryColor,
-                                      color: selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? themeCardBackground : themePrimaryColor,
-                                      backgroundColor: selectedSlot?.date === formattedDate && selectedSlot?.start_time === slot.start_time ? themePrimaryColor : 'transparent',
-                                      '&:hover': {
-                                        backgroundColor: themeButtonHoverColor,
-                                        color: themeCardBackground,
-                                        borderColor: themeButtonHoverColor,
-                                      },
-                                      textTransform: 'none',
-                                      borderRadius: 1.5,
-                                      py: 1,
-                                    }}
-                                  >
-                                    {slot.start_time} - {slot.end_time}
-                                  </Button>
-                                </Grid>
-                              ))}
-                            </Grid>
-                          );
-                        } else {
-                          return <Typography variant="body1" color={themeLightTextColor} sx={{ mt: 2, textAlign: 'center' }}>No available slots for this date. Please try another date.</Typography>;
-                        }
-                      })()
-                    ) : (
-                      <Typography variant="body1" color={themeLightTextColor} sx={{ mt: 2, textAlign: 'center' }}>Please select a date to view available time slots.</Typography>
-                    )}
-                  </Paper>
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Message to Therapist (Optional)"
-                    multiline
-                    rows={4}
-                    variant="outlined"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    sx={{ mt: 2, '& .MuiOutlinedInput-root': { borderRadius: 2, borderColor: themeBorderColor }, '& .MuiInputLabel-root': { color: themeLightTextColor } }}
-                    placeholder="Share any specific concerns or questions you have for the therapist."
-                  />
-                </Grid>
-              </Grid>
-              <Button
-                variant="contained"
-                fullWidth
-                sx={{
-                  backgroundColor: themePrimaryColor,
-                  '&:hover': { backgroundColor: themeButtonHoverColor },
-                  mt: 4,
-                  py: 1.8,
-                  borderRadius: 2.5,
-                  fontSize: '1.1rem',
-                  fontWeight: 'bold',
-                  boxShadow: '0 4px 10px rgba(120, 0, 0, 0.4)',
-                }}
-                onClick={handleSessionRequest}
-                disabled={isButtonDisabled || !selectedSlot || paymentProcessing}
-              >
-                {isButtonDisabled ?
-                  (user && user.is_therapist ? "Therapists Cannot Book Sessions" : "Therapist Not Available for Booking")
-                  : (paymentProcessing ? <CircularProgress size={26} color="inherit" /> : 'Request Session Now')}
-              </Button>
-            </Box>
-          )}
-        </Paper>
+        )}
       </Container>
 
       {/* Payment Modal */}
       <Dialog open={showPaymentModal} onClose={handleClosePaymentModal} PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ backgroundColor: themePrimaryColor, color: themeCardBackground, fontWeight: 'bold', pb: 2 }}>
+        <DialogTitle sx={{ backgroundColor: themePrimaryColor, color: lightCream, fontWeight: 'bold', pb: 2 }}>
           Complete Payment
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           <Typography variant="body1" sx={{ mb: 2 }}>
             You are requesting a session with <span style={{ fontWeight: 'bold', color: themePrimaryColor }}>{therapist?.full_name}</span> on <span style={{ fontWeight: 'bold' }}>{selectedSlot?.date}</span> at <span style={{ fontWeight: 'bold' }}>{selectedSlot?.start_time}</span>.
           </Typography>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold', color: '#5a0000' }}>
+          <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold', color: mainMaroon }}>
             Amount Due: <span style={{ color: themePrimaryColor }}>KES {therapist.hourly_rate ? parseFloat(therapist.hourly_rate).toFixed(2) : 'N/A'}</span>
           </Typography>
           <TextField
@@ -686,7 +673,7 @@ export default function TherapistDetail() {
           />
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button onClick={handleClosePaymentModal} sx={{ color: themePrimaryColor, '&:hover': { backgroundColor: '#f5f5f5' } }} disabled={paymentProcessing}>Cancel</Button>
+          <Button onClick={handleClosePaymentModal} sx={{ color: themePrimaryColor, '&:hover': { backgroundColor: themeSectionBackground } }} disabled={paymentProcessing}>Cancel</Button>
           <Button onClick={handleInitiatePayment} variant="contained"
             sx={{
               backgroundColor: themePrimaryColor,

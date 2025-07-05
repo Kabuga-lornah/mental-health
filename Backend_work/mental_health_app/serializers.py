@@ -308,6 +308,7 @@ class SessionSerializer(serializers.ModelSerializer):
     client_email = serializers.EmailField(source='client.email', read_only=True)
     therapist_name = serializers.CharField(source='therapist.get_full_name', read_only=True)
     therapist_email = serializers.EmailField(source='therapist.email', read_only=True)
+    session_request_is_paid = serializers.BooleanField(source='session_request.is_paid', read_only=True)
 
     class Meta:
         model = Session
@@ -317,7 +318,7 @@ class SessionSerializer(serializers.ModelSerializer):
             'session_type', 'location',
             'status', 'notes', 'key_takeaways', 'recommendations', 'follow_up_required',
             'next_session_date', 'created_at', 'updated_at', 'zoom_meeting_url',
-            'client_name', 'client_email', 'therapist_name', 'therapist_email'
+            'client_name', 'client_email', 'therapist_name', 'therapist_email','session_request_is_paid'
         ]
         read_only_fields = [
             'id', 'client_name', 'client_email', 'therapist_name', 'therapist_email',

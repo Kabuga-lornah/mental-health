@@ -1,3 +1,4 @@
+// frontend_work/src/components/Auth/Register.jsx
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
@@ -6,14 +7,13 @@ import {
   Button,
   TextField,
   Typography,
-  Paper,
   FormControl,
   FormLabel,
   RadioGroup,
   FormControlLabel,
   Radio,
   Alert,
-} from "@mui/material";
+} from "@mui/material"; // Removed Paper import
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -25,7 +25,7 @@ export default function Register() {
     registerAsTherapist: false,
   });
   const [error, setError] = useState("");
-  const { register } = useAuth();
+  const { register } = useAuth(); //
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -47,184 +47,201 @@ export default function Register() {
     e.preventDefault();
     setError("");
     try {
-      await register({
+      const response = await register({ //
         ...formData,
         isTherapist: formData.registerAsTherapist,
       });
-      navigate("/login");
+
+      if (response.success) { //
+        navigate("/login");
+      } else {
+        setError(response.error || "Registration failed. Please try again."); //
+      }
     } catch (err) {
-      setError(err.error || "Registration failed");
+      setError(err.error || err.message || "An unexpected error occurred during registration.");
     }
   };
 
   return (
     <Box
       sx={{
-        backgroundColor: "#FFF9DC",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
         minHeight: "100vh",
-        py: 8,
+        backgroundColor: "#fefae0", // Main page background color
+        p: 2,
       }}
     >
-      <Box
+      <Box // This Box replaces the Paper and holds the two-column layout
         sx={{
           display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          px: 2,
+          flexDirection: { xs: "column", md: "row" },
+          width: "100%",
+          maxWidth: 900,
+          // No border radius or shadow directly on this box, content will define its own shape
+          overflow: "hidden", // Ensures content respects boundaries
+          backgroundColor: "#fefae0", // Ensure consistent background within the content area
         }}
       >
-        <Paper
-          elevation={3}
+        {/* Left Panel: Image Section */}
+        <Box
           sx={{
+            flex: 1,
             display: "flex",
-            flexDirection: { xs: "column", md: "row" },
-            width: "100%",
-            maxWidth: 800,
-            borderRadius: 3,
-            overflow: "hidden",
+            justifyContent: "center",
+            alignItems: "center",
+            p: { xs: 0, md: 0 }, // Removed padding for a flush image
+            minHeight: { xs: 200, md: 'auto' }, // Minimum height for mobile
+            backgroundColor: "#fefae0", // Match page background
           }}
         >
-          {/* Image Section */}
-          <Box
+          <img
+            src="/reg.jpeg" // Your image for the registration section
+            alt="Join Us"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover", // Ensures the image covers the area
+              display: "block",
+            }}
+          />
+        </Box>
+
+        {/* Right Panel: Registration Form */}
+        <Box
+          sx={{
+            flex: 1,
+            p: { xs: 4, md: 6 }, // Padding inside the form area
+            backgroundColor: "white", // White background for the form itself
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center', // Center content horizontally
+          }}
+        >
+          <Typography
+            variant="h4"
+            component="h2"
             sx={{
-              width: { xs: "100%", md: 380 },
-              height: { xs: 200, md: "auto" },
-              flexShrink: 0,
-              background: "#222",
+              fontWeight: 'bold',
+              mb: 3, // Increased margin bottom
+              textAlign: 'center',
+              color: '#333', // Dark text color for contrast
             }}
           >
-            <img
-              src="/reg.jpeg"
-              alt="Register Visual"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
+            Sign Up
+          </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3, width: '100%', whiteSpace: 'pre-line' }}>
+              {error}
+            </Alert>
+          )}
+
+          <Box component="form" onSubmit={handleSubmit} noValidate style={{ width: "100%" }}>
+            <TextField
+              label="First Name"
+              name="first_name"
+              value={formData.first_name}
+              onChange={handleChange}
+              fullWidth
+              required
+              sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
             />
-          </Box>
+            <TextField
+              label="Last Name"
+              name="last_name"
+              value={formData.last_name}
+              onChange={handleChange}
+              fullWidth
+              required
+              sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
+            />
+            <TextField
+              label="Email Address"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              fullWidth
+              required
+              sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
+            />
+            <TextField
+              label="Phone Number (Optional)"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              fullWidth
+              sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
+            />
+            <TextField
+              label="Password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              fullWidth
+              required
+              sx={{ mb: 3, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
+            />
 
-          {/* Registration Form Section */}
-          <Box sx={{ flex: 1, p: 4, minWidth: 0 }}>
-            <Typography
-              variant="h4"
-              component="h1"
-              gutterBottom
-              sx={{ fontWeight: "bold", color: "#7b1818", textAlign: "center" }}
-            >
-              Register
-            </Typography>
-
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
-            )}
-
-            <Box component="form" onSubmit={handleSubmit} noValidate>
-              <TextField
-                label="First Name"
-                name="first_name"
-                value={formData.first_name}
-                onChange={handleChange}
-                fullWidth
-                required
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Last Name"
-                name="last_name"
-                value={formData.last_name}
-                onChange={handleChange}
-                fullWidth
-                required
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                fullWidth
-                required
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                fullWidth
-                required
-                sx={{ mb: 2 }}
-              />
-
-              <FormControl component="fieldset" sx={{ mb: 2 }}>
-                <FormLabel component="legend" sx={{ color: "#7b1818", mb: 1 }}>
-                  Register as:
-                </FormLabel>
-                <RadioGroup
-                  row
-                  name="registerAsTherapist"
-                  value={formData.registerAsTherapist ? "therapist" : "user"}
-                  onChange={handleRadioChange}
-                >
-                  <FormControlLabel
-                    value="user"
-                    control={<Radio />}
-                    label="User"
-                  />
-                  <FormControlLabel
-                    value="therapist"
-                    control={<Radio />}
-                    label="Apply as Therapist"
-                  />
-                </RadioGroup>
-              </FormControl>
-
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                sx={{
-                  backgroundColor: "#7b1818",
-                  color: "#fff",
-                  fontWeight: "bold",
-                  py: 1.5,
-                  mt: 1,
-                  mb: 1,
-                  "&:hover": {
-                    backgroundColor: "#5c1313",
-                  },
-                }}
+            <FormControl component="fieldset" sx={{ mb: 3, mt: 1, width: '100%' }}>
+              <FormLabel component="legend" sx={{ color: '#555', fontWeight: 'bold' }}>
+                Register as:
+              </FormLabel>
+              <RadioGroup
+                row
+                name="registerAsTherapist"
+                value={formData.registerAsTherapist ? "therapist" : "user"}
+                onChange={handleRadioChange}
               >
-                REGISTER
-              </Button>
-            </Box>
+                <FormControlLabel
+                  value="user"
+                  control={<Radio sx={{ color: '#780000' }} />} // Maroon radio button
+                  label="User"
+                />
+                <FormControlLabel
+                  value="therapist"
+                  control={<Radio sx={{ color: '#780000' }} />} // Maroon radio button
+                  label="Apply as Therapist"
+                />
+              </RadioGroup>
+            </FormControl>
 
-            <Typography
-              variant="body2"
-              sx={{ mt: 2, textAlign: "center" }}
-              color="text.secondary"
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              size="large"
+              sx={{
+                backgroundColor: '#780000', // Maroon color
+                color: '#fefae0', // Cream text
+                fontWeight: 'bold',
+                py: 1.5,
+                borderRadius: 1, // Less rounded button
+                mt: 1,
+                '&:hover': {
+                  backgroundColor: '#400000', // Darker maroon on hover
+                },
+                boxShadow: 'none', // Remove button shadow
+              }}
             >
-              Already have an account?{" "}
-              <Link to="/login" style={{ color: "#7b1818", fontWeight: "bold" }}>
-                Login
-              </Link>
-            </Typography>
+              SIGN UP
+            </Button>
           </Box>
-        </Paper>
+
+          <Typography
+            variant="body2"
+            sx={{ mt: 3, textAlign: "center", color: '#555' }}
+          >
+            Already have an account?{" "}
+            <Link to="/login" style={{ color: '#780000', textDecoration: "none", fontWeight: "bold" }}> {/* Maroon link */}
+              Login Here
+            </Link>
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
