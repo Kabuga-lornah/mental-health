@@ -629,17 +629,19 @@ class SessionRequestCreateView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         # --- MODIFICATION START ---
-        # Set is_paid to True immediately if it's a free consultation
-        is_paid_status = False
-        if therapist.is_free_consultation:
-            is_paid_status = not therapist.is_free_consultation
-            print(f"DEBUG: Free consultation detected for therapist {therapist.id}. Setting is_paid=True for session request.")
+        # Set is_paid to True if it's a free consultation
+        is_paid_status_for_request = therapist.is_free_consultation
 
-        session_request_instance = serializer.save(client=self.request.user, therapist=therapist, is_paid=is_paid_status, status='pending')
+        session_request_instance = serializer.save(
+            client=self.request.user,
+            therapist=therapist,
+            is_paid=is_paid_status_for_request, # is_paid=True if free consultation, else False
+            status='pending' # Always pending initially
+        )
         # --- MODIFICATION END ---
 
         return Response({
-            "message": "Session request created successfully. Proceed to payment to confirm your booking." if not is_paid_status else "Session request submitted for free consultation. Therapist will review.",
+            "message": "Session request created successfully. Proceed to payment to confirm your booking." if not is_paid_status_for_request else "Session request submitted for free consultation. Therapist will review.",
             "session_request_id": session_request_instance.id,
             "therapist_hourly_rate": therapist.hourly_rate if not therapist.is_free_consultation else 0,
             "is_free_consultation": therapist.is_free_consultation
@@ -663,6 +665,36 @@ class TherapistSessionCreateView(generics.CreateAPIView):
         if hasattr(session_request, 'session'):
              return Response({'error': 'A session has already been created for this request.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # --- MODIFICATION START ---
+        # Determine session_type and location based on therapist's session_modes
+        therapist_session_modes = session_request.therapist.session_modes
+        session_type = 'online' # Default to online
+        location = None
+
+        if therapist_session_modes == 'physical':
+            session_type = 'physical'
+            location = session_request.therapist.physical_address
+        elif therapist_session_modes == 'both':
+            # For 'both', we can default to online or check request message for preference
+            # For simplicity, let's keep it online by default if 'both' is chosen,
+            # unless request explicitly states physical (which isn't in current request data)
+            # Or, we can set session_type to 'physical' and location if therapist has one.
+            # Let's align it with what the therapist *offers* for the session type.
+            # If the request doesn't specify preference, online is safer for 'both'
+            # However, the user wants it to reflect what the therapist *offers*.
+            # Let's ensure the session type is set to reflect the mode requested/offered
+            # A more robust solution might involve the client specifying preference during request.
+            # For now, let's use the therapist's default if not specified in request, or if 'both', default online.
+            # If 'both', and a physical address exists, we'll assume it can be physical.
+            if session_request.therapist.physical_address:
+                # If therapist offers both and has a physical address, let's assume it can be physical
+                # This logic is simplified; in a real app, client would choose.
+                session_type = 'physical'
+                location = session_request.therapist.physical_address
+            # If therapist offers 'both' but no physical address, it defaults to online which is fine.
+
+
+        # Set session request status to accepted
         session_request.status = 'accepted'
         session_request.save()
 
@@ -673,11 +705,12 @@ class TherapistSessionCreateView(generics.CreateAPIView):
             'session_date': session_request.requested_date,
             'session_time': session_request.requested_time,
             'duration_minutes': session_request.session_duration,
-            'session_type': request.data.get('session_type', 'online'),
-            'location': request.data.get('location', None),
-            'zoom_meeting_url': request.data.get('zoom_meeting_url', None),
-            'status': 'scheduled' # <--- ADD THIS LINE
+            'session_type': session_type, # Use determined session_type
+            'location': location,       # Use determined location
+            'zoom_meeting_url': request.data.get('zoom_meeting_url', None), # Still allow override for Zoom
+            'status': 'scheduled'
         }
+        # --- MODIFICATION END ---
 
         serializer = self.get_serializer(data=session_data)
         serializer.is_valid(raise_exception=True)
@@ -701,7 +734,7 @@ class TherapistSessionRequestListView(generics.ListAPIView):
         # Otherwise, default to showing only 'pending' requests as 'new'.
         queryset = SessionRequest.objects.filter(
             therapist=self.request.user,
-            is_paid=True
+            is_paid=True # Only show requests that are 'paid' (including free ones)
         )
 
         if status_filter:
@@ -721,11 +754,10 @@ class ClientSessionRequestListView(generics.ListAPIView):
         status_filter = self.request.query_params.get('status')
         # --- MODIFICATION START ---
         # Only show requests if they are paid or if the therapist offers free consultation.
-        # This implicitly means, if the session is not free and not paid, it won't show here.
         queryset = SessionRequest.objects.filter(
             client=self.request.user
         ).filter(
-            Q(is_paid=True) | Q(therapist__is_free_consultation=True)
+            is_paid=True # This now correctly covers both truly paid and 'free' consultations
         )
         # --- MODIFICATION END ---
 
@@ -846,6 +878,7 @@ class PaymentCreateView(generics.CreateAPIView):
             return Response({"error": "Session request ID and M-Pesa phone number are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            # Only allow payment initiation for requests that are not yet 'paid'
             session_request_obj = SessionRequest.objects.get(id=session_request_id, client=request.user, status='pending', is_paid=False)
         except SessionRequest.DoesNotExist:
             return Response({"error": "Session request not found, not pending, or already paid."}, status=status.HTTP_404_NOT_FOUND)
@@ -884,9 +917,11 @@ class PaymentCreateView(generics.CreateAPIView):
         if stk_response["success"]:
             # --- MODIFICATION START ---
             # Mark the session request as paid immediately upon successful STK push initiation
+            # This is correct if is_paid means "payment handled/not required".
+            # The actual payment status is in the Payment model.
             session_request_obj.is_paid = True
             session_request_obj.save()
-            print(f"DEBUG: SessionRequest {session_request_obj.id} marked as paid upon STK Push initiation.")
+            print(f"DEBUG: SessionRequest {session_request_obj.id} marked as paid upon STK Push initiation (meaning payment is now being handled/is not required).")
             # --- MODIFICATION END ---
 
             payment_data = {
@@ -912,6 +947,12 @@ class PaymentCreateView(generics.CreateAPIView):
                 "session_request_id": session_request_obj.id
             }, status=status.HTTP_200_OK)
         else:
+            # If STK push initiation fails, the session_request.is_paid should revert
+            if session_request_obj.is_paid:
+                session_request_obj.is_paid = False
+                session_request_obj.save()
+                print(f"DEBUG: SessionRequest {session_request_obj.id} reverted to unpaid due to STK Push failure.")
+
             return Response({"error": stk_response["message"]}, status=status.HTTP_400_BAD_REQUEST)
 
 class ClientPaymentStatusView(generics.RetrieveAPIView):

@@ -1,3 +1,4 @@
+# File: Backend_work/mental_health_app/models.py
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
@@ -53,7 +54,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_free_consultation = models.BooleanField(default=False)
     SESSION_MODES_CHOICES = [
         ('online', 'Online'),
-        ('physical', 'Online & Physical (In-Person)'), # Corrected typo "physical" to "Online & Physical" as it might be a typo
+        ('physical', 'Physical (In-Person)'), # Corrected typo "physical" to "Online & Physical" as it might be a typo
         ('both', 'Both Online & Physical'),
     ]
     session_modes = models.CharField(

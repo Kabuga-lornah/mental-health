@@ -1,3 +1,4 @@
+// File: frontend_work/src/components/MySessionRequest.jsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -30,8 +31,12 @@ import {
   Cancel,
   Refresh,
   EventNote,
-  Psychology  // Changed from Recommendations to Psychology
+  Psychology,  // Changed from Recommendations to Psychology
+  Wifi, // Icon for online sessions
+  Room // Icon for physical sessions
 } from '@mui/icons-material';
+import { isPast, parseISO, parse, isValid, addMinutes } from 'date-fns';
+
 
 const MySessionRequests = () => {
   const { user } = useAuth();
@@ -94,9 +99,11 @@ const MySessionRequests = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'warning';
-      case 'accepted': return 'success';
+      case 'accepted': return 'info'; // Changed accepted to info for distinction
       case 'rejected': return 'error';
       case 'cancelled': return 'default';
+      case 'completed': return 'success';
+      case 'expired': return 'default'; // For expired requests/sessions
       default: return 'default';
     }
   };
@@ -107,6 +114,8 @@ const MySessionRequests = () => {
       case 'accepted': return <CheckCircle />;
       case 'rejected': return <Cancel />;
       case 'cancelled': return <Cancel />;
+      case 'completed': return <CheckCircle />;
+      case 'expired': return <Cancel />; // Or a specific expired icon if available
       default: return <Schedule />;
     }
   };
@@ -126,14 +135,32 @@ const MySessionRequests = () => {
     });
   };
 
+  // Helper to determine if a session/request is expired
+  const isSessionExpired = (dateString, timeString, durationMinutes = 0) => {
+    if (!dateString || !timeString) return false;
+    
+    // Combine date and time to create a full datetime object
+    const [year, month, day] = dateString.split('-').map(Number);
+    const [hours, minutes] = timeString.split(':').map(Number);
+    
+    // Create a date object using local time to avoid timezone issues with `new Date()`
+    const sessionDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+
+    // Add duration if provided to get the end time of the session
+    const sessionEndTime = addMinutes(sessionDateTime, durationMinutes);
+    
+    // Check if the session end time is in the past
+    return isPast(sessionEndTime);
+  };
+
   const hasActiveSessions = () => {
     return sessions.some(session => 
-      session.status === 'scheduled' || session.status === 'in_progress'
+      (session.status === 'scheduled' || session.status === 'in_progress') && !isSessionExpired(session.session_date, session.session_time, session.duration_minutes)
     );
   };
 
   const hasPendingRequests = () => {
-    return sessionRequests.some(request => request.status === 'pending');
+    return sessionRequests.some(request => request.status === 'pending' && !isSessionExpired(request.requested_date, request.requested_time));
   };
 
   const canRequestNewSession = () => {
@@ -165,7 +192,8 @@ const MySessionRequests = () => {
         fetchSessionRequests();
         setError('');
       } else {
-        setError('Failed to cancel request');
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to cancel request');
       }
     } catch (error) {
       console.error('Error cancelling request:', error);
@@ -229,68 +257,85 @@ const MySessionRequests = () => {
           </Paper>
         ) : (
           <Grid container spacing={3}>
-            {sessionRequests.map((request) => (
-              <Grid item xs={12} md={6} key={request.id}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Typography variant="h6">
-                        Dr. {request.therapist.first_name} {request.therapist.last_name}
-                      </Typography>
-                      <Chip
-                        icon={getStatusIcon(request.status)}
-                        label={request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                        color={getStatusColor(request.status)}
-                        size="small"
-                      />
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <Schedule sx={{ mr: 1, fontSize: 20 }} />
-                      <Typography variant="body2">
-                        {formatDate(request.requested_date)} at {formatTime(request.requested_time)}
-                      </Typography>
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Person sx={{ mr: 1, fontSize: 20 }} />
-                      <Typography variant="body2">
-                        {request.therapist.specializations || 'General Therapy'}
-                      </Typography>
-                    </Box>
+            {sessionRequests.map((request) => {
+              const expired = isSessionExpired(request.requested_date, request.requested_time);
+              const displayStatus = expired && request.status !== 'completed' && request.status !== 'cancelled' ? 'expired' : request.status;
 
-                    {request.message && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        <strong>Your message:</strong> {request.message}
-                      </Typography>
-                    )}
-
-                    {request.therapist_response && (
-                      <Alert severity="info" sx={{ mb: 2 }}>
-                        <strong>Therapist Response:</strong> {request.therapist_response}
-                      </Alert>
-                    )}
-
-                    <Typography variant="caption" color="text.secondary">
-                      Requested on {formatDate(request.created_at)}
-                    </Typography>
-
-                    {request.status === 'pending' && (
-                      <Box sx={{ mt: 2 }}>
-                        <Button
-                          variant="outlined"
-                          color="error"
+              return (
+                <Grid item xs={12} md={6} key={request.id}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                        <Typography variant="h6">
+                          Dr. {request.therapist_name}
+                        </Typography>
+                        <Chip
+                          icon={getStatusIcon(displayStatus)}
+                          label={displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}
+                          color={getStatusColor(displayStatus)}
                           size="small"
-                          onClick={() => cancelRequest(request.id)}
-                        >
-                          Cancel Request
-                        </Button>
+                        />
                       </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
+                      
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <Schedule sx={{ mr: 1, fontSize: 20 }} />
+                        <Typography variant="body2">
+                          {formatDate(request.requested_date)} at {formatTime(request.requested_time)}
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <Person sx={{ mr: 1, fontSize: 20 }} />
+                        <Typography variant="body2">
+                          {request.therapist.specializations || 'General Therapy'}
+                        </Typography>
+                      </Box>
+
+                      {request.message && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          <strong>Your message:</strong> {request.message}
+                        </Typography>
+                      )}
+
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        {request.session_request_is_paid ? (
+                          <Chip label="Paid" color="success" size="small" sx={{ mr: 1 }} />
+                        ) : (
+                          <Chip label="Pending Payment" color="warning" size="small" sx={{ mr: 1 }} />
+                        )}
+                        {request.therapist.session_modes === 'online' && (
+                          <Chip icon={<Wifi />} label="Online Session" size="small" />
+                        )}
+                        {request.therapist.session_modes === 'physical' && (
+                          <Chip icon={<Room />} label="Physical Session" size="small" />
+                        )}
+                        {request.therapist.session_modes === 'both' && (
+                          <Chip icon={<Wifi />} label="Online/Physical" size="small" />
+                        )}
+                      </Box>
+
+                      <Typography variant="caption" color="text.secondary">
+                        Requested on {formatDate(request.created_at)}
+                      </Typography>
+
+                      {displayStatus === 'pending' && (
+                        <Box sx={{ mt: 2 }}>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            onClick={() => cancelRequest(request.id)}
+                            disabled={expired}
+                          >
+                            Cancel Request
+                          </Button>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
           </Grid>
         )}
       </TabPanel>
@@ -307,51 +352,61 @@ const MySessionRequests = () => {
           <Grid container spacing={3}>
             {sessions
               .filter(session => ['scheduled', 'in_progress'].includes(session.status))
-              .map((session) => (
-                <Grid item xs={12} md={6} key={session.id}>
-                  <Card>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                        <Typography variant="h6">
-                          Dr. {session.therapist.first_name} {session.therapist.last_name}
-                        </Typography>
-                        <Chip
-                          label={session.status === 'scheduled' ? 'Scheduled' : 'In Progress'}
-                          color={session.status === 'scheduled' ? 'primary' : 'warning'}
-                          size="small"
-                        />
-                      </Box>
-                      
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Schedule sx={{ mr: 1, fontSize: 20 }} />
-                        <Typography variant="body2">
-                          {formatDate(session.session_date)} at {formatTime(session.session_time)}
-                        </Typography>
-                      </Box>
+              .map((session) => {
+                const expired = isSessionExpired(session.session_date, session.session_time, session.duration_minutes);
+                const displayStatus = expired ? 'expired' : session.status;
 
-                      <Typography variant="body2" color="text.secondary">
-                        Type: {session.session_type}
-                      </Typography>
+                return (
+                  <Grid item xs={12} md={6} key={session.id}>
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                          <Typography variant="h6">
+                            Dr. {session.therapist_name}
+                          </Typography>
+                          <Chip
+                            label={displayStatus === 'expired' ? 'Expired' : (session.status === 'scheduled' ? 'Scheduled' : 'In Progress')}
+                            color={getStatusColor(displayStatus)}
+                            size="small"
+                          />
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <Schedule sx={{ mr: 1, fontSize: 20 }} />
+                          <Typography variant="body2">
+                            {formatDate(session.session_date)} at {formatTime(session.session_time)}
+                          </Typography>
+                        </Box>
 
-                      {session.location && (
-                        <Typography variant="body2" color="text.secondary">
-                          Location: {session.location}
-                        </Typography>
-                      )}
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          {session.session_type === 'online' && (
+                            <Chip icon={<Wifi />} label="Online Session" size="small" />
+                          )}
+                          {session.session_type === 'physical' && (
+                            <Chip icon={<Room />} label="Physical Session" size="small" />
+                          )}
+                        </Box>
 
-                      <Box sx={{ mt: 2 }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => handleViewSessionDetails(session)}
-                        >
-                          View Details
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
+                        {session.location && (
+                          <Typography variant="body2" color="text.secondary">
+                            Location: {session.location}
+                          </Typography>
+                        )}
+
+                        <Box sx={{ mt: 2 }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleViewSessionDetails(session)}
+                          >
+                            View Details
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
           </Grid>
         )}
       </TabPanel>
@@ -374,7 +429,7 @@ const MySessionRequests = () => {
                     <CardContent>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                         <Typography variant="h6">
-                          Dr. {session.therapist.first_name} {session.therapist.last_name}
+                          Dr. {session.therapist_name}
                         </Typography>
                         <Chip
                           label="Completed"
@@ -436,7 +491,7 @@ const MySessionRequests = () => {
         {selectedSession && (
           <>
             <DialogTitle>
-              Session with Dr. {selectedSession.therapist.first_name} {selectedSession.therapist.last_name}
+              Session with Dr. {selectedSession.therapist_name}
             </DialogTitle>
             <DialogContent>
               <List>
@@ -450,7 +505,7 @@ const MySessionRequests = () => {
                 <ListItem>
                   <ListItemText
                     primary="Session Type"
-                    secondary={selectedSession.session_type}
+                    secondary={selectedSession.session_type === 'online' ? 'Online' : 'Physical'}
                   />
                 </ListItem>
                 {selectedSession.location && (

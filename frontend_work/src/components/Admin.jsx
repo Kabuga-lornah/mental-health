@@ -5,8 +5,9 @@ import {
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Select, MenuItem, FormControl, InputLabel, TextField, Link as MuiLink,
-  Chip
+  Chip, Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -427,56 +428,210 @@ export default function AdminDashboard() {
           </Paper>
         )}
 
-        {/* Tab Panel for User Management */}
+        {/* Tab Panel for User Management - MODIFIED */}
         {currentTab === 1 && (
           <Paper elevation={3} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2 }}>
             <Typography variant="h5" sx={{ color: primaryColor, mb: 3, fontWeight: 'bold' }}>
-              User Management
+              User & Therapist Management
             </Typography>
             {error ? (
                 <Typography color="error" sx={{ textAlign: 'center', mt: 2 }}>{error}</Typography>
             ) : users.length === 0 ? (
                 <Typography variant="h6" sx={{ textAlign: 'center', color: primaryColor, mt: 2 }}>No users found.</Typography>
             ) : (
-                <TableContainer>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Email</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Name</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Role</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Verified</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {users.map(u => (
-                                <TableRow key={u.id}>
-                                    <TableCell>{u.email}</TableCell>
-                                    <TableCell>{u.first_name} {u.last_name}</TableCell>
-                                    <TableCell>
-                                      <Chip
-                                        label={u.is_superuser ? 'Admin' : (u.is_therapist ? 'Therapist' : 'User')}
-                                        size="small"
-                                        color={u.is_superuser ? 'secondary' : (u.is_therapist ? 'primary' : 'default')}
-                                      />
-                                    </TableCell>
-                                    <TableCell>{u.is_verified ? 'Yes' : 'No'}</TableCell>
-                                    <TableCell>
-                                        <Button
-                                          size="small"
-                                          variant="outlined"
-                                          sx={{ borderColor: primaryColor, color: primaryColor, '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
-                                          onClick={() => handleOpenUserDetailsModal(u)}
-                                        >
-                                          View
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
+                <Box>
+                    {/* Display regular users first */}
+                    <Accordion defaultExpanded sx={{ mb: 2, boxShadow: 'none', border: `1px solid ${primaryColor}10` }}>
+                        <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: primaryColor }} />}
+                            sx={{ backgroundColor: `${primaryColor}05`, borderBottom: `1px solid ${primaryColor}20` }}
+                        >
+                            <Typography variant="h6" sx={{ color: primaryColor, fontWeight: 'bold' }}>Regular Users ({users.filter(u => !u.is_therapist && !u.is_superuser).length})</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails sx={{ p: 0 }}>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Email</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Name</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Role</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Verified</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Actions</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {users.filter(u => !u.is_therapist && !u.is_superuser).map(u => (
+                                            <TableRow key={u.id}>
+                                                <TableCell>{u.email}</TableCell>
+                                                <TableCell>{u.first_name} {u.last_name}</TableCell>
+                                                <TableCell>
+                                                <Chip
+                                                    label={'User'}
+                                                    size="small"
+                                                    color={'default'}
+                                                />
+                                                </TableCell>
+                                                <TableCell>{u.is_verified ? 'Yes' : 'No'}</TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{ borderColor: primaryColor, color: primaryColor, '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
+                                                    onClick={() => handleOpenUserDetailsModal(u)}
+                                                    >
+                                                    View
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </AccordionDetails>
+                    </Accordion>
+
+                    {/* Therapists Section */}
+                    <Accordion defaultExpanded sx={{ mb: 2, boxShadow: 'none', border: `1px solid ${primaryColor}10` }}>
+                        <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: primaryColor }} />}
+                            sx={{ backgroundColor: `${primaryColor}05`, borderBottom: `1px solid ${primaryColor}20` }}
+                        >
+                            <Typography variant="h6" sx={{ color: primaryColor, fontWeight: 'bold' }}>Therapists ({users.filter(u => u.is_therapist && !u.is_superuser).length})</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails sx={{ p: 0 }}>
+                            {[
+                                { title: 'Charging Therapists', filter: (t) => !t.is_free_consultation },
+                                { title: 'Free Consultation Therapists', filter: (t) => t.is_free_consultation },
+                            ].map((priceCategory, pIndex) => (
+                                <Box key={pIndex} sx={{ mb: 2 }}>
+                                    <Typography variant="subtitle1" sx={{ color: primaryColor, fontWeight: 'bold', ml: 2, mt: 2 }}>{priceCategory.title}</Typography>
+                                    {[
+                                        { mode: 'online', label: 'Online Sessions' },
+                                        { mode: 'physical', label: 'Physical Sessions' },
+                                        { mode: 'both', label: 'Both Online & Physical' },
+                                    ].map((sessionMode, sIndex) => {
+                                        const filteredTherapists = users.filter(
+                                            u => u.is_therapist && !u.is_superuser && priceCategory.filter(u) && 
+                                            (u.session_modes === sessionMode.mode || 
+                                            (sessionMode.mode === 'online' && u.session_modes === 'both') ||
+                                            (sessionMode.mode === 'physical' && u.session_modes === 'both'))
+                                        );
+
+                                        if (filteredTherapists.length === 0) return null;
+
+                                        return (
+                                            <Accordion key={`${pIndex}-${sIndex}`} defaultExpanded sx={{ ml: 2, mt: 1, boxShadow: 'none', border: `1px dashed ${primaryColor}05` }}>
+                                                <AccordionSummary
+                                                    expandIcon={<ExpandMoreIcon sx={{ color: primaryColor }} />}
+                                                    sx={{ backgroundColor: `${primaryColor}05` }}
+                                                >
+                                                    <Typography variant="body1" sx={{ color: primaryColor, fontWeight: 'bold' }}>{sessionMode.label} ({filteredTherapists.length})</Typography>
+                                                </AccordionSummary>
+                                                <AccordionDetails sx={{ p: 0 }}>
+                                                    <TableContainer>
+                                                        <Table size="small">
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Email</TableCell>
+                                                                    <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Name</TableCell>
+                                                                    <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Rate</TableCell>
+                                                                    {['physical', 'both'].includes(sessionMode.mode) && 
+                                                                        <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Location</TableCell>}
+                                                                    <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Status</TableCell>
+                                                                    <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Actions</TableCell>
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {filteredTherapists.map(u => (
+                                                                    <TableRow key={u.id}>
+                                                                        <TableCell>{u.email}</TableCell>
+                                                                        <TableCell>{u.first_name} {u.last_name}</TableCell>
+                                                                        <TableCell>
+                                                                            {u.is_free_consultation ? 'Free' : (u.hourly_rate ? `Ksh ${parseFloat(u.hourly_rate).toFixed(2)}` : 'N/A')}
+                                                                        </TableCell>
+                                                                        {['physical', 'both'].includes(sessionMode.mode) && 
+                                                                            <TableCell>{u.physical_address || 'N/A'}</TableCell>}
+                                                                        <TableCell>
+                                                                            <Chip
+                                                                                label={u.is_verified ? 'Verified' : 'Unverified'}
+                                                                                size="small"
+                                                                                color={u.is_verified ? 'success' : 'warning'}
+                                                                            />
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <Button
+                                                                            size="small"
+                                                                            variant="outlined"
+                                                                            sx={{ borderColor: primaryColor, color: primaryColor, '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
+                                                                            onClick={() => handleOpenUserDetailsModal(u)}
+                                                                            >
+                                                                            View
+                                                                            </Button>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </TableContainer>
+                                                </AccordionDetails>
+                                            </Accordion>
+                                        );
+                                    })}
+                                </Box>
                             ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                        </AccordionDetails>
+                    </Accordion>
+                    
+                    {/* Admin Users (Superusers) */}
+                    <Accordion defaultExpanded sx={{ boxShadow: 'none', border: `1px solid ${primaryColor}10` }}>
+                        <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: primaryColor }} />}
+                            sx={{ backgroundColor: `${primaryColor}05`, borderBottom: `1px solid ${primaryColor}20` }}
+                        >
+                            <Typography variant="h6" sx={{ color: primaryColor, fontWeight: 'bold' }}>Administrators ({users.filter(u => u.is_superuser).length})</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails sx={{ p: 0 }}>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Email</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Name</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Role</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', color: primaryColor }}>Actions</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {users.filter(u => u.is_superuser).map(u => (
+                                            <TableRow key={u.id}>
+                                                <TableCell>{u.email}</TableCell>
+                                                <TableCell>{u.first_name} {u.last_name}</TableCell>
+                                                <TableCell>
+                                                <Chip
+                                                    label={'Admin'}
+                                                    size="small"
+                                                    color={'secondary'}
+                                                />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{ borderColor: primaryColor, color: primaryColor, '&:hover': { backgroundColor: 'rgba(120,0,0,0.05)' } }}
+                                                    onClick={() => handleOpenUserDetailsModal(u)}
+                                                    >
+                                                    View
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </AccordionDetails>
+                    </Accordion>
+                </Box>
             )}
           </Paper>
         )}
