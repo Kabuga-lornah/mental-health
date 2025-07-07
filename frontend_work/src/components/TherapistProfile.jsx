@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Container, Paper, TextField, Button,
-  CircularProgress, Snackbar, Alert, Grid, Avatar, IconButton,
+  CircularProgress, Snackbar, Alert, Grid, Avatar,
   Select, MenuItem, FormControl, InputLabel, Checkbox, ListItemText,
   RadioGroup, FormControlLabel, Radio, Chip, Stack
 } from '@mui/material';
@@ -9,6 +9,10 @@ import { PhotoCamera, Delete } from '@mui/icons-material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+
+// Cloudinary Configuration - FOR DEMONSTRATION ONLY (INSECURE FOR PROD)
+const CLOUDINARY_CLOUD_NAME = 'dgdf0svqx';
+const CLOUDINARY_UPLOAD_PRESET = 'mental health';
 
 const specializationsList = [
   'Anxiety and Stress Management',
@@ -66,7 +70,7 @@ export default function TherapistProfile() {
         email: user.email || '',
         phone: user.phone || '',
         bio: user.bio || '',
-        profile_picture: null,
+        profile_picture: null, // Always null on initial load, it's for new uploads
         current_profile_picture_url: user.profile_picture || '',
         years_of_experience: user.years_of_experience || '',
         specializations: user.specializations ? user.specializations.split(',') : [],
@@ -110,7 +114,7 @@ export default function TherapistProfile() {
       setFormData(prev => ({
         ...prev,
         profile_picture: file,
-        current_profile_picture_url: URL.createObjectURL(file)
+        current_profile_picture_url: URL.createObjectURL(file) // Display the newly selected image
       }));
     }
   };
@@ -118,9 +122,33 @@ export default function TherapistProfile() {
   const handleRemovePhoto = () => {
     setFormData(prev => ({
       ...prev,
-      profile_picture: null,
-      current_profile_picture_url: ''
+      profile_picture: null, // Clear the file object if any was selected
+      current_profile_picture_url: '' // Signal to remove existing photo on backend
     }));
+  };
+
+  const uploadImageToCloudinary = async (file) => {
+    const cloudinaryFormData = new FormData();
+    cloudinaryFormData.append('file', file);
+    cloudinaryFormData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    try {
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        cloudinaryFormData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            // Explicitly set Authorization to undefined/null to override any global defaults/interceptors
+            Authorization: undefined,
+          },
+        }
+      );
+      return response.data.secure_url;
+    } catch (error) {
+      console.error('Error uploading image to Cloudinary:', error.response?.data || error);
+      throw new Error('Failed to upload image to Cloudinary.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -128,50 +156,75 @@ export default function TherapistProfile() {
     setSubmitting(true);
     setSnackbarOpen(false);
 
-    const data = new FormData();
-    // Append basic user fields
-    data.append('first_name', formData.first_name);
-    data.append('last_name', formData.last_name);
-    data.append('phone', formData.phone);
-    data.append('bio', formData.bio);
-    data.append('is_available', formData.is_available); // General availability status
-
-    // Handle profile picture
-    if (formData.profile_picture) {
-      data.append('profile_picture', formData.profile_picture);
-    } else if (formData.current_profile_picture_url === '') {
-      data.append('profile_picture', ''); // Signal to remove existing photo
-    }
-
-    // Append therapist-specific fields
-    data.append('years_of_experience', formData.years_of_experience);
-    data.append('specializations', formData.specializations.join(','));
-    data.append('license_credentials', formData.license_credentials);
-    data.append('approach_modalities', formData.approach_modalities);
-    data.append('languages_spoken', formData.languages_spoken);
-    data.append('client_focus', formData.client_focus);
-    data.append('insurance_accepted', formData.insurance_accepted);
-    data.append('video_introduction_url', formData.video_introduction_url);
-    data.append('is_free_consultation', formData.is_free_consultation);
-    data.append('session_modes', formData.session_modes);
-    data.append('physical_address', formData.physical_address);
-
-    // Only include hourly_rate if free consultation is NOT offered
-    if (!formData.is_free_consultation && formData.hourly_rate) {
-      data.append('hourly_rate', parseFloat(formData.hourly_rate));
-    } else if (formData.is_free_consultation) {
-        data.append('hourly_rate', ''); // Send empty to clear if it was set before
-    }
-
-
     try {
-      const response = await axios.patch('http://localhost:8000/api/user/', data, {
+      let profilePictureUrl = formData.current_profile_picture_url; // Start with the current URL
+
+      // Case 1: A new profile picture file has been selected
+      if (formData.profile_picture) {
+        profilePictureUrl = await uploadImageToCloudinary(formData.profile_picture);
+      }
+      // Case 2: The user explicitly removed the photo (current_profile_picture_url is '').
+      // We set profilePictureUrl to null to signal removal on the backend.
+      else if (formData.current_profile_picture_url === '') {
+        profilePictureUrl = null;
+      }
+      // Case 3: No new file selected and no removal, profilePictureUrl remains current_profile_picture_url
+
+      // Prepare the payload for the single PATCH request
+      const payload = {
+        // Basic user fields
+        first_name: String(formData.first_name || ''),
+        last_name: String(formData.last_name || ''),
+        phone: String(formData.phone || ''),
+        bio: String(formData.bio || ''),
+        is_available: Boolean(formData.is_available),
+        profile_picture: profilePictureUrl, // Include the determined profile_picture URL here
+
+        // Therapist-specific fields
+        years_of_experience: formData.years_of_experience ? String(formData.years_of_experience) : null,
+        specializations: Array.isArray(formData.specializations) && formData.specializations.length > 0
+          ? formData.specializations.join(',') : null,
+        license_credentials: formData.license_credentials ? String(formData.license_credentials) : null,
+        approach_modalities: formData.approach_modalities ? String(formData.approach_modalities) : null,
+        languages_spoken: formData.languages_spoken ? String(formData.languages_spoken) : null,
+        client_focus: formData.client_focus ? String(formData.client_focus) : null,
+        insurance_accepted: Boolean(formData.insurance_accepted),
+        video_introduction_url: formData.video_introduction_url ? String(formData.video_introduction_url) : null,
+        is_free_consultation: Boolean(formData.is_free_consultation),
+        session_modes: String(formData.session_modes || 'online'),
+        physical_address: formData.physical_address ? String(formData.physical_address) : null,
+      };
+
+      // Only include hourly_rate if free consultation is NOT offered
+      if (!formData.is_free_consultation && formData.hourly_rate) {
+        payload.hourly_rate = parseFloat(formData.hourly_rate);
+      } else if (formData.is_free_consultation) {
+        payload.hourly_rate = null; // Ensure hourly_rate is null if free consultation is offered
+      }
+
+      // Remove null, undefined, or empty string values from the payload
+      // This prevents sending fields with no meaningful data and allows backend to interpret missing as 'no change'
+      Object.keys(payload).forEach(key => {
+        // Specifically handle string fields that should be omitted if empty
+        if (typeof payload[key] === 'string' && payload[key].trim() === '') {
+          delete payload[key];
+        }
+        // Handle null/undefined values, but be careful not to delete legitimate `false` booleans
+        if (payload[key] === null || payload[key] === undefined) {
+          delete payload[key];
+        }
+      });
+
+      console.log('Payload being sent:', payload);
+
+      const response = await axios.patch('http://localhost:8000/api/user/', payload, {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         }
       });
 
+      // Refresh the access token and user data to reflect changes immediately
       await refreshAccessToken();
 
       setSnackbarMessage('Profile updated successfully!');
@@ -180,9 +233,28 @@ export default function TherapistProfile() {
 
     } catch (err) {
       console.error('Error updating profile:', err.response?.data || err);
-      const errorMessage = err.response?.data?.detail
-        ? (Array.isArray(err.response.data.detail) ? err.response.data.detail.join(', ') : err.response.data.detail)
-        : (err.response?.data ? Object.values(err.response.data).flat().join(', ') : 'Failed to update profile. Please try again.');
+      console.error('Full error response:', err.response);
+
+      let errorMessage = 'Failed to update profile. Please try again.';
+
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.detail) {
+          errorMessage = Array.isArray(err.response.data.detail)
+            ? err.response.data.detail.join(', ')
+            : err.response.data.detail;
+        } else {
+          // Attempt to parse validation errors from backend
+          const errorFields = Object.keys(err.response.data);
+          const errors = errorFields.map(field => {
+            const fieldError = err.response.data[field];
+            return `${field}: ${Array.isArray(fieldError) ? fieldError.join(', ') : fieldError}`;
+          });
+          errorMessage = errors.join('; ');
+        }
+      }
+
       setSnackbarMessage(errorMessage);
       setSnackbarSeverity('error');
       setSnackbarOpen(true);

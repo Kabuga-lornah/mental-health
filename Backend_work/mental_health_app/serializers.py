@@ -16,7 +16,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ChatMessage
-        fields = ['id', 'sender', 'sender_email', 'receiver', 'receiver_email', 'room_name', 'message_content', 'timestamp']
+        fields = ['id', 'sender', 'sender_email', 'receiver', 'receiver_email', 'chat_room', 'message_content', 'timestamp'] # Changed 'room_name' to 'chat_room'
         read_only_fields = ['sender', 'timestamp']
 
 class UserSerializer(serializers.ModelSerializer):
@@ -26,13 +26,13 @@ class UserSerializer(serializers.ModelSerializer):
     """
     password = serializers.CharField(
         write_only=True,
-        required=True,
+        required=False, # Changed to False for updates
         style={'input_type': 'password'},
         validators=[validate_password]
     )
     password2 = serializers.CharField(
         write_only=True,
-        required=True,
+        required=False, # Changed to False for updates
         style={'input_type': 'password'}
     )
     is_verified = serializers.BooleanField(read_only=True)
@@ -40,13 +40,15 @@ class UserSerializer(serializers.ModelSerializer):
     years_of_experience = serializers.IntegerField(required=False, allow_null=True)
     specializations = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True)
     is_available = serializers.BooleanField(required=False, default=False)
-    hourly_rate = serializers.DecimalField(
-        max_digits=6,
-        decimal_places=2,
-        required=False,
-        allow_null=True
-    )
-    profile_picture = serializers.ImageField(required=False, allow_null=True)
+    # REMOVED: hourly_rate field declaration
+    # hourly_rate = serializers.DecimalField(
+    #     max_digits=6,
+    #     decimal_places=2,
+    #     required=False,
+    #     allow_null=True
+    # )
+    # FIX: Changed from serializers.ImageField to serializers.URLField to accept Cloudinary URLs
+    profile_picture = serializers.URLField(max_length=500, required=False, allow_null=True, allow_blank=True)
 
     license_credentials = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     approach_modalities = serializers.CharField(required=False, allow_null=True, allow_blank=True)
@@ -71,7 +73,8 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'password', 'password2',
             'first_name', 'last_name', 'phone', 'is_therapist',
             'is_verified', 'bio', 'years_of_experience', 'specializations',
-            'is_available', 'hourly_rate', 'profile_picture',
+            'is_available', # REMOVED: 'hourly_rate'
+            'profile_picture',
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted', 'video_introduction_url',
             'is_free_consultation', 'session_modes', 'physical_address'
@@ -81,29 +84,120 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name': {'required': True},
             'last_name': {'required': True},
             'id': {'read_only': True},
+            # Passwords are not required for PATCH operations
+            'password': {'write_only': True, 'required': False},
+            'password2': {'write_only': True, 'required': False},
         }
+
+    def to_internal_value(self, data):
+        """
+        Custom handling for profile_picture and other fields
+        before full validation, converting empty strings or single-item lists
+        containing empty strings/None to None.
+        """
+        # Create a mutable copy of the data
+        mutable_data = data.copy()
+
+        # --- Specific handling for profile_picture ---
+        profile_picture_value = mutable_data.get('profile_picture')
+        if profile_picture_value is not None: # Only process if the field is present
+            if profile_picture_value == '' or (isinstance(profile_picture_value, list) and len(profile_picture_value) == 1 and (profile_picture_value[0] == '' or profile_picture_value[0] is None)):
+                mutable_data['profile_picture'] = None
+            elif isinstance(profile_picture_value, list) and len(profile_picture_value) > 1:
+                raise serializers.ValidationError({"profile_picture": "Profile picture cannot be a list with multiple values."})
+            # If it's a valid URL string or None, it will pass through.
+
+        # --- General normalization for other string/number fields ---
+        fields_to_normalize_to_none = [
+            'bio', 'years_of_experience', 'license_credentials', 'approach_modalities',
+            'languages_spoken', 'client_focus', 'video_introduction_url',
+            'physical_address', 'phone'
+        ]
+        for field_name in fields_to_normalize_to_none:
+            value = mutable_data.get(field_name)
+            if value is not None: # Only process if the field is present
+                if value == '' or (isinstance(value, list) and len(value) == 1 and (value[0] == '' or value[0] is None)):
+                    mutable_data[field_name] = None
+                elif isinstance(value, list) and len(value) > 1:
+                    raise serializers.ValidationError({field_name: f"{field_name} cannot be a list with multiple values."})
+
+        # --- Handle specializations (comma-separated string) ---
+        specializations = mutable_data.get('specializations')
+        if specializations is not None: # Only process if the field is present
+            if isinstance(specializations, list):
+                # Filter out any empty strings or None from the list before joining
+                cleaned_specializations = [s for s in specializations if isinstance(s, str) and s.strip() != '']
+                mutable_data['specializations'] = ",".join(cleaned_specializations) if cleaned_specializations else None
+            elif specializations == '':
+                mutable_data['specializations'] = None
+
+        # Now call the parent's to_internal_value with the potentially modified data
+        return super().to_internal_value(mutable_data)
 
     def validate(self, attrs):
         """
         Custom validation to check for matching passwords and unique email.
+        Handles partial updates gracefully.
         """
-        if attrs.get('password') and attrs.get('password2') and attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({"password": "Password fields didn't match."})
+        # Only validate passwords if they are actually provided (for updates)
+        if attrs.get('password') or attrs.get('password2'):
+            if attrs.get('password') != attrs.get('password2'):
+                raise serializers.ValidationError({"password": "Password fields didn't match."})
+            try:
+                # Validate password against instance for updates
+                validate_password(attrs['password'], self.instance)
+            except DjangoValidationError as e:
+                raise serializers.ValidationError({"password": list(e.messages)})
 
         email = attrs.get('email')
-        if self.instance is None and User.objects.filter(email=email).exists():
-            raise serializers.ValidationError({"email": "This email is already in use."})
+        # Only check for unique email if creating a new user or email is being changed
+        if self.instance is None or (email and self.instance.email != email):
+            if User.objects.filter(email=email).exists():
+                raise serializers.ValidationError({"email": "This email is already in use."})
 
-        if attrs.get('is_therapist'):
-            if attrs.get('is_available') is None:
+        # Apply therapist-specific validations only if 'is_therapist' is True or was True
+        # and relevant fields are being updated.
+        is_therapist_current = self.instance.is_therapist if self.instance else False
+        is_therapist_in_attrs = attrs.get('is_therapist', is_therapist_current)
+
+        if is_therapist_in_attrs:
+            # Check 'is_available' if it's explicitly provided or if it's required for therapists
+            if 'is_available' in attrs and attrs.get('is_available') is None:
                 raise serializers.ValidationError(
                     {"is_available": "Therapists must specify availability."}
                 )
-            if not attrs.get('is_free_consultation') and (attrs.get('hourly_rate') is not None and not isinstance(attrs['hourly_rate'], (int, float))):
-                raise serializers.ValidationError(
-                    {"hourly_rate": "Hourly rate must be a number."}
-                )
-            if attrs.get('session_modes') in ['physical', 'both'] and not attrs.get('physical_address'):
+
+            # REMOVED: Check 'hourly_rate' based on 'is_free_consultation'
+            # is_free_consultation_current = self.instance.is_free_consultation if self.instance else False
+            # is_free_consultation_in_attrs = attrs.get('is_free_consultation', is_free_consultation_current)
+
+            # if not is_free_consultation_in_attrs: # If free consultation is NOT offered
+            #     # hourly_rate is required and must be a number
+            #     hourly_rate_in_attrs = attrs.get('hourly_rate')
+            #     if hourly_rate_in_attrs is None: # If not provided OR explicitly null
+            #         raise serializers.ValidationError(
+            #             {"hourly_rate": "Hourly rate is required if not offering free consultation."}
+            #         )
+            #     # After to_internal_value, it should already be float or None.
+            #     # So this check might be redundant if to_internal_value is perfect, but good for safety.
+            #     if not isinstance(hourly_rate_in_attrs, (int, float)):
+            #         raise serializers.ValidationError(
+            #             {"hourly_rate": "Hourly rate must be a number."}
+            #         )
+            # elif is_free_consultation_in_attrs: # If free consultation IS offered
+            #     # hourly_rate must be null if provided
+            #     if 'hourly_rate' in attrs and attrs['hourly_rate'] is not None:
+            #         raise serializers.ValidationError(
+            #             {"hourly_rate": "Hourly rate must be null if offering free consultation."}
+            #         )
+
+
+            # Check 'physical_address' based on 'session_modes'
+            session_modes_current = self.instance.session_modes if self.instance else 'online'
+            session_modes_in_attrs = attrs.get('session_modes', session_modes_current)
+            physical_address_in_attrs = attrs.get('physical_address', self.instance.physical_address if self.instance else None)
+
+            if session_modes_in_attrs in ['physical', 'both'] and not physical_address_in_attrs:
                 raise serializers.ValidationError(
                     {"physical_address": "Physical address is required for in-person sessions."}
                 )
@@ -117,8 +211,14 @@ class UserSerializer(serializers.ModelSerializer):
         email = validated_data.pop('email')
         password = validated_data.pop('password')
 
+        # Handle profile_picture for creation if it's a URL
+        profile_picture_url = validated_data.pop('profile_picture', None)
+
         try:
             user = User.objects.create_user(email=email, password=password, **validated_data)
+            if profile_picture_url:
+                user.profile_picture = profile_picture_url
+                user.save()
             return user
         except DjangoValidationError as e:
             raise serializers.ValidationError(e.message_dict)
@@ -132,6 +232,18 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         validated_data.pop('password2', None)
 
+        # Handle profile_picture update:
+        # If profile_picture is provided in validated_data and it's None, clear the field.
+        # Otherwise, if it's a URL, set it.
+        # If not provided, leave the existing value.
+        profile_picture_url = validated_data.pop('profile_picture', None)
+        if profile_picture_url is not None: # If provided (could be a URL or explicit None)
+            instance.profile_picture = profile_picture_url
+        elif 'profile_picture' in validated_data and profile_picture_url is None:
+            # This handles the case where the frontend explicitly sends profile_picture: null
+            instance.profile_picture = None
+
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
@@ -144,7 +256,13 @@ class RegisterSerializer(UserSerializer):
     logic from the main UserSerializer.
     """
     class Meta(UserSerializer.Meta):
-        pass
+        extra_kwargs = {
+            'email': {'required': True},
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+            'password': {'write_only': True, 'required': True}, # Passwords required for registration
+            'password2': {'write_only': True, 'required': True},
+        }
 
 class LoginSerializer(serializers.Serializer):
     """
@@ -173,13 +291,15 @@ class TherapistSerializer(serializers.ModelSerializer):
     Read-only serializer for public therapist profiles.
     """
     full_name = serializers.SerializerMethodField()
+    # FIX: Change to SerializerMethodField to correctly return the URL
     profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'full_name',
-            'is_available', 'hourly_rate', 'profile_picture',
+            'is_available', # REMOVED: 'hourly_rate'
+            'profile_picture',
             'bio', 'years_of_experience', 'specializations',
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted', 'video_introduction_url',
@@ -191,10 +311,9 @@ class TherapistSerializer(serializers.ModelSerializer):
         return f"{obj.first_name} {obj.last_name}"
 
     def get_profile_picture(self, obj):
+        # Return the URL directly if it's a URLField on the model
         if obj.profile_picture:
-            request = self.context.get('request')
-            if request is not None:
-                return obj.profile_picture.url
+            return obj.profile_picture
         return None
 
 class JournalEntrySerializer(serializers.ModelSerializer):
@@ -426,8 +545,12 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
             applicant.session_modes = instance.session_modes
             applicant.physical_address = instance.physical_address
 
+            # For professional_photo, if it's a FileField in TherapistApplication,
+            # and profile_picture is URLField in User, you might need to handle Cloudinary upload here
+            # or ensure professional_photo is also a URLField in TherapistApplication if it stores URLs.
+            # Assuming professional_photo in TherapistApplication is also a URLField or you handle conversion
             if instance.professional_photo:
-                applicant.profile_picture = instance.professional_photo
+                applicant.profile_picture = instance.professional_photo # Assign URL directly
 
             if not instance.is_free_consultation and instance.hourly_rate is not None:
                 applicant.hourly_rate = instance.hourly_rate
@@ -446,7 +569,7 @@ class TherapistApplicationAdminSerializer(serializers.ModelSerializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     client = serializers.HiddenField(default=serializers.CurrentUserDefault())
-    
+
     # MODIFIED: Removed read_only=True to make these fields writable
     checkout_request_id = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)
     mpesa_receipt_number = serializers.CharField(max_length=50, required=False, allow_null=True, allow_blank=True)

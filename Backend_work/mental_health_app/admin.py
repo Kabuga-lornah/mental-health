@@ -113,4 +113,3 @@ admin.site.register(Session) # Register the new Session model here
 # Unregister Group if you manage permissions solely through UserAdmin's groups field
 # You might want to keep this if you plan to use Django's built-in group permissions
 # admin.site.unregister(Group)
-

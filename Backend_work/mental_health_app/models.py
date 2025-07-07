@@ -3,7 +3,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from django.conf import settings 
+from django.conf import settings
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -33,7 +33,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     phone = models.CharField(max_length=15, blank=True)
-    profile_picture = models.ImageField(upload_to='profiles/', null=True, blank=True)
+    # FIX: Changed from models.ImageField to models.URLField to store Cloudinary URLs
+    profile_picture = models.URLField(max_length=500, null=True, blank=True)
     is_therapist = models.BooleanField(default=False)
 
     is_verified = models.BooleanField(default=False)
@@ -54,7 +55,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_free_consultation = models.BooleanField(default=False)
     SESSION_MODES_CHOICES = [
         ('online', 'Online'),
-        ('physical', 'Physical (In-Person)'), # Corrected typo "physical" to "Online & Physical" as it might be a typo
+        ('physical', 'Physical (In-Person)'),
         ('both', 'Both Online & Physical'),
     ]
     session_modes = models.CharField(
@@ -312,7 +313,7 @@ class TherapistAvailability(models.Model):
     def __str__(self):
         return f"{self.therapist.get_full_name()} - {self.day_of_week}: {self.start_time}-{self.end_time}"
 
-# --- FIX APPLIED HERE: ChatRoom is defined BEFORE ChatMessage ---
+# ChatRoom is defined BEFORE ChatMessage to resolve potential circular import issues
 class ChatRoom(models.Model):
     user1 = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chat_rooms_as_user1')
     user2 = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chat_rooms_as_user2')
@@ -340,7 +341,7 @@ class ChatMessage(models.Model):
     """
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='sent_chat_messages', on_delete=models.CASCADE)
     receiver = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='received_chat_messages', on_delete=models.CASCADE, null=True, blank=True)
-    # A room_name can be used to identify a specific chat session or direct message pair
+    # A chat_room can be used to identify a specific chat session or direct message pair
     chat_room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages', null=True, blank=True)
     message_content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)

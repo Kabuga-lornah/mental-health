@@ -23,9 +23,12 @@ import {
   FormControlLabel,
   Radio,
   Paper,
-  Divider
+  Divider,
+  Drawer,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
-import { Search, Clear, Person, LocationOn, MedicalServices, FilterList, Money } from '@mui/icons-material';
+import { Search, Clear, Person, LocationOn, MedicalServices, FilterList, Money, Close } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -59,26 +62,26 @@ export default function FindTherapist() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // State for the search term as typed by the user
   const [localSearchTerm, setLocalSearchTerm] = useState('');
-  // State for the search term actually used in the API call (triggered by button click)
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
 
   const [specializationFilter, setSpecializationFilter] = useState('');
-  const [pricingFilter, setPricingFilter] = useState('any'); // 'any', 'free', 'paid'
+  const [pricingFilter, setPricingFilter] = useState('any');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sessionModeFilter, setSessionModeFilter] = useState('');
 
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const theme = useTheme();
+  const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
 
-  // This useEffect will now run only when appliedSearchTerm or filters change
   useEffect(() => {
     const fetchTherapists = async () => {
       setLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams();
-        if (appliedSearchTerm) params.append('search', appliedSearchTerm); // Use applied search term
+        if (appliedSearchTerm) params.append('search', appliedSearchTerm);
         if (specializationFilter) params.append('specialization', specializationFilter);
         if (pricingFilter && pricingFilter !== 'any') params.append('pricing_type', pricingFilter);
         if (pricingFilter === 'paid') {
@@ -105,19 +108,19 @@ export default function FindTherapist() {
     if (user && token) {
       fetchTherapists();
     }
-  }, [user, token, appliedSearchTerm, specializationFilter, pricingFilter, minPrice, maxPrice, sessionModeFilter]); // Dependencies updated
+  }, [user, token, appliedSearchTerm, specializationFilter, pricingFilter, minPrice, maxPrice, sessionModeFilter]);
 
   const handleSearchChange = (event) => {
-    setLocalSearchTerm(event.target.value); // Update local state on type
+    setLocalSearchTerm(event.target.value);
   };
 
   const handleApplySearch = () => {
-    setAppliedSearchTerm(localSearchTerm); // Apply search term only on button click
+    setAppliedSearchTerm(localSearchTerm);
   };
 
   const handleClearSearch = () => {
     setLocalSearchTerm('');
-    setAppliedSearchTerm(''); // Clear both
+    setAppliedSearchTerm('');
   };
 
   const handleSpecializationChange = (event) => {
@@ -133,7 +136,6 @@ export default function FindTherapist() {
   };
 
   const handleMinPriceChange = (event) => {
-    // Only allow positive numbers
     const value = event.target.value;
     if (value === '' || (Number(value) >= 0 && !isNaN(Number(value)))) {
       setMinPrice(value);
@@ -141,7 +143,6 @@ export default function FindTherapist() {
   };
 
   const handleMaxPriceChange = (event) => {
-    // Only allow positive numbers
     const value = event.target.value;
     if (value === '' || (Number(value) >= 0 && !isNaN(Number(value)))) {
       setMaxPrice(value);
@@ -154,6 +155,15 @@ export default function FindTherapist() {
 
   const handleViewDetails = (id) => {
     navigate(`/therapists/${id}`);
+  };
+
+  const handleClearAllFilters = () => {
+    setSpecializationFilter('');
+    setPricingFilter('any');
+    setMinPrice('');
+    setMaxPrice('');
+    setSessionModeFilter('');
+    setIsFilterDrawerOpen(false);
   };
 
   if (loading) {
@@ -234,6 +244,134 @@ export default function FindTherapist() {
     );
   }
 
+  // --- Filter Content (reusable for the Drawer) ---
+  const filterContent = (
+    <Box sx={{ // Changed to Box, Paper is not strictly necessary inside Drawer for styling
+      p: { xs: 3, sm: 4 }, // Increased padding for better internal spacing
+      backgroundColor: theme.palette.background.paper, // Use theme paper color
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      // Add a subtle border or shadow to filter drawer if desired
+      borderLeft: '1px solid rgba(0,0,0,0.1)' // Example: subtle left border
+    }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}> {/* Increased mb */}
+        <Typography variant="h5" sx={{ color: '#780000', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+          <FilterList sx={{ mr: 1, fontSize: '1.8rem' }} /> Filters {/* Larger icon */}
+        </Typography>
+        <IconButton onClick={() => setIsFilterDrawerOpen(false)} sx={{ color: '#780000' }}>
+            <Close sx={{ fontSize: '1.8rem' }} /> {/* Larger icon */}
+        </IconButton>
+      </Box>
+
+      {/* Specialization Filter */}
+      <FormControl fullWidth variant="outlined" sx={{ mb: 4 }}> {/* Increased mb */}
+        <InputLabel sx={{ color: '#666' }}>Specialization</InputLabel>
+        <Select
+          value={specializationFilter}
+          onChange={handleSpecializationChange}
+          label="Specialization"
+          sx={{ '& .MuiOutlinedInput-notchedOutline': { borderRadius: 2 } }}
+        >
+          <MenuItem value=""><em>All Specializations</em></MenuItem>
+          {specializationsList.map((spec) => (
+            <MenuItem key={spec} value={spec}>{spec}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      {/* Session Mode Filter */}
+      <FormControl fullWidth variant="outlined" sx={{ mb: 4 }}> {/* Increased mb */}
+        <InputLabel sx={{ color: '#666' }}>Session Mode</InputLabel>
+        <Select
+          value={sessionModeFilter}
+          onChange={handleSessionModeChange}
+          label="Session Mode"
+          sx={{ '& .MuiOutlinedInput-notchedOutline': { borderRadius: 2 } }}
+        >
+          {sessionModesList.map((mode) => (
+            <MenuItem key={mode.value} value={mode.value}>{mode.label}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      {/* Pricing Options */}
+      <Box sx={{ mb: 4 }}> {/* Increased mb */}
+        <Typography variant="subtitle1" sx={{ color: '#780000', mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center' }}> {/* Increased mb */}
+          <Money sx={{ fontSize: 20, mr: 0.5 }} /> Pricing Options: {/* Larger icon */}
+        </Typography>
+        <RadioGroup
+          name="pricingFilter"
+          value={pricingFilter}
+          onChange={handlePricingFilterChange}
+          sx={{ justifyContent: 'flex-start' }}
+        >
+          <FormControlLabel value="any" control={<Radio sx={{ color: '#780000' }} />} label="Any" />
+          <FormControlLabel value="free" control={<Radio sx={{ color: '#780000' }} />} label="Free Consultation" />
+          <FormControlLabel value="paid" control={<Radio sx={{ color: '#780000' }} />} label="Paid Sessions" />
+        </RadioGroup>
+      </Box>
+
+      {/* Hourly Rate Range (conditional) */}
+      {pricingFilter === 'paid' && (
+        <Box>
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="subtitle1" sx={{ color: '#780000', mb: 1, fontWeight: 600 }}>Hourly Rate (Ksh):</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                label="Min Price"
+                type="number"
+                value={minPrice}
+                onChange={handleMinPriceChange}
+                fullWidth
+                variant="outlined"
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
+                InputProps={{ startAdornment: <InputAdornment position="start">Ksh</InputAdornment> }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Max Price"
+                type="number"
+                value={maxPrice}
+                onChange={handleMaxPriceChange}
+                fullWidth
+                variant="outlined"
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
+                InputProps={{ startAdornment: <InputAdornment position="start">Ksh</InputAdornment> }}
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+      <Box sx={{ flexGrow: 1 }} />
+      <Button
+        variant="contained" // Changed to contained for more prominence
+        fullWidth
+        sx={{
+          mt: 4, // Increased top margin
+          backgroundColor: '#780000',
+          '&:hover': {
+            backgroundColor: '#5a0000',
+            transform: 'translateY(-2px)',
+            boxShadow: '0 8px 25px rgba(120, 0, 0, 0.3)'
+          },
+          borderRadius: 3,
+          px: 4,
+          py: 1.5,
+          fontWeight: 600,
+          transition: 'all 0.3s ease-in-out'
+        }}
+        onClick={handleClearAllFilters}
+      >
+        Clear All Filters
+      </Button>
+    </Box>
+  );
+
   return (
     <Box sx={{ py: 6, px: { xs: 2, sm: 3, md: 4, lg: 6 }, backgroundColor: '#fefae0', minHeight: '100vh' }}>
       {/* Header Section */}
@@ -267,187 +405,33 @@ export default function FindTherapist() {
         </Typography>
       </Box>
 
-      {/* Main Content Grid: Filters (Left) and Results (Right) */}
-      <Grid container spacing={4}>
-        {/* Left Sidebar for Filters */}
-        <Grid item xs={12} md={3}>
-          <Paper elevation={4} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, backgroundColor: 'white', boxShadow: '0 8px 25px rgba(0,0,0,0.1)' }}>
-            <Typography variant="h5" sx={{ color: '#780000', mb: 3, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-              <FilterList sx={{ mr: 1 }} /> Filters
-            </Typography>
-
-            {/* Specialization Filter */}
-            <FormControl fullWidth variant="outlined" sx={{ mb: 3 }}>
-              <InputLabel sx={{ color: '#666' }}>Specialization</InputLabel>
-              <Select
-                value={specializationFilter}
-                onChange={handleSpecializationChange}
-                label="Specialization"
-                sx={{ '& .MuiOutlinedInput-notchedOutline': { borderRadius: 2 } }}
-              >
-                <MenuItem value=""><em>All Specializations</em></MenuItem>
-                {specializationsList.map((spec) => (
-                  <MenuItem key={spec} value={spec}>{spec}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {/* Session Mode Filter */}
-            <FormControl fullWidth variant="outlined" sx={{ mb: 3 }}>
-              <InputLabel sx={{ color: '#666' }}>Session Mode</InputLabel>
-              <Select
-                value={sessionModeFilter}
-                onChange={handleSessionModeChange}
-                label="Session Mode"
-                sx={{ '& .MuiOutlinedInput-notchedOutline': { borderRadius: 2 } }}
-              >
-                {sessionModesList.map((mode) => (
-                  <MenuItem key={mode.value} value={mode.value}>{mode.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {/* Pricing Options */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" sx={{ color: '#780000', mb: 1, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                <Money sx={{ fontSize: 18, mr: 0.5 }} /> Pricing Options:
-              </Typography>
-              <RadioGroup
-                name="pricingFilter"
-                value={pricingFilter}
-                onChange={handlePricingFilterChange}
-                sx={{ justifyContent: 'flex-start' }}
-              >
-                <FormControlLabel value="any" control={<Radio sx={{ color: '#780000' }} />} label="Any" />
-                <FormControlLabel value="free" control={<Radio sx={{ color: '#780000' }} />} label="Free Consultation" />
-                <FormControlLabel value="paid" control={<Radio sx={{ color: '#780000' }} />} label="Paid Sessions" />
-              </RadioGroup>
-            </Box>
-
-            {/* Hourly Rate Range (conditional) */}
-            {pricingFilter === 'paid' && (
-              <Box>
-                <Divider sx={{ mb: 2 }} />
-                <Typography variant="subtitle1" sx={{ color: '#780000', mb: 1, fontWeight: 600 }}>Hourly Rate (Ksh):</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Min Price"
-                      type="number"
-                      value={minPrice}
-                      onChange={handleMinPriceChange}
-                      fullWidth
-                      variant="outlined"
-                      size="small" // Make it smaller for filters
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-                      InputProps={{ startAdornment: <InputAdornment position="start">Ksh</InputAdornment> }}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Max Price"
-                      type="number"
-                      value={maxPrice}
-                      onChange={handleMaxPriceChange}
-                      fullWidth
-                      variant="outlined"
-                      size="small" // Make it smaller for filters
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-                      InputProps={{ startAdornment: <InputAdornment position="start">Ksh</InputAdornment> }}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            )}
-             <Button
-                variant="outlined"
-                fullWidth
-                sx={{
-                mt: 3,
-                borderColor: '#780000',
-                color: '#780000',
-                '&:hover': {
-                    borderColor: '#5a0000',
-                    backgroundColor: 'rgba(120, 0, 0, 0.04)'
-                }
-                }}
-                onClick={() => {
-                setLocalSearchTerm('');
-                setAppliedSearchTerm('');
-                setSpecializationFilter('');
-                setPricingFilter('any');
-                setMinPrice('');
-                setMaxPrice('');
-                setSessionModeFilter('');
-                }}
-            >
-                Clear All Filters
-            </Button>
-          </Paper>
+      {/* Main Content Area */}
+      {/* Removed spacing={4} from this Grid container */}
+      <Grid container> 
+        {/* Filter Button (Always present to open drawer) */}
+        <Grid item xs={12} sx={{ mb: 4, px: 2 }}> {/* Added horizontal padding to align with outer Box's px */}
+          <Button
+            variant="contained"
+            startIcon={<FilterList />}
+            onClick={() => setIsFilterDrawerOpen(true)}
+            sx={{
+              backgroundColor: '#780000',
+              '&:hover': { backgroundColor: '#5a0000' },
+              borderRadius: 2,
+              px: 3,
+              py: 1,
+              fontWeight: 600,
+              textTransform: 'none',
+              width: '100%',
+              boxShadow: '0 4px 15px rgba(120, 0, 0, 0.2)', // Added shadow to button
+            }}
+          >
+            Filter Therapists
+          </Button>
         </Grid>
 
-        {/* Right Main Content Area */}
-        <Grid item xs={12} md={9}>
-          {/* Search Bar at the top of the main content */}
-          <Box sx={{ mb: 4 }}>
-            <TextField
-              label="Search Therapists"
-              variant="outlined"
-              size="small"
-              value={localSearchTerm}
-              onChange={handleSearchChange}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': { borderRadius: 3, pr: 0.5 }, // Increased border radius and reduced right padding for button
-                '& .MuiInputLabel-root': { color: '#666' },
-                backgroundColor: 'white',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.08)' // Subtle shadow
-              }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search sx={{ color: '#780000' }} />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    {localSearchTerm && (
-                      <IconButton
-                        onClick={handleClearSearch}
-                        sx={{ color: '#666', '&:hover': { color: '#780000' }, p: 1 }}
-                        size="small"
-                      >
-                        <Clear />
-                      </IconButton>
-                    )}
-                    <Button
-                      variant="contained"
-                      onClick={handleApplySearch}
-                      sx={{
-                        backgroundColor: '#780000',
-                        color: 'white',
-                        py: 1.2, // Adjust padding to align with textfield height
-                        px: 3,
-                        borderRadius: 2.5, // Match textfield border radius
-                        fontSize: '0.9rem',
-                        fontWeight: 'bold',
-                        minWidth: 'auto', // Allow button to shrink
-                        boxShadow: 'none',
-                        '&:hover': {
-                          backgroundColor: '#5a0000',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
-                        }
-                      }}
-                      aria-label="apply search"
-                    >
-                      Search
-                    </Button>
-                  </Box>
-                ),
-              }}
-            />
-          </Box>
-
+        {/* Therapist Cards Grid (Always takes full width in the main content area) */}
+        <Grid item xs={12} sx={{ px: 2 }}> {/* Added horizontal padding to align with outer Box's px */}
           {/* Results Count */}
           {!loading && (
             <Typography
@@ -488,9 +472,9 @@ export default function FindTherapist() {
           )}
 
           {/* Therapist Cards Grid */}
-          <Grid container spacing={4}>
+          <Grid container spacing={4}> {/* Spacing applied directly to the cards grid */}
             {therapists.map((therapist) => (
-              <Grid item xs={12} sm={6} lg={4} key={therapist.id}> {/* Adjusted lg from 4 to 3 if more cards per row are desired */}
+              <Grid item xs={12} sm={6} md={4} lg={3} key={therapist.id}>
                 <Card
                   elevation={0}
                   sx={{
@@ -614,8 +598,6 @@ export default function FindTherapist() {
                       {therapist.full_name}
                     </Typography>
 
-                    {/* Specializations */}
-                    
                     {/* Session Modes */}
                     <Box>
                       <Typography
@@ -725,6 +707,18 @@ export default function FindTherapist() {
           </Grid>
         </Grid>
       </Grid>
+
+      {/* Filter Drawer (Always rendered, but only opens when button is clicked) */}
+      <Drawer
+        anchor="right"
+        open={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        PaperProps={{
+          sx: { width: isSmUp ? 360 : '90%', backgroundColor: '#fefae0' },
+        }}
+      >
+        {filterContent}
+      </Drawer>
     </Box>
   );
 }

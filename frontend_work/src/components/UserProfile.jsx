@@ -8,6 +8,10 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
+// Cloudinary Configuration - FOR DEMONSTRATION ONLY (INSECURE FOR PROD)
+const CLOUDINARY_CLOUD_NAME = 'dgdf0svqx';
+const CLOUDINARY_UPLOAD_PRESET = 'ml_default'; // You might need to set up an unsigned upload preset in Cloudinary settings
+
 export default function UserProfile() {
   const { user, token, refreshAccessToken, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -29,15 +33,14 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      // Initialize form data with current user details
       setFormData({
         first_name: user.first_name || '',
         last_name: user.last_name || '',
         email: user.email || '',
         phone: user.phone || '',
         bio: user.bio || '',
-        profile_picture: null, // No file selected initially
-        current_profile_picture_url: user.profile_picture || '' // Set current URL
+        profile_picture: null,
+        current_profile_picture_url: user.profile_picture || ''
       });
       setLoading(false);
     } else if (!authLoading && !user) {
@@ -65,8 +68,30 @@ export default function UserProfile() {
     setFormData(prev => ({
       ...prev,
       profile_picture: null, // Indicate no file to upload
-      current_profile_picture_url: '' // Clear preview
+      current_profile_picture_url: '' // Clear preview and signal removal to backend
     }));
+  };
+
+  const uploadImageToCloudinary = async (file) => {
+    const cloudinaryFormData = new FormData();
+    cloudinaryFormData.append('file', file);
+    cloudinaryFormData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); // Use your unsigned upload preset
+
+    try {
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        cloudinaryFormData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data.secure_url; // Return the secure URL of the uploaded image
+    } catch (error) {
+      console.error('Error uploading image to Cloudinary:', error.response?.data || error);
+      throw new Error('Failed to upload image to Cloudinary.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -74,33 +99,32 @@ export default function UserProfile() {
     setSubmitting(true);
     setSnackbarOpen(false);
 
-    const data = new FormData();
-    data.append('first_name', formData.first_name);
-    data.append('last_name', formData.last_name);
-    data.append('phone', formData.phone);
-    data.append('bio', formData.bio);
-
-    if (formData.profile_picture) {
-      data.append('profile_picture', formData.profile_picture);
-    } else if (formData.current_profile_picture_url === '') {
-      // If photo was explicitly removed and no new one selected
-      // Send a flag or empty string to indicate removal (backend needs to handle this)
-      // Note: Django ImageField/FileField often treat empty string as clearing the field
-      data.append('profile_picture', ''); 
-    }
+    let profilePictureUrl = formData.current_profile_picture_url; // Default to current URL
 
     try {
-      // Use PATCH for partial updates
-      const response = await axios.patch('http://localhost:8000/api/user/', data, {
+      if (formData.profile_picture) {
+        // If a new file is selected, upload it to Cloudinary
+        profilePictureUrl = await uploadImageToCloudinary(formData.profile_picture);
+      } else if (formData.current_profile_picture_url === '') {
+        // If photo was explicitly removed and no new one selected
+        profilePictureUrl = ''; // Clear the URL in the backend
+      }
+
+      const dataToSubmit = new FormData();
+      dataToSubmit.append('first_name', formData.first_name);
+      dataToSubmit.append('last_name', formData.last_name);
+      dataToSubmit.append('phone', formData.phone);
+      dataToSubmit.append('bio', formData.bio);
+      dataToSubmit.append('profile_picture', profilePictureUrl); // Send the Cloudinary URL or empty string
+
+      const response = await axios.patch('http://localhost:8000/api/user/', dataToSubmit, {
         headers: {
-          'Content-Type': 'multipart/form-data', // Important for file uploads
+          'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${token}`
         }
       });
 
-      // Update local user context after successful profile update
-      // This will ensure the Navbar and other components reflect changes immediately
-      await refreshAccessToken(); 
+      await refreshAccessToken();
 
       setSnackbarMessage('Profile updated successfully!');
       setSnackbarSeverity('success');
@@ -108,7 +132,7 @@ export default function UserProfile() {
 
     } catch (err) {
       console.error('Error updating profile:', err.response?.data || err);
-      const errorMessage = err.response?.data?.detail 
+      const errorMessage = err.response?.data?.detail
         ? (Array.isArray(err.response.data.detail) ? err.response.data.detail.join(', ') : err.response.data.detail)
         : (err.response?.data ? Object.values(err.response.data).flat().join(', ') : 'Failed to update profile. Please try again.');
       setSnackbarMessage(errorMessage);
@@ -146,7 +170,7 @@ export default function UserProfile() {
               {/* Profile Picture Section */}
               <Grid item xs={12} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 2 }}>
                 <Avatar
-                  src={formData.current_profile_picture_url || '/default-avatar.png'} // Fallback to default
+                  src={formData.current_profile_picture_url || '/default-avatar.png'}
                   alt="Profile Picture"
                   sx={{ width: 120, height: 120, mb: 2, border: '3px solid #780000' }}
                 />
@@ -202,7 +226,7 @@ export default function UserProfile() {
                   label="Email"
                   name="email"
                   value={formData.email}
-                  disabled // Email usually not editable directly
+                  disabled
                 />
               </Grid>
               <Grid item xs={12}>
