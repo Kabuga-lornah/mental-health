@@ -264,7 +264,7 @@ export default function AdminDashboard() {
       const revenueTrendData = Object.keys(monthlyRevenue)
         .sort()
         .map((month) => ({
-          name: format(new Date(month + "-01"), "MMM yyyy"), // Corrected format string and date parsing
+          name: format(new Date(month + "-01"), "MMM 'McFarland'"), // Corrected format string
           Revenue: monthlyRevenue[month],
         }));
 
@@ -1184,83 +1184,6 @@ export default function AdminDashboard() {
           </Paper>
         )}
 
-        {/* Tab Panel for Journal Entries */}
-        {currentTab === 3 && (
-          <Paper
-            elevation={3}
-            sx={{ p: 3, backgroundColor: "white", borderRadius: 2 }}
-          >
-            <Typography
-              variant="h5"
-              sx={{ color: primaryColor, mb: 3, fontWeight: "bold" }}
-            >
-              All Journal Entries
-            </Typography>
-            {error ? (
-              <Typography color="error" sx={{ textAlign: "center", mt: 2 }}>
-                {error}
-              </Typography>
-            ) : journalEntries.length === 0 ? (
-              <Typography
-                variant="h6"
-                sx={{ textAlign: "center", color: primaryColor, mt: 2 }}
-              >
-                No journal entries found.
-              </Typography>
-            ) : (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell
-                        sx={{ fontWeight: "bold", color: primaryColor }}
-                      >
-                        User Email
-                      </TableCell>
-                      <TableCell
-                        sx={{ fontWeight: "bold", color: primaryColor }}
-                      >
-                        Date
-                      </TableCell>
-                      <TableCell
-                        sx={{ fontWeight: "bold", color: primaryColor }}
-                      >
-                        Mood
-                      </TableCell>
-                      <TableCell
-                        sx={{ fontWeight: "bold", color: primaryColor }}
-                      >
-                        Entry Summary
-                      </TableCell>
-                      <TableCell
-                        sx={{ fontWeight: "bold", color: primaryColor }}
-                      >
-                        Tags
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {journalEntries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{entry.user_email || entry.user}</TableCell>
-                        <TableCell>
-                          {new Date(entry.date).toLocaleString()}
-                        </TableCell>
-                        <TableCell>{entry.mood}</TableCell>
-                        {/* Modified lines for privacy */}
-                        <TableCell>Private</TableCell>{" "}
-                        {/* Hide actual entry content */}
-                        <TableCell>Private</TableCell>{" "}
-                        {/* Hide actual tags content */}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
-        )}
-
         {/* Tab Panel for Analytics */}
         {currentTab === 4 && (
           <Paper
@@ -1333,12 +1256,14 @@ export default function AdminDashboard() {
                   <Box
                     sx={{
                       p: 2,
-                      height: "100%", // Ensures the box takes full height of its grid item
+                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
+                      // Added explicit minHeight for chart container to ensure it has space
+                      minHeight: 350,
                     }}
                   >
                     <Typography
@@ -1378,12 +1303,14 @@ export default function AdminDashboard() {
                   <Box
                     sx={{
                       p: 2,
-                      height: "100%", // Ensures the box takes full height of its grid item
+                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
+                      // Added explicit minHeight for chart container to ensure it has space
+                      minHeight: 350,
                     }}
                   >
                     <Typography
@@ -1421,12 +1348,14 @@ export default function AdminDashboard() {
                   <Box
                     sx={{
                       p: 2,
-                      height: "100%", // Ensures the box takes full height of its grid item
+                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
+                      // Added explicit minHeight for chart container to ensure it has space
+                      minHeight: 350,
                     }}
                   >
                     <Typography
@@ -1436,19 +1365,34 @@ export default function AdminDashboard() {
                       Free vs. Paid Sessions
                     </Typography>
                     <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
+                      <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 5 }}> {/* Added margin to PieChart */}
                         <Pie
                           data={analyticsData.sessionTypeData}
                           cx="50%"
                           cy="50%"
-                          // labelLine={false} // Removed to allow for default label lines if needed
-                          outerRadius={100} // Reduced outer radius
-                          innerRadius={60} // Added inner radius for a doughnut chart
+                          labelLine={false} // Hide label lines for cleaner look if space is tight
+                          outerRadius={80} // Reduced outerRadius further to give more space for labels
+                          innerRadius={0} // Changed to 0 for full pie chart
                           fill="#8884d8"
                           dataKey="value"
-                          label={({ name, percent }) =>
-                            `${name}: ${(percent * 100).toFixed(0)}%`
-                          }
+                          label={({ name, percent, x, y, outerRadius, midAngle }) => {
+                            // Custom label positioning to prevent cutoff
+                            const RADIAN = Math.PI / 180;
+                            const radius = outerRadius + 25; // Distance from center
+                            const sx = x + radius * Math.cos(-midAngle * RADIAN);
+                            const sy = y + radius * Math.sin(-midAngle * RADIAN);
+                            const mx = x + radius * Math.cos(-midAngle * RADIAN);
+                            const my = y + radius * Math.sin(-midAngle * RADIAN);
+                            const ex = sx + (Math.cos(-midAngle * RADIAN) >= 0 ? 1 : -1) * 22;
+                            const ey = sy;
+                            const textAnchor = Math.cos(-midAngle * RADIAN) >= 0 ? 'start' : 'end';
+                            
+                            return (
+                              <text x={ex} y={ey} fill={primaryColor} textAnchor={textAnchor} dominantBaseline="central" fontSize="12px">
+                                {`${name}: ${(percent * 100).toFixed(0)}%`}
+                              </text>
+                            );
+                          }}
                         >
                           {analyticsData.sessionTypeData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1460,7 +1404,7 @@ export default function AdminDashboard() {
                             name,
                           ]}
                         />
-                        <Legend />
+                        <Legend wrapperStyle={{ paddingTop: '10px' }} /> {/* Added padding to legend */}
                       </PieChart>
                     </ResponsiveContainer>
                     {analyticsData.sessionTypeData.length === 0 && (
@@ -1479,12 +1423,14 @@ export default function AdminDashboard() {
                   <Box
                     sx={{
                       p: 2,
-                      height: "100%", // Ensures the box takes full height of its grid item
+                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
+                      // Added explicit minHeight for chart container to ensure it has space
+                      minHeight: 500,
                     }}
                   >
                     <Typography
@@ -1494,19 +1440,34 @@ export default function AdminDashboard() {
                       Journal Entry Mood Distribution
                     </Typography>
                     <ResponsiveContainer width="100%" height={450}>
-                      <PieChart>
+                      <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 5 }}> {/* Added margin to PieChart */}
                         <Pie
                           data={analyticsData.moodData}
                           cx="50%"
                           cy="50%"
-                          // labelLine={false} // Removed for better default label placement, can be re-added with custom labels
-                          outerRadius={130} // Reduced outer radius slightly
-                          innerRadius={80} // Added inner radius for doughnut
+                          labelLine={false} // Hide label lines for cleaner look
+                          outerRadius={110} // Reduced outerRadius slightly more
+                          innerRadius={0} // Changed to 0 for full pie chart
                           fill="#8884d8"
                           dataKey="count"
-                          label={({ name, percent }) =>
-                            `${name}: ${(percent * 100).toFixed(0)}%`
-                          }
+                          label={({ name, percent, x, y, outerRadius, midAngle }) => {
+                            // Custom label positioning to prevent cutoff
+                            const RADIAN = Math.PI / 180;
+                            const radius = outerRadius + 25; // Distance from center
+                            const sx = x + radius * Math.cos(-midAngle * RADIAN);
+                            const sy = y + radius * Math.sin(-midAngle * RADIAN);
+                            const mx = x + radius * Math.cos(-midAngle * RADIAN);
+                            const my = y + radius * Math.sin(-midAngle * RADIAN);
+                            const ex = sx + (Math.cos(-midAngle * RADIAN) >= 0 ? 1 : -1) * 22;
+                            const ey = sy;
+                            const textAnchor = Math.cos(-midAngle * RADIAN) >= 0 ? 'start' : 'end';
+
+                            return (
+                              <text x={ex} y={ey} fill={primaryColor} textAnchor={textAnchor} dominantBaseline="central" fontSize="12px">
+                                {`${name}: ${(percent * 100).toFixed(0)}%`}
+                              </text>
+                            );
+                          }}
                         >
                           {analyticsData.moodData.map((entry, index) => (
                             <Cell
@@ -1516,7 +1477,7 @@ export default function AdminDashboard() {
                           ))}
                         </Pie>
                         <Tooltip />
-                        <Legend />
+                        <Legend wrapperStyle={{ paddingTop: '10px' }} /> {/* Added padding to legend */}
                       </PieChart>
                     </ResponsiveContainer>
                     {analyticsData.moodData.length === 0 && (
@@ -1623,7 +1584,7 @@ export default function AdminDashboard() {
                   {selectedApplication.session_modes}
                 </Typography>
                 {selectedApplication.physical_address && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
+                  <Typography variant="body2">
                     <strong>Physical Address:</strong>{" "}
                     {selectedApplication.physical_address}
                   </Typography>
