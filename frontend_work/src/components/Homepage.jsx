@@ -52,6 +52,7 @@ const pulse = keyframes`
 // const heroImage = "/background.jpeg"; // REMOVED - no longer needed
 
 const brainflowerImage = "/brainflower.jpeg";
+const photoImage = ""
 
 export default function Homepage() {
   return (
@@ -140,40 +141,59 @@ export default function Homepage() {
         </Container>
       </Box>
 
-      {/* Introduction/Mission Section */}
-      <Box sx={{ backgroundColor: "#fff8e1", py: { xs: 6, md: 8 }, textAlign: 'center', boxShadow: 'inset 0 6px 15px rgba(0,0,0,0.05)' }}>
-        <Container maxWidth="sm">
-          <Typography
-            variant="h5"
-            component="h2"
-            sx={{
-              mb: 3,
-              fontWeight: 900,
-              color: "#780000",
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              animation: `${fadeIn} 1s ease-out forwards`,
-              animationFillMode: 'backwards',
-              fontFamily: 'Poppins, sans-serif',
-            }}
-          >
-            Bridging the Gap to Better Mental Health
-          </Typography>
-          <Typography
-            variant="body1"
-            sx={{
-              mb: 3,
-              mx: "auto",
-              fontSize: { xs: "1rem", md: "1.1rem" },
-              lineHeight: 1.7,
-              color: "#5a5a5a",
-              maxWidth: '700px',
-              animation: `${fadeIn} 1s ease-out forwards 0.1s`,
-              animationFillMode: 'backwards',
-              fontFamily: 'Inter, sans-serif',
-            }}
-          >
-            MindWell is a pioneering digital platform meticulously crafted to empower individuals in Kenya to proactively manage their mental well-being. We understand the unique challenges you face and are dedicated to bridging the gap between accessible self-help tools and professional mental health services.
-          </Typography>
+      {/* Introduction/Mission Section - MODIFIED */}
+      <Box sx={{ backgroundColor: "#fff8e1", py: { xs: 6, md: 8 }, boxShadow: 'inset 0 6px 15px rgba(0,0,0,0.05)' }}> {/* Removed textAlign: 'center' */}
+        <Container maxWidth="lg"> {/* Changed maxWidth to lg for more space */}
+          <Grid container spacing={4} alignItems="center"> {/* Added Grid container */}
+            <Grid item xs={12} md={6}> {/* Grid item for text content */}
+              <Typography
+                variant="h5"
+                component="h2"
+                sx={{
+                  mb: 3,
+                  fontWeight: 900,
+                  color: "#780000",
+                  fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+                  animation: `${fadeIn} 1s ease-out forwards`,
+                  animationFillMode: 'backwards',
+                  fontFamily: 'Poppins, sans-serif',
+                }}
+              >
+                Bridging the Gap to Better Mental Health
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  mb: 3,
+                  // Removed mx: "auto"
+                  fontSize: { xs: "1rem", md: "1.1rem" },
+                  lineHeight: 1.7,
+                  color: "#5a5a5a",
+                  maxWidth: '700px',
+                  animation: `${fadeIn} 1s ease-out forwards 0.1s`,
+                  animationFillMode: 'backwards',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                MindWell is a pioneering digital platform meticulously crafted to empower individuals in Kenya to proactively manage their mental well-being. We understand the unique challenges you face and are dedicated to bridging the gap between accessible self-help tools and professional mental health services.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}> {/* Grid item for image */}
+              <Box
+                sx={{
+                  width: '100%',
+                  maxWidth: '500px', // Adjust max width as needed
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                  boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
+                  animation: `${scaleIn} 1s ease-out forwards 0.5s`,
+                  animationFillMode: 'backwards',
+                }}
+              >
+                
+              </Box>
+            </Grid>
+          </Grid>
         </Container>
       </Box>
 

@@ -1,4 +1,4 @@
-// Overwriting file: kabuga-lornah/mental-health/mental-health-479a95f64f3b24dcb93d7f0b775fd1bf85416c99/frontend_work/src/App.jsx
+// frontend_work/src/App.jsx
 import React from "react";
 import {
   createBrowserRouter,
@@ -9,14 +9,15 @@ import {
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { SessionFilterProvider } from "./context/SessionFilterContext"; // Import SessionFilterProvider
-import Login from "./components/Auth/Login";
-import Register from "./components/Auth/Register";
+// import Login from "./components/Auth/Login"; // Remove this import
+// import Register from "./components/Auth/Register"; // Remove this import
+import AuthPage from "./components/Auth/AuthPage"; // Import the new AuthPage
 import Dashboard from "./components/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Homepage from "./components/Homepage";
 import Journal from "./components/Journal";
 import Navbar from "./components/Navbar";
-import TherapistNavbar from "./components/TherapistNavbar_OLD"; 
+import TherapistNavbar from "./components/TherapistNavbar_OLD";
 import TherapistDashboard from "./components/TherapistDashboard";
 import FindTherapist from "./components/FindTherapist";
 import TherapistApplicationForm from "./components/TherapistApplicationForm";
@@ -154,11 +155,11 @@ const router = createBrowserRouter([
       },
       {
         path: "login",
-        element: <Login />,
+        element: <AuthPage />, // Use AuthPage for login
       },
       {
         path: "register",
-        element: <Register />,
+        element: <AuthPage />, // Use AuthPage for register
       },
       {
         path: "journal",
@@ -299,7 +300,7 @@ const router = createBrowserRouter([
 function App() {
   return (
     <AuthProvider>
-      <SessionFilterProvider> 
+      <SessionFilterProvider>
         <RouterProvider router={router} />
       </SessionFilterProvider>
     </AuthProvider>
