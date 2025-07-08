@@ -6,7 +6,7 @@ import {
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   Select, MenuItem, FormControl, InputLabel, TextField, Chip,
   RadioGroup, FormControlLabel, Radio, FormLabel, Divider,
-  IconButton, Collapse, Grid,
+  IconButton, Collapse, Grid, Checkbox, // Added Checkbox import
   List, ListItem, ListItemText, ListItemSecondaryAction, Slide,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
@@ -61,6 +61,9 @@ const TherapistDashboard = () => {
   const [sessionNotes, setSessionNotes] = useState('');
   const [keyTakeaways, setKeyTakeaways] = useState('');
   const [recommendations, setRecommendations] = useState('');
+  // New states for follow-up recommendation
+  const [followUpRecommended, setFollowUpRecommended] = useState(false);
+  const [recommendedFollowUpDate, setRecommendedFollowUpDate] = useState(null); // Stored as Date object
 
   // Dialog states for "View All" buttons
   const [showAllCompletedModal, setShowAllCompletedModal] = useState(false);
@@ -319,6 +322,8 @@ const TherapistDashboard = () => {
     setSessionNotes(session.notes || '');
     setKeyTakeaways(session.key_takeaways || '');
     setRecommendations(session.recommendations || '');
+    setFollowUpRecommended(session.follow_up_required || false); // Populate new state
+    setRecommendedFollowUpDate(session.next_session_date ? parseISO(session.next_session_date) : null); // Populate new state as Date object
     setShowNotepad(true);
   };
 
@@ -328,6 +333,8 @@ const TherapistDashboard = () => {
     setSessionNotes('');
     setKeyTakeaways('');
     setRecommendations('');
+    setFollowUpRecommended(false); // Reset on close
+    setRecommendedFollowUpDate(null); // Reset on close
   };
 
   const handleSaveNotes = async () => {
@@ -338,19 +345,16 @@ const TherapistDashboard = () => {
         notes: sessionNotes,
         key_takeaways: keyTakeaways,
         recommendations: recommendations,
+        // Include new fields for saving
+        follow_up_required: followUpRecommended,
+        next_session_date: recommendedFollowUpDate ? format(recommendedFollowUpDate, 'yyyy-MM-dd') : null, // Format Date object to string
       };
-
-      // Notes are saved, but the session's status is independently managed by the "Complete" button
-      // Removed automatic status change here to decouple "saving notes" from "completing session"
-      // if (currentSessionToEdit.status === 'scheduled') {
-      //   updateData.status = 'completed';
-      // }
 
       await axios.patch(`http://localhost:8000/api/therapist/sessions/${currentSessionToEdit.id}/`, updateData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      setSnackbarMessage("Session notes updated successfully!");
+      setSnackbarMessage("Session notes and follow-up recommendation updated successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
       fetchData(); // Refresh data to reflect updated notes
@@ -445,6 +449,7 @@ const TherapistDashboard = () => {
     const now = new Date();
     const fifteenMinsBefore = subMinutes(sessionDateTime, 15);
     const sessionEndTime = addMinutes(sessionDateTime, session.duration_minutes || 60);
+
     return isAfter(now, fifteenMinsBefore) && isBefore(now, sessionEndTime);
   };
 
@@ -968,6 +973,33 @@ const TherapistDashboard = () => {
                     variant="standard"
                     sx={{ mb: 3, '& .MuiInputBase-input': { backgroundColor: 'transparent' } }}
                 />
+
+                {/* New: Recommend Follow-up Session */}
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={followUpRecommended}
+                            onChange={(e) => setFollowUpRecommended(e.target.checked)}
+                            sx={{ color: themePrimaryColor, '&.Mui-checked': { color: themePrimaryColor } }}
+                        />
+                    }
+                    label={<Typography sx={{ color: themeTextColor }}>Recommend Follow-up Session</Typography>}
+                    sx={{ mb: 2 }}
+                />
+                {followUpRecommended && (
+                    <TextField
+                        fullWidth
+                        label="Recommended Follow-up Date"
+                        type="date"
+                        value={recommendedFollowUpDate ? format(recommendedFollowUpDate, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => setRecommendedFollowUpDate(e.target.value ? parseISO(e.target.value) : null)}
+                        InputLabelProps={{
+                            shrink: true,
+                        }}
+                        variant="standard"
+                        sx={{ mb: 3 }}
+                    />
+                )}
 
                 <Button
                     variant="contained"

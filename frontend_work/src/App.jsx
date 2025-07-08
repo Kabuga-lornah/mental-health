@@ -135,7 +135,7 @@ function Layout() {
       ) : (
         <Outlet />
       )}
-      <Footer />
+      {!isAdminUser && <Footer />} {/* Conditional rendering for Footer */}
     </>
   );
 }
