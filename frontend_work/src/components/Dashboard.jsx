@@ -205,8 +205,8 @@ const BreathingCircle = styled(Box)(({ phase, duration }) => ({
   }),
   // No specific animation for 'idle' if it's not rendered as a circle
   // ...(phase === "idle" && {
-  //   backgroundColor: themePrimaryColor,
-  //   animation: "none",
+  //  backgroundColor: themePrimaryColor,
+  //  animation: "none",
   // }),
 }));
 
@@ -324,7 +324,7 @@ export default function Dashboard() {
   const [breathingDuration, setBreathingDuration] = useState(0);
   // breathingPhase will now directly represent the active phase (inhale, exhale, hold, hold_out)
   // No longer need "idle" as a phase for the circle itself, it's implied by isBreathingRunning
-  const [breathingPhase, setBreathingPhase] = useState("idle"); 
+  const [breathingPhase, setBreathingPhase] = useState("idle");
   const [breathingCountdown, setBreathingCountdown] = useState(0);
   const [totalTimeElapsed, setTotalTimeElapsed] = useState(0);
   const [isBreathingRunning, setIsBreathingRunning] = useState(false);
@@ -458,7 +458,7 @@ export default function Dashboard() {
         6.  **No External Knowledge (General Topics):** While you are a friend, you do not have knowledge of specific current events, celebrities, history, complex science, or pop culture. Politely guide the conversation back to the user's feelings or general well-being if they stray into these areas, e.g., "I'm here to focus on what you're going through, how are you feeling about that?" or "My purpose is to be a supportive companion, so let's keep our chat focused on your well-being." Avoid explicit refusal phrases unless absolutely necessary for very out-of-scope or harmful topics.
         7.  **Maintain Companion Tone:** Use "I" statements to express empathy and connect with the user. Your role is to be relatable and understanding.
 
-        Start the conversation with: "Hi there! I'm here to listen. Feel free to share anything that's on your mind. I'm a safe space for you to talk."
+        Start the conversation with: ""Hi there! My name is Soni. I'm here to listen. Feel free to share anything that's on your mind. I'm a safe space for you to talk.","
         `;
 
       chatSessionRef.current = model.startChat({
@@ -471,7 +471,7 @@ export default function Dashboard() {
             role: "model",
             parts: [
               {
-                text: "Hi there! I'm here to listen. Feel free to share anything that's on your mind. I'm a safe space for you to talk.",
+                text: "Hi there! My name is Soni. I'm here to listen. Feel free to share anything that's on your mind. I'm a safe space for you to talk.",
               },
             ],
           },
@@ -708,7 +708,7 @@ export default function Dashboard() {
     // However, it's good to keep for robust error handling.
     // We remove the condition if (!isBreathingRunning && phaseName !== "idle") return;
     // as "idle" phase won't trigger this function directly for animation
-    
+
     setBreathingPhase(phaseName);
     setBreathingCountdown(duration);
     currentPhaseIndexRef.current = phaseIndex;
@@ -952,50 +952,50 @@ export default function Dashboard() {
       <Box sx={{ position: "relative", zIndex: 1 }}>
         {/* Top Header / Notification Bell (now a placeholder, moved to bottom) */}
         {/* <Box
-          sx={{
-            display: "flex",
-            justifyContent: "flex-end",
-            width: "100%",
-            mb: 2,
-          }}
-        >
-          <IconButton
-            onClick={() => setShowNotificationPopup(true)}
-            color="inherit"
-            sx={{
-              backgroundColor: themePrimaryColor,
-              color: "white",
-              "&:hover": { backgroundColor: themeButtonHoverColor },
-              p: 1.5,
-              borderRadius: "50%",
-              boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
-            }}
-          >
-            <NotificationsActiveOutlined fontSize="large" />
-            {notificationMessages.length > 0 && (
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: 5,
-                  right: 5,
-                  backgroundColor: "red",
-                  color: "white",
-                  borderRadius: "50%",
-                  width: 20,
-                  height: 20,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "0.75rem",
-                  fontWeight: "bold",
-                  zIndex: 1,
-                }}
-              >
-                {notificationMessages.length}
-              </Box>
-            )}
-          </IconButton>
-        </Box> */}
+           sx={{
+             display: "flex",
+             justifyContent: "flex-end",
+             width: "100%",
+             mb: 2,
+           }}
+         >
+           <IconButton
+             onClick={() => setShowNotificationPopup(true)}
+             color="inherit"
+             sx={{
+               backgroundColor: themePrimaryColor,
+               color: "white",
+               "&:hover": { backgroundColor: themeButtonHoverColor },
+               p: 1.5,
+               borderRadius: "50%",
+               boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
+             }}
+           >
+             <NotificationsActiveOutlined fontSize="large" />
+             {notificationMessages.length > 0 && (
+               <Box
+                 sx={{
+                   position: "absolute",
+                   top: 5,
+                   right: 5,
+                   backgroundColor: "red",
+                   color: "white",
+                   borderRadius: "50%",
+                   width: 20,
+                   height: 20,
+                   display: "flex",
+                   alignItems: "center",
+                   justifyContent: "center",
+                   fontSize: "0.75rem",
+                   fontWeight: "bold",
+                   zIndex: 1,
+                 }}
+               >
+                 {notificationMessages.length}
+               </Box>
+             )}
+           </IconButton>
+         </Box> */}
 
         {error && (
           <Alert
@@ -1282,7 +1282,7 @@ export default function Dashboard() {
                       borderRadius: 2,
                     }}
                   >
-                    Chat with AI Assistant
+                    Chat with Soni
                   </Button>
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -1319,44 +1319,6 @@ export default function Dashboard() {
                   </Button>
                 </Grid>
               </Grid>
-              <Divider sx={{ my: 3 }} />
-              <Typography
-                variant="h5"
-                sx={{
-                  color: themePrimaryColor,
-                  mb: 2,
-                  fontWeight: "bold",
-                  borderBottom: `2px solid ${themePrimaryColor}20`,
-                  pb: 1,
-                }}
-              >
-                Your Personalized Plan
-              </Typography>
-              <Box
-                sx={{
-                  p: 2,
-                  textAlign: "center",
-                  backgroundColor: themeLightBackground,
-                  borderRadius: 2,
-                }}
-              >
-                <Typography variant="body1" sx={{ color: "#666", mb: 1 }}>
-                  Next Activity: Deep Breathing Exercise
-                </Typography>
-                <Typography variant="body2" sx={{ color: "#888", mb: 2 }}>
-                  *Personalized plan overview coming soon with full integration!
-                </Typography>
-                <Button
-                  variant="outlined"
-                  sx={{
-                    borderColor: themePrimaryColor,
-                    color: themePrimaryColor,
-                    "&:hover": { backgroundColor: `${themePrimaryColor}10` },
-                  }}
-                >
-                  View Full Plan
-                </Button>
-              </Box>
             </Paper>
           </Grid>
         </Grid>
@@ -1713,7 +1675,7 @@ export default function Dashboard() {
                               color="text.secondary"
                             >
                               {countdowns[session.id] &&
-                              !countdowns[session.id].expired
+                                !countdowns[session.id].expired
                                 ? `${countdowns[session.id].days}d ${
                                     countdowns[session.id].hours
                                   }h ${countdowns[session.id].minutes}m ${
@@ -2234,7 +2196,7 @@ export default function Dashboard() {
             variant="body1" // FIXED: Changed from h6 to body1
             sx={{ color: "white", fontWeight: "bold" }}
           >
-            AI Mental Health Assistant
+            Soni Mental Health Assistant
           </Typography>
           <IconButton
             onClick={() => setOpenChatbotDialog(false)}
@@ -2259,7 +2221,7 @@ export default function Dashboard() {
                 color="text.secondary"
                 sx={{ textAlign: "center", my: 2 }}
               >
-                Hi there! I'm here to listen. Feel free to share anything that's
+                Hi there! I'm Soni, your empathetic listener. Feel free to share anything that's
                 on your mind. I'm a safe space for you to talk.
               </Typography>
             )}
@@ -2321,7 +2283,7 @@ export default function Dashboard() {
                     color="text.secondary"
                     fontStyle="italic"
                   >
-                    AI is typing...
+                    Soni is typing...
                   </Typography>
                 </Paper>
               </Box>
@@ -2475,7 +2437,9 @@ export default function Dashboard() {
             <Grid container spacing={3} justifyContent="center">
               {youtubeVideos.length > 0 ? (
                 youtubeVideos.map((video) => (
-                  <Grid item xs={12} sm={6} md={6} lg={4} key={video.id}> {/* Adjusted grid sizes */}
+                  <Grid item xs={12} sm={6} md={6} lg={4} key={video.id}>
+                    {" "}
+                    {/* Adjusted grid sizes */}
                     <Paper
                       elevation={3}
                       sx={{
@@ -2524,22 +2488,22 @@ export default function Dashboard() {
                             e.target.src = `https://placehold.co/480x270/DCC8C8/780000?text=Video+Unavailable`; // Placeholder
                           }}
                         />
-                         {/* Play icon overlay */}
-                         <Box
-                            sx={{
-                                position: 'absolute',
-                                top: '50%',
-                                left: '50%',
-                                transform: 'translate(-50%, -50%)',
-                                backgroundColor: 'rgba(0,0,0,0.6)',
-                                borderRadius: '50%',
-                                p: 1,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
+                        {/* Play icon overlay */}
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            backgroundColor: 'rgba(0,0,0,0.6)',
+                            borderRadius: '50%',
+                            p: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
                         >
-                            <PlayArrow sx={{ color: 'white', fontSize: 40 }} />
+                          <PlayArrow sx={{ color: 'white', fontSize: 40 }} />
                         </Box>
                       </Box>
 

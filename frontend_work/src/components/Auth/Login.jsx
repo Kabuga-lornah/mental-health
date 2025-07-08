@@ -23,7 +23,7 @@ export default function Login() {
         } else if (response.user.is_therapist) {
           navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply");
         } else {
-          navigate("/dashboard");
+          navigate("/homepage");
         }
       } else {
         // This block might be hit if login is successful but user data isn't fully returned,

@@ -40,13 +40,13 @@ class UserSerializer(serializers.ModelSerializer):
     years_of_experience = serializers.IntegerField(required=False, allow_null=True)
     specializations = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True)
     is_available = serializers.BooleanField(required=False, default=False)
-    # REMOVED: hourly_rate field declaration
-    # hourly_rate = serializers.DecimalField(
-    #     max_digits=6,
-    #     decimal_places=2,
-    #     required=False,
-    #     allow_null=True
-    # )
+    # Re-added hourly_rate field declaration - it was REMOVED previously
+    hourly_rate = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        required=False,
+        allow_null=True
+    )
     # FIX: Changed from serializers.ImageField to serializers.URLField to accept Cloudinary URLs
     profile_picture = serializers.URLField(max_length=500, required=False, allow_null=True, allow_blank=True)
 
@@ -73,7 +73,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'password', 'password2',
             'first_name', 'last_name', 'phone', 'is_therapist',
             'is_verified', 'bio', 'years_of_experience', 'specializations',
-            'is_available', # REMOVED: 'hourly_rate'
+            'is_available', 'hourly_rate', # <--- 'hourly_rate' IS NOW INCLUDED HERE
             'profile_picture',
             'license_credentials', 'approach_modalities', 'languages_spoken',
             'client_focus', 'insurance_accepted', 'video_introduction_url',
@@ -167,29 +167,32 @@ class UserSerializer(serializers.ModelSerializer):
                     {"is_available": "Therapists must specify availability."}
                 )
 
-            # REMOVED: Check 'hourly_rate' based on 'is_free_consultation'
-            # is_free_consultation_current = self.instance.is_free_consultation if self.instance else False
-            # is_free_consultation_in_attrs = attrs.get('is_free_consultation', is_free_consultation_current)
+            # Re-enabled: Check 'hourly_rate' based on 'is_free_consultation'
+            is_free_consultation_current = self.instance.is_free_consultation if self.instance else False
+            is_free_consultation_in_attrs = attrs.get('is_free_consultation', is_free_consultation_current)
 
-            # if not is_free_consultation_in_attrs: # If free consultation is NOT offered
-            #     # hourly_rate is required and must be a number
-            #     hourly_rate_in_attrs = attrs.get('hourly_rate')
-            #     if hourly_rate_in_attrs is None: # If not provided OR explicitly null
-            #         raise serializers.ValidationError(
-            #             {"hourly_rate": "Hourly rate is required if not offering free consultation."}
-            #         )
-            #     # After to_internal_value, it should already be float or None.
-            #     # So this check might be redundant if to_internal_value is perfect, but good for safety.
-            #     if not isinstance(hourly_rate_in_attrs, (int, float)):
-            #         raise serializers.ValidationError(
-            #             {"hourly_rate": "Hourly rate must be a number."}
-            #         )
-            # elif is_free_consultation_in_attrs: # If free consultation IS offered
-            #     # hourly_rate must be null if provided
-            #     if 'hourly_rate' in attrs and attrs['hourly_rate'] is not None:
-            #         raise serializers.ValidationError(
-            #             {"hourly_rate": "Hourly rate must be null if offering free consultation."}
-            #         )
+            if not is_free_consultation_in_attrs: # If free consultation is NOT offered
+                # hourly_rate is required and must be a number
+                hourly_rate_in_attrs = attrs.get('hourly_rate')
+                if hourly_rate_in_attrs is None: # If not provided OR explicitly null
+                    raise serializers.ValidationError(
+                        {"hourly_rate": "Hourly rate is required if not offering free consultation."}
+                    )
+                # After to_internal_value, it should already be float or None.
+                # So this check might be redundant if to_internal_value is perfect, but good for safety.
+                if not isinstance(hourly_rate_in_attrs, (int, float)):
+                    try:
+                        float(hourly_rate_in_attrs)
+                    except (TypeError, ValueError):
+                        raise serializers.ValidationError(
+                            {"hourly_rate": "Hourly rate must be a valid number."}
+                        )
+            elif is_free_consultation_in_attrs: # If free consultation IS offered
+                # hourly_rate must be null if provided
+                if 'hourly_rate' in attrs and attrs['hourly_rate'] is not None:
+                    raise serializers.ValidationError(
+                        {"hourly_rate": "Hourly rate must be null if offering free consultation."}
+                    )
 
 
             # Check 'physical_address' based on 'session_modes'
@@ -293,12 +296,13 @@ class TherapistSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     # FIX: Change to SerializerMethodField to correctly return the URL
     profile_picture = serializers.SerializerMethodField()
+    hourly_rate = serializers.DecimalField(max_digits=6, decimal_places=2, read_only=True)
 
     class Meta:
         model = User
         fields = [
             'id', 'full_name',
-            'is_available', # REMOVED: 'hourly_rate'
+            'is_available', 'hourly_rate', # <--- 'hourly_rate' IS NOW INCLUDED HERE
             'profile_picture',
             'bio', 'years_of_experience', 'specializations',
             'license_credentials', 'approach_modalities', 'languages_spoken',

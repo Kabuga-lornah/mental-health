@@ -155,6 +155,7 @@ class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_staff and request.user.is_superuser
 
+# In RegisterView and LoginView
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
@@ -183,7 +184,8 @@ class RegisterView(generics.CreateAPIView):
                     'bio': user.bio,
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
-                    'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                    # FIX: Removed .url from user.profile_picture
+                    'profile_picture': user.profile_picture if user.profile_picture else None,
                     'license_credentials': user.license_credentials,
                     'approach_modalities': user.approach_modalities,
                     'languages_spoken': user.languages_spoken,
@@ -231,7 +233,8 @@ class LoginView(generics.GenericAPIView):
                     'bio': user.bio,
                     'years_of_experience': user.years_of_experience,
                     'specializations': user.specializations,
-                    'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                    # FIX: Removed .url from user.profile_picture
+                    'profile_picture': user.profile_picture if user.profile_picture else None,
                     'license_credentials': user.license_credentials,
                     'approach_modalities': user.approach_modalities,
                     'languages_spoken': user.languages_spoken,

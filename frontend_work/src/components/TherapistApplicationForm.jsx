@@ -1,3 +1,5 @@
+// File: frontend_work/src/components/TherapistApplicationForm.jsx
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -27,8 +29,17 @@ import {
   FormControlLabel,
   RadioGroup,
   Radio,
+  Chip, // Added Chip for displaying selected items
+  Stack, // Added Stack for layout
+  Avatar // Added Avatar for professional photo preview
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { PhotoCamera, UploadFile, Delete } from '@mui/icons-material'; // Added UploadFile icon
+
+// Cloudinary Configuration
+// IMPORTANT: For production, store these securely (e.g., environment variables)
+const CLOUDINARY_CLOUD_NAME = 'dgdf0svqx'; // Replace with your Cloudinary Cloud Name
+const CLOUDINARY_UPLOAD_PRESET = 'mental health'; // Replace with your Cloudinary Upload Preset
 
 const primaryColor = '#780000';
 const pageBackground = '#FFF8E1';
@@ -57,684 +68,683 @@ const specializationsList = [
 ];
 
 export default function TherapistApplicationForm() {
-  const { user, token } = useAuth();
+  const { user, token, refreshAccessToken } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     license_number: '',
+    license_document: null, // Will store Cloudinary URL
     id_number: '',
+    id_document: null,     // Will store Cloudinary URL
+    professional_photo: null, // Will store Cloudinary URL
     motivation_statement: '',
-    specializations: [],
+    specializations: [], // Changed to array to match Select multiple
+    years_of_experience: '',
     license_credentials: '',
     approach_modalities: '',
     languages_spoken: '',
     client_focus: '',
     insurance_accepted: false,
-    years_of_experience: '',
     is_free_consultation: false,
-    session_modes: 'online',
-    physical_address: '',
-    hourly_rate: '',
+    session_modes: 'online', // Default value
+    physical_address: '', // Required only for physical/both sessions
+    hourly_rate: null, // Default to null, depends on is_free_consultation
   });
 
-  const [files, setFiles] = useState({
-    license_document: null,
-    id_document: null,
-    professional_photo: null,
-  });
-
-  const [existingApplication, setExistingApplication] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+  const [errors, setErrors] = useState({});
+  const [fileUploadLoading, setFileUploadLoading] = useState({
+    license_document: false,
+    id_document: false,
+    professional_photo: false,
+  });
 
   useEffect(() => {
-    const fetchExistingApplication = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const response = await axios.get('http://localhost:8000/api/therapist-applications/me/', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setExistingApplication(response.data);
-      } catch (err) {
-        if (err.response?.status === 404) {
-          setExistingApplication(null);
-        } else {
-          setError("Could not check your application status. Please refresh the page.");
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchExistingApplication();
-  }, [token]);
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({ 
-      ...formData, 
-      [name]: type === 'checkbox' ? checked : value 
-    });
-  };
-  
-  const handleSpecializationChange = (event) => {
-    const { value } = event.target;
-    setFormData({
-      ...formData,
-      specializations: typeof value === 'string' ? value.split(',') : value,
-    });
-  };
-
-  const handleFileChange = (e) => {
-    const { name, files: selectedFiles } = e.target;
-    if (selectedFiles.length > 0) {
-      setFiles({ ...files, [name]: selectedFiles[0] });
+    // Redirect if user is not logged in or is not a therapist
+    if (!user && !refreshAccessToken.loading) { // Check user and if token refresh is still happening
+      navigate('/login');
+    } else if (user && !user.is_therapist) {
+      navigate('/dashboard'); // Or some other appropriate page for non-therapists
+    } else if (user && user.is_verified) {
+      // If user is already verified as a therapist, redirect to their dashboard
+      navigate('/therapist/dashboard');
     }
+  }, [user, navigate, refreshAccessToken.loading]);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+
+    if (name === 'is_free_consultation') {
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: checked,
+        hourly_rate: checked ? null : prevData.hourly_rate, // Set hourly_rate to null if free
+      }));
+    } else if (name === 'session_modes') {
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: value,
+        physical_address: value === 'online' ? '' : prevData.physical_address, // Clear if only online
+      }));
+    } else if (type === 'checkbox') {
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: checked,
+      }));
+    } else if (name === 'specializations') {
+      // Handle multiple select for specializations
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: typeof value === 'string' ? value.split(',') : value,
+      }));
+    } else if (name === 'years_of_experience' && value !== '') {
+        // Convert to integer or null
+        const intValue = parseInt(value, 10);
+        setFormData((prevData) => ({
+            ...prevData,
+            [name]: isNaN(intValue) ? null : intValue,
+        }));
+    }
+    else if (name === 'hourly_rate' && value !== '') {
+        // Convert to float or null
+        const floatValue = parseFloat(value);
+        setFormData((prevData) => ({
+            ...prevData,
+            [name]: isNaN(floatValue) ? null : floatValue,
+        }));
+    }
+    else {
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: value,
+      }));
+    }
+    setErrors((prev) => ({ ...prev, [name]: undefined })); // Clear specific error on change
+  };
+
+  const handleFileUpload = async (e, fieldName) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setFileUploadLoading((prev) => ({ ...prev, [fieldName]: true }));
+    setErrors((prev) => ({ ...prev, [fieldName]: undefined })); // Clear previous file errors
+
+    const formDataUpload = new FormData();
+    formDataUpload.append('file', file);
+    formDataUpload.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); // Your upload preset
+
+    try {
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`,
+        formDataUpload
+      );
+      const fileUrl = response.data.secure_url;
+      setFormData((prevData) => ({
+        ...prevData,
+        [fieldName]: fileUrl, // Store the Cloudinary URL
+      }));
+      setSnackbar({
+        open: true,
+        message: `${fieldName.replace('_', ' ')} uploaded successfully!`,
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error(`Error uploading ${fieldName} to Cloudinary:`, error);
+      setErrors((prev) => ({ ...prev, [fieldName]: 'Failed to upload file.' }));
+      setSnackbar({
+        open: true,
+        message: `Failed to upload ${fieldName.replace('_', ' ')}.`,
+        severity: 'error',
+      });
+    } finally {
+      setFileUploadLoading((prev) => ({ ...prev, [fieldName]: false }));
+    }
+  };
+
+  const handleRemoveFile = (fieldName) => {
+    setFormData((prevData) => ({
+      ...prevData,
+      [fieldName]: null,
+    }));
+    setErrors((prev) => ({ ...prev, [fieldName]: undefined }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setSubmitting(true);
+    setErrors({}); // Clear previous errors
 
-    if (!formData.license_number.trim() || !formData.id_number.trim() || 
-        !formData.motivation_statement.trim() || !formData.license_credentials.trim() ||
-        !formData.approach_modalities.trim() || !formData.languages_spoken.trim() ||
-        !formData.client_focus.trim() || !formData.years_of_experience
-    ) {
-      setError("Please fill in all required text fields for professional details.");
+    // Client-side validation for required fields (can be more extensive)
+    const newErrors = {};
+    if (!formData.license_number) newErrors.license_number = 'License number is required.';
+    if (!formData.license_document) newErrors.license_document = 'License document is required.';
+    if (!formData.id_number) newErrors.id_number = 'ID number is required.';
+    if (!formData.id_document) newErrors.id_document = 'ID document is required.';
+    if (!formData.professional_photo) newErrors.professional_photo = 'Professional photo is required.';
+    if (!formData.motivation_statement) newErrors.motivation_statement = 'Motivation statement is required.';
+    if (formData.specializations.length === 0) newErrors.specializations = 'At least one specialization is required.';
+    if (formData.years_of_experience === null || formData.years_of_experience === '') newErrors.years_of_experience = 'Years of experience is required.';
+    if (!formData.license_credentials) newErrors.license_credentials = 'License credentials are required.';
+    if (!formData.approach_modalities) newErrors.approach_modalities = 'Approach modalities are required.';
+    if (!formData.languages_spoken) newErrors.languages_spoken = 'Languages spoken are required.';
+    if (!formData.client_focus) newErrors.client_focus = 'Client focus is required.';
+
+    if (!formData.is_free_consultation && (formData.hourly_rate === null || formData.hourly_rate === '')) {
+      newErrors.hourly_rate = 'Hourly rate is required if not offering free consultation.';
+    }
+    if (formData.is_free_consultation && formData.hourly_rate !== null && formData.hourly_rate !== '') {
+      newErrors.hourly_rate = 'Hourly rate must be null if offering free consultation.';
+    }
+
+    if (['physical', 'both'].includes(formData.session_modes) && !formData.physical_address) {
+      newErrors.physical_address = 'Physical address is required for in-person sessions.';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setSnackbar({
+        open: true,
+        message: 'Please fill in all required fields.',
+        severity: 'error',
+      });
       setSubmitting(false);
       return;
-    }
-    
-    if (formData.specializations.length === 0) {
-        setError("Please select at least one specialization.");
-        setSubmitting(false);
-        return;
-    }
-
-    if (!files.license_document || !files.id_document || !files.professional_photo) {
-      setError("Please upload all required documents (License, ID, Photo).");
-      setSubmitting(false);
-      return;
-    }
-
-    if ((formData.session_modes === 'physical' || formData.session_modes === 'both') && !formData.physical_address.trim()) {
-        setError("Physical address is required if offering in-person sessions.");
-        setSubmitting(false);
-        return;
-    }
-
-    const submissionFormData = new FormData();
-    submissionFormData.append('license_number', formData.license_number);
-    submissionFormData.append('id_number', formData.id_number);
-    submissionFormData.append('motivation_statement', formData.motivation_statement);
-    submissionFormData.append('specializations', formData.specializations.join(','));
-    submissionFormData.append('license_document', files.license_document);
-    submissionFormData.append('id_document', files.id_document);
-    submissionFormData.append('professional_photo', files.professional_photo);
-    submissionFormData.append('license_credentials', formData.license_credentials);
-    submissionFormData.append('approach_modalities', formData.approach_modalities);
-    submissionFormData.append('languages_spoken', formData.languages_spoken);
-    submissionFormData.append('client_focus', formData.client_focus);
-    submissionFormData.append('insurance_accepted', formData.insurance_accepted);
-    submissionFormData.append('years_of_experience', formData.years_of_experience);
-    submissionFormData.append('is_free_consultation', formData.is_free_consultation);
-    submissionFormData.append('session_modes', formData.session_modes);
-    submissionFormData.append('physical_address', formData.physical_address);
-
-    if (!formData.is_free_consultation && formData.hourly_rate) {
-      submissionFormData.append('hourly_rate', parseFloat(formData.hourly_rate));
     }
 
     try {
-      const response = await axios.post('http://localhost:8000/api/therapist-applications/submit/', submissionFormData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`,
-        },
+      const applicationPayload = {
+        applicant: user.id, // The backend will likely derive this from the token
+        license_number: formData.license_number,
+        license_document: formData.license_document, // This is now a URL
+        id_number: formData.id_number,
+        id_document: formData.id_document,       // This is now a URL
+        professional_photo: formData.professional_photo, // This is now a URL
+        motivation_statement: formData.motivation_statement,
+        specializations: formData.specializations.join(','), // Convert array back to comma-separated string for backend
+        years_of_experience: formData.years_of_experience,
+        license_credentials: formData.license_credentials,
+        approach_modalities: formData.approach_modalities,
+        languages_spoken: formData.languages_spoken,
+        client_focus: formData.client_focus,
+        insurance_accepted: formData.insurance_accepted,
+        is_free_consultation: formData.is_free_consultation,
+        session_modes: formData.session_modes,
+        physical_address: formData.physical_address || null,
+        hourly_rate: formData.hourly_rate || null,
+      };
+
+      await axios.post(
+        'http://localhost:8000/api/therapist-applications/',
+        applicationPayload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json', // Ensure JSON content type
+          },
+        }
+      );
+
+      setSnackbar({
+        open: true,
+        message: 'Application submitted successfully! Please wait for admin approval.',
+        severity: 'success',
       });
-
-      setExistingApplication(response.data);
-      setSnackbar({ open: true, message: 'Application submitted successfully!', severity: 'success' });
-
-    } catch (err) {
-      let errorMessage = "An unexpected error occurred. Please try again.";
-      if (err.response?.data) {
-          const errors = err.response.data;
-          if (errors.detail) {
-              errorMessage = errors.detail;
-          } else {
-              const errorMessages = Object.entries(errors).map(([field, fieldErrors]) => 
-                  `${field.replace(/_/g, ' ')}: ${Array.isArray(fieldErrors) ? fieldErrors.join(', ') : fieldErrors}`
-              );
-              if (errorMessages.length > 0) {
-                  errorMessage = errorMessages.join('\n');
-              }
-          }
+      // Optionally redirect to a pending page or dashboard
+      navigate('/dashboard'); // Or navigate to a "application pending" page
+    } catch (error) {
+      console.error('Application submission error:', error);
+      if (error.response && error.response.data) {
+        setErrors(error.response.data);
+        // Display generic or specific backend errors
+        if (error.response.data.non_field_errors) {
+            setSnackbar({
+                open: true,
+                message: error.response.data.non_field_errors[0],
+                severity: 'error',
+            });
+        } else {
+            const fieldErrors = Object.values(error.response.data).flat().join(' ');
+            setSnackbar({
+                open: true,
+                message: `Submission failed: ${fieldErrors || 'Please check the form for errors.'}`,
+                severity: 'error',
+            });
+        }
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'An unexpected error occurred during submission.',
+          severity: 'error',
+        });
       }
-      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleSnackbarClose = () => {
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
     setSnackbar({ ...snackbar, open: false });
   };
 
-  if (loading) {
+  // Show a loading spinner if auth context is still loading user
+  if (refreshAccessToken.loading || !user) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '100vh',
-        backgroundColor: pageBackground
-      }}>
-        <CircularProgress sx={{ color: primaryColor }} />
-        <Typography sx={{ ml: 2, color: primaryColor }}>Checking your application status...</Typography>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
       </Box>
     );
   }
 
-  if (existingApplication) {
+  // If user is a therapist and verified, they shouldn't be on this form,
+  // but if somehow they land here before useEffect redirects, show message
+  if (user && user.is_therapist && user.is_verified) {
     return (
-      <Box sx={{ 
-        minHeight: '100vh',
-        backgroundColor: pageBackground,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        p: 2
-      }}>
-        <Container maxWidth="sm">
-          <Paper elevation={3} sx={{ 
-            p: 4, 
-            textAlign: 'center', 
-            borderRadius: 2,
-            backgroundColor: 'white'
-          }}>
-            <Typography variant="h5" sx={{ 
-              fontWeight: 'bold', 
-              mb: 2,
-              color: primaryColor
-            }}>
-              Application Status
-            </Typography>
-            <Typography variant="h6" sx={{ mb: 3, color: textColor }}>
-              Your application is currently: <strong style={{ 
-                textTransform: 'capitalize',
-                color: existingApplication.status === 'approved' ? primaryColor : 
-                      existingApplication.status === 'pending' ? '#FFA500' : '#FF0000'
-              }}>
-                {existingApplication.status}
-              </strong>
-            </Typography>
-            <Typography variant="body1" sx={{ mb: 4, color: textColor }}>
-              Thank you for your submission. You will be notified via email of any updates.
-            </Typography>
-          </Paper>
-        </Container>
-      </Box>
+      <Container component="main" maxWidth="md" sx={{ my: 4 }}>
+        <Paper elevation={6} sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography variant="h5" component="h1" gutterBottom color="primary">
+            You are already an approved therapist.
+          </Typography>
+          <Button component={Link} to="/therapist/dashboard" variant="contained" sx={{ mt: 2 }}>
+            Go to Dashboard
+          </Button>
+        </Paper>
+      </Container>
     );
   }
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh',
-      backgroundColor: pageBackground,
-      py: 8
-    }}>
-      <Container maxWidth="md">
-        {/* Added introductory content */}
-        <Box sx={{ 
-          mb: 6,
-          textAlign: 'center'
-        }}>
-          <Typography variant="h3" sx={{ 
-            fontWeight: 'bold',
-            color: primaryColor,
-            mb: 3
-          }}>
-            Join Our Team of Professional Therapists
-          </Typography>
-          
-          <Card sx={{ 
-            mb: 4,
-            backgroundColor: 'white',
-            boxShadow: 3,
-            borderLeft: `4px solid ${primaryColor}`
-          }}>
-            <CardContent>
-              <Typography variant="h5" sx={{ 
-                color: primaryColor,
-                mb: 2
-              }}>
-                Why Apply With Us?
-              </Typography>
-              <Typography variant="body1" sx={{ 
-                color: textColor,
-                mb: 2
-              }}>
-                We're committed to connecting qualified therapists with clients who need their expertise. 
-                By joining our platform, you'll gain access to:
-              </Typography>
-              <ul style={{ 
-                textAlign: 'left',
-                color: textColor,
-                paddingLeft: '24px'
-              }}>
-                <li>A growing network of clients seeking professional help</li>
-                <li>Flexible scheduling and session options (online or in-person)</li>
-                <li>Competitive compensation with transparent pricing</li>
-                <li>Professional support and resources</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Typography variant="h6" sx={{ 
-            color: primaryColor,
-            mb: 2,
-            fontWeight: 'medium'
-          }}>
-            Application Process
-          </Typography>
-          <Typography variant="body1" sx={{ 
-            color: textColor,
-            mb: 4,
-            maxWidth: '800px',
-            mx: 'auto'
-          }}>
-            Please complete the form below with your professional details. Our team reviews each 
-            application carefully to ensure we maintain the highest standards of care.
-          </Typography>
-        </Box>
-
-        <Paper elevation={6} sx={{ 
-          p: { xs: 2, sm: 4 }, 
-          borderRadius: 2,
-          backgroundColor: 'white'
-        }}>
-          <Typography component="h1" variant="h4" sx={{ 
-            fontWeight: 'bold', 
-            textAlign: 'center', 
-            mb: 3,
-            color: primaryColor
-          }}>
-            Therapist Application
-          </Typography>
-          <Typography variant="body1" sx={{ 
-            textAlign: 'center', 
-            mb: 4,
-            color: textColor
-          }}>
-            Please provide your credentials for verification.
-          </Typography>
-
-          {error && (
-            <Alert severity="error" sx={{ 
-              mb: 3, 
-              whiteSpace: 'pre-line',
-              backgroundColor: '#FFEBEE',
-              color: textColor
-            }}>
-              {error}
-            </Alert>
-          )}
-
-          <Box component="form" onSubmit={handleSubmit} noValidate>
-            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
-              Professional Information
-            </Typography>
-            <Grid container spacing={3} mb={4}>
-              <Grid item xs={12} sm={6}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="License Number" 
-                  name="license_number" 
-                  value={formData.license_number} 
-                  onChange={handleInputChange}
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="National ID Number" 
-                  name="id_number" 
-                  value={formData.id_number} 
-                  onChange={handleInputChange}
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="License & Credentials" 
-                  name="license_credentials" 
-                  value={formData.license_credentials} 
-                  onChange={handleInputChange}
-                  helperText="E.g., LMFT, LCSW, PhD"
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                    '& .MuiFormHelperText-root': { color: lightTextColor },
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="Motivation Statement" 
-                  name="motivation_statement" 
-                  multiline 
-                  rows={5} 
-                  value={formData.motivation_statement} 
-                  onChange={handleInputChange} 
-                  helperText="Briefly describe why you want to be a therapist on our platform."
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                    '& .MuiFormHelperText-root': { color: lightTextColor },
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="Years of Experience" 
-                  name="years_of_experience" 
-                  type="number"
-                  value={formData.years_of_experience} 
-                  onChange={handleInputChange}
-                  inputProps={{ min: 0 }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                  }}
-                />
-              </Grid>
-            </Grid>
-              
-            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
-              Specializations & Approach
-            </Typography>
-            <Grid container spacing={3} mb={4}>
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel sx={{ color: lightTextColor }}>Specializations</InputLabel>
-                  <Select
-                    multiple
-                    name="specializations"
-                    value={formData.specializations}
-                    onChange={handleSpecializationChange}
-                    input={<OutlinedInput label="Specializations" />}
-                    renderValue={(selected) => selected.join(', ')}
-                    sx={{
-                      '& .MuiOutlinedInput-notchedOutline': { borderColor: borderColor },
-                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: primaryColor },
-                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: primaryColor },
-                    }}
-                  >
-                    {specializationsList.map((name) => (
-                      <MenuItem key={name} value={name}>
-                        <Checkbox 
-                          checked={formData.specializations.indexOf(name) > -1} 
-                          sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
-                        />
-                        <ListItemText primary={name} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  <FormHelperText sx={{ color: lightTextColor }}>
-                    Select one or more areas you specialize in.
-                  </FormHelperText>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="Approach/Therapeutic Modalities" 
-                  name="approach_modalities" 
-                  multiline 
-                  rows={3}
-                  value={formData.approach_modalities} 
-                  onChange={handleInputChange}
-                  helperText="E.g., CBT, EMDR, Psychodynamic. Describe your core therapeutic approaches."
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                    '& .MuiFormHelperText-root': { color: lightTextColor },
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="Languages Spoken" 
-                  name="languages_spoken" 
-                  value={formData.languages_spoken} 
-                  onChange={handleInputChange}
-                  helperText="Comma-separated, e.g., English, Spanish, French"
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                    '& .MuiFormHelperText-root': { color: lightTextColor },
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField 
-                  required 
-                  fullWidth 
-                  label="Client Focus" 
-                  name="client_focus" 
-                  value={formData.client_focus} 
-                  onChange={handleInputChange}
-                  helperText="E.g., Adults, Teens, LGBTQ+, Couples"
-                  sx={{
-                    '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                    '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                    '& .MuiFormHelperText-root': { color: lightTextColor },
-                  }}
-                />
-              </Grid>
+    <Container component="main" maxWidth="md" sx={{ my: 4, backgroundColor: pageBackground, p: 4, borderRadius: 2 }}>
+      <Paper elevation={6} sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ color: primaryColor, fontWeight: 'bold' }}>
+          Therapist Application
+        </Typography>
+        <Typography variant="subtitle1" gutterBottom sx={{ color: textColor, mb: 3 }}>
+          Please fill out the form below to apply as a therapist.
+        </Typography>
+        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+          <Grid container spacing={3}>
+            {/* License Number */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="License Number"
+                name="license_number"
+                value={formData.license_number}
+                onChange={handleChange}
+                error={!!errors.license_number}
+                helperText={errors.license_number}
+              />
             </Grid>
 
-            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
-              Session & Availability Details
-            </Typography>
-            <Grid container spacing={3} mb={4}>
-                <Grid item xs={12}>
-                    <FormControl component="fieldset" fullWidth>
-                        <Typography variant="body1" sx={{ color: textColor, mb: 1, fontWeight: 'medium' }}>
-                            Session Delivery:
-                        </Typography>
-                        <RadioGroup
-                            row
-                            name="session_modes"
-                            value={formData.session_modes}
-                            onChange={handleInputChange}
-                        >
-                            <FormControlLabel 
-                                value="online" 
-                                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
-                                label={<Typography sx={{ color: textColor }}>Online</Typography>} 
-                            />
-                            <FormControlLabel 
-                                value="physical" 
-                                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
-                                label={<Typography sx={{ color: textColor }}>Physical (In-Person)</Typography>} 
-                            />
-                            <FormControlLabel 
-                                value="both" 
-                                control={<Radio sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }} />} 
-                                label={<Typography sx={{ color: textColor }}>Both</Typography>} 
-                            />
-                        </RadioGroup>
-                    </FormControl>
-                </Grid>
-                {(formData.session_modes === 'physical' || formData.session_modes === 'both') && (
-                    <Grid item xs={12}>
-                        <TextField 
-                            required 
-                            fullWidth 
-                            label="Physical Location/Address" 
-                            name="physical_address" 
-                            multiline 
-                            rows={3}
-                            value={formData.physical_address} 
-                            onChange={handleInputChange}
-                            helperText="Provide the address where in-person sessions will take place."
-                            sx={{
-                                '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                                '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                                '& .MuiFormHelperText-root': { color: lightTextColor },
-                            }}
-                        />
-                    </Grid>
+            {/* License Document Upload */}
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth error={!!errors.license_document}>
+                <Typography variant="body2" sx={{ mb: 1, color: textColor }}>
+                  Upload License Document *
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <label htmlFor="license-document-upload">
+                    <Input
+                      accept="application/pdf,image/*"
+                      id="license-document-upload"
+                      type="file"
+                      onChange={(e) => handleFileUpload(e, 'license_document')}
+                      disabled={fileUploadLoading.license_document}
+                    />
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<UploadFile />}
+                      disabled={fileUploadLoading.license_document}
+                    >
+                      {fileUploadLoading.license_document ? <CircularProgress size={24} /> : 'Choose File'}
+                    </Button>
+                  </label>
+                  {formData.license_document && (
+                    <Button
+                      variant="text"
+                      color="error"
+                      startIcon={<Delete />}
+                      onClick={() => handleRemoveFile('license_document')}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </Box>
+                {formData.license_document && (
+                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                    File Uploaded: <Link href={formData.license_document} target="_blank" rel="noopener noreferrer">View Document</Link>
+                  </Typography>
                 )}
+                {errors.license_document && (
+                  <FormHelperText>{errors.license_document}</FormHelperText>
+                )}
+              </FormControl>
+            </Grid>
 
-              <Grid item xs={12}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.is_free_consultation}
-                      onChange={handleInputChange}
-                      name="is_free_consultation"
-                      sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
-                    />
-                  }
-                  label={<Typography sx={{ color: textColor }}>Offer a free consultation?</Typography>}
-                />
-              </Grid>
+            {/* ID Number */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="ID Number"
+                name="id_number"
+                value={formData.id_number}
+                onChange={handleChange}
+                error={!!errors.id_number}
+                helperText={errors.id_number}
+              />
+            </Grid>
 
-              {!formData.is_free_consultation && (
-                <>
-                  <Grid item xs={12} sm={4}>
-                    <TextField 
-                      required 
-                      fullWidth 
-                      label="Hourly Rate (Ksh)" 
-                      name="hourly_rate" 
-                      type="number"
-                      value={formData.hourly_rate} 
-                      onChange={handleInputChange}
-                      inputProps={{ min: 0 }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: borderColor }, '&:hover fieldset': { borderColor: primaryColor }, '&.Mui-focused fieldset': { borderColor: primaryColor } },
-                        '& .MuiInputLabel-root': { color: lightTextColor, '&.Mui-focused': { color: primaryColor } },
-                      }}
+            {/* ID Document Upload */}
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth error={!!errors.id_document}>
+                <Typography variant="body2" sx={{ mb: 1, color: textColor }}>
+                  Upload ID Document *
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <label htmlFor="id-document-upload">
+                    <Input
+                      accept="application/pdf,image/*"
+                      id="id-document-upload"
+                      type="file"
+                      onChange={(e) => handleFileUpload(e, 'id_document')}
+                      disabled={fileUploadLoading.id_document}
                     />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={formData.insurance_accepted}
-                          onChange={handleInputChange}
-                          name="insurance_accepted"
-                          sx={{ color: primaryColor, '&.Mui-checked': { color: primaryColor } }}
-                        />
-                      }
-                      label={<Typography sx={{ color: textColor }}>Do you accept insurance?</Typography>}
-                    />
-                  </Grid>
-                </>
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<UploadFile />}
+                      disabled={fileUploadLoading.id_document}
+                    >
+                      {fileUploadLoading.id_document ? <CircularProgress size={24} /> : 'Choose File'}
+                    </Button>
+                  </label>
+                  {formData.id_document && (
+                    <Button
+                      variant="text"
+                      color="error"
+                      startIcon={<Delete />}
+                      onClick={() => handleRemoveFile('id_document')}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </Box>
+                {formData.id_document && (
+                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                    File Uploaded: <Link href={formData.id_document} target="_blank" rel="noopener noreferrer">View Document</Link>
+                  </Typography>
+                )}
+                {errors.id_document && (
+                  <FormHelperText>{errors.id_document}</FormHelperText>
+                )}
+              </FormControl>
+            </Grid>
+
+            {/* Professional Photo Upload */}
+            <Grid item xs={12} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+              <Typography variant="body2" sx={{ mb: 1, color: textColor }}>
+                Upload Professional Photo *
+              </Typography>
+              <Avatar src={formData.professional_photo || ''} sx={{ width: 100, height: 100, mb: 2 }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <label htmlFor="professional-photo-upload">
+                  <Input
+                    accept="image/*"
+                    id="professional-photo-upload"
+                    type="file"
+                    onChange={(e) => handleFileUpload(e, 'professional_photo')}
+                    disabled={fileUploadLoading.professional_photo}
+                  />
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<PhotoCamera />}
+                    disabled={fileUploadLoading.professional_photo}
+                  >
+                    {fileUploadLoading.professional_photo ? <CircularProgress size={24} /> : 'Choose Photo'}
+                  </Button>
+                </label>
+                {formData.professional_photo && (
+                  <Button
+                    variant="text"
+                    color="error"
+                    startIcon={<Delete />}
+                    onClick={() => handleRemoveFile('professional_photo')}
+                  >
+                    Remove Photo
+                  </Button>
+                )}
+              </Box>
+              {errors.professional_photo && (
+                <FormHelperText error>{errors.professional_photo}</FormHelperText>
               )}
             </Grid>
 
-            <Typography variant="h6" sx={{ color: primaryColor, mb: 2, borderBottom: `2px solid ${borderColor}`, pb: 1 }}>
-              Document Uploads
-            </Typography>
-            <Grid container spacing={3} mb={4}>
-              <Grid item xs={12} sm={4}>
-                <FormControl fullWidth error={!files.license_document && submitting}>
-                  <Button 
-                    variant="outlined" 
-                    component="label" 
-                    sx={{ 
-                      py: 2,
-                      borderColor: primaryColor,
-                      color: primaryColor,
-                      '&:hover': { borderColor: buttonHoverColor },
-                    }}
-                  >
-                    Upload License
-                    <Input type="file" name="license_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
-                  </Button>
-                  {files.license_document ? 
-                    <FormHelperText sx={{ color: textColor }}>{files.license_document.name}</FormHelperText> : 
-                    <FormHelperText sx={{ color: lightTextColor }}>PDF, JPG, PNG</FormHelperText>}
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <FormControl fullWidth error={!files.id_document && submitting}>
-                  <Button 
-                    variant="outlined" 
-                    component="label" 
-                    sx={{ 
-                      py: 2,
-                      borderColor: primaryColor,
-                      color: primaryColor,
-                      '&:hover': { borderColor: buttonHoverColor },
-                    }}
-                  >
-                    Upload ID Document
-                    <Input type="file" name="id_document" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
-                  </Button>
-                  {files.id_document ? 
-                    <FormHelperText sx={{ color: textColor }}>{files.id_document.name}</FormHelperText> : 
-                    <FormHelperText sx={{ color: lightTextColor }}>PDF, JPG, PNG</FormHelperText>}
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <FormControl fullWidth error={!files.professional_photo && submitting}>
-                  <Button 
-                    variant="outlined" 
-                    component="label" 
-                    sx={{ 
-                      py: 2,
-                      borderColor: primaryColor,
-                      color: primaryColor,
-                      '&:hover': { borderColor: buttonHoverColor },
-                    }}
-                  >
-                    Upload Profile Photo
-                    <Input type="file" name="professional_photo" accept="image/*" onChange={handleFileChange} />
-                  </Button>
-                  {files.professional_photo ? 
-                    <FormHelperText sx={{ color: textColor }}>{files.professional_photo.name}</FormHelperText> : 
-                    <FormHelperText sx={{ color: lightTextColor }}>JPG, PNG</FormHelperText>}
-                </FormControl>
-              </Grid>
+            {/* Motivation Statement */}
+            <Grid item xs={12}>
+              <TextField
+                required
+                fullWidth
+                multiline
+                rows={4}
+                label="Motivation Statement"
+                name="motivation_statement"
+                value={formData.motivation_statement}
+                onChange={handleChange}
+                error={!!errors.motivation_statement}
+                helperText={errors.motivation_statement}
+              />
             </Grid>
 
-            <Box sx={{ 
-              textAlign: 'center',
-              mt: 4,
-              mb: 2
-            }}>
-              <Typography variant="body2" sx={{ 
+            {/* Specializations */}
+            <Grid item xs={12}>
+              <FormControl fullWidth required error={!!errors.specializations}>
+                <InputLabel id="specializations-label">Specializations *</InputLabel>
+                <Select
+                  labelId="specializations-label"
+                  id="specializations"
+                  multiple
+                  name="specializations"
+                  value={formData.specializations}
+                  onChange={handleChange}
+                  input={<OutlinedInput id="select-multiple-chip" label="Specializations *" />}
+                  renderValue={(selected) => (
+                    <Stack gap={1} direction="row" flexWrap="wrap">
+                      {selected.map((value) => (
+                        <Chip key={value} label={value} />
+                      ))}
+                    </Stack>
+                  )}
+                >
+                  {specializationsList.map((name) => (
+                    <MenuItem key={name} value={name}>
+                      <Checkbox checked={formData.specializations.indexOf(name) > -1} />
+                      <ListItemText primary={name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+                {errors.specializations && (
+                  <FormHelperText>{errors.specializations}</FormHelperText>
+                )}
+              </FormControl>
+            </Grid>
+
+            {/* Years of Experience */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="Years of Experience"
+                name="years_of_experience"
+                type="number"
+                value={formData.years_of_experience}
+                onChange={handleChange}
+                error={!!errors.years_of_experience}
+                helperText={errors.years_of_experience}
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+
+            {/* License Credentials */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="License Credentials (e.g., M.S., Ph.D.)"
+                name="license_credentials"
+                value={formData.license_credentials}
+                onChange={handleChange}
+                error={!!errors.license_credentials}
+                helperText={errors.license_credentials}
+              />
+            </Grid>
+
+            {/* Approach Modalities */}
+            <Grid item xs={12}>
+              <TextField
+                required
+                fullWidth
+                label="Approach Modalities (e.g., CBT, DBT, Psychodynamic)"
+                name="approach_modalities"
+                value={formData.approach_modalities}
+                onChange={handleChange}
+                error={!!errors.approach_modalities}
+                helperText={errors.approach_modalities}
+              />
+            </Grid>
+
+            {/* Languages Spoken */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="Languages Spoken (comma-separated)"
+                name="languages_spoken"
+                value={formData.languages_spoken}
+                onChange={handleChange}
+                error={!!errors.languages_spoken}
+                helperText={errors.languages_spoken}
+              />
+            </Grid>
+
+            {/* Client Focus */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="Client Focus (e.g., Adults, Children, Couples)"
+                name="client_focus"
+                value={formData.client_focus}
+                onChange={handleChange}
+                error={!!errors.client_focus}
+                helperText={errors.client_focus}
+              />
+            </Grid>
+
+            {/* Session Modes */}
+            <Grid item xs={12}>
+              <FormControl component="fieldset" fullWidth error={!!errors.session_modes}>
+                <Typography variant="body2" sx={{ mb: 1, color: textColor }}>
+                  Session Modes *
+                </Typography>
+                <RadioGroup
+                  row
+                  name="session_modes"
+                  value={formData.session_modes}
+                  onChange={handleChange}
+                >
+                  <FormControlLabel value="online" control={<Radio />} label="Online" />
+                  <FormControlLabel value="physical" control={<Radio />} label="Physical (In-Person)" />
+                  <FormControlLabel value="both" control={<Radio />} label="Both Online & Physical" />
+                </RadioGroup>
+                {errors.session_modes && (
+                  <FormHelperText>{errors.session_modes}</FormHelperText>
+                )}
+              </FormControl>
+            </Grid>
+
+            {/* Physical Address (conditional) */}
+            {['physical', 'both'].includes(formData.session_modes) && (
+              <Grid item xs={12}>
+                <TextField
+                  required
+                  fullWidth
+                  label="Physical Address"
+                  name="physical_address"
+                  value={formData.physical_address}
+                  onChange={handleChange}
+                  error={!!errors.physical_address}
+                  helperText={errors.physical_address}
+                />
+              </Grid>
+            )}
+
+            {/* Is Free Consultation */}
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.is_free_consultation}
+                    onChange={handleChange}
+                    name="is_free_consultation"
+                  />
+                }
+                label="Offer Free Consultation?"
+              />
+            </Grid>
+
+            {/* Hourly Rate (conditional) */}
+            {!formData.is_free_consultation && (
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  required
+                  fullWidth
+                  label="Hourly Rate (KSH)"
+                  name="hourly_rate"
+                  type="number"
+                  value={formData.hourly_rate || ''} // Use empty string for display if null
+                  onChange={handleChange}
+                  error={!!errors.hourly_rate}
+                  helperText={errors.hourly_rate}
+                  inputProps={{ min: 0, step: "0.01" }}
+                />
+              </Grid>
+            )}
+
+            {/* Insurance Accepted */}
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.insurance_accepted}
+                    onChange={handleChange}
+                    name="insurance_accepted"
+                  />
+                }
+                label="Accept insurance?"
+              />
+            </Grid>
+          </Grid>
+
+          <Box sx={{ mt: 3, textAlign: 'center' }}>
+            {Object.keys(errors).length > 0 && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Please correct the errors in the form.
+              </Alert>
+            )}
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3, mb: 2 }}>
+              <Typography variant="body2" sx={{
                 color: lightTextColor,
                 fontStyle: 'italic'
               }}>
@@ -746,10 +756,10 @@ export default function TherapistApplicationForm() {
               type="submit"
               fullWidth
               variant="contained"
-              disabled={submitting}
-              sx={{ 
-                mt: 2, 
-                py: 1.5, 
+              disabled={submitting || Object.values(fileUploadLoading).some(Boolean)} // Disable if any file is uploading
+              sx={{
+                mt: 2,
+                py: 1.5,
                 fontSize: '1.1rem',
                 backgroundColor: primaryColor,
                 '&:hover': { backgroundColor: buttonHoverColor }
@@ -758,16 +768,16 @@ export default function TherapistApplicationForm() {
               {submitting ? <CircularProgress size={26} color="inherit" /> : 'Submit Application'}
             </Button>
           </Box>
-        </Paper>
-      </Container>
+        </Box>
+      </Paper>
       <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleSnackbarClose}>
-        <Alert 
-          onClose={handleSnackbarClose} 
-          severity={snackbar.severity} 
-          sx={{ 
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{
             width: '100%',
-            backgroundColor: snackbar.severity === 'error' ? '#ffebee' : 
-                            snackbar.severity === 'success' ? '#e8f5e9' : 
+            backgroundColor: snackbar.severity === 'error' ? '#ffebee' :
+                            snackbar.severity === 'success' ? '#e8f5e9' :
                             snackbar.severity === 'info' ? '#e3f2fd' : '#fff8e1',
             color: textColor
           }}
@@ -775,6 +785,6 @@ export default function TherapistApplicationForm() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </Container>
   );
 }
