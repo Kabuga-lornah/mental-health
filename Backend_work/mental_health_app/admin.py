@@ -21,7 +21,7 @@ class CustomUserAdmin(BaseUserAdmin):
         ('Personal info', {'fields': ('first_name', 'last_name', 'phone', 'profile_picture', 'bio', 'years_of_experience', 'specializations', 'hourly_rate', 'license_credentials', 'approach_modalities', 'languages_spoken', 'client_focus', 'insurance_accepted', 'video_introduction_url', 'is_free_consultation', 'session_modes', 'physical_address')}), # Added new fields here
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Therapist Status', {'fields': ('is_therapist', 'is_verified', 'is_available')}), # New fields for therapist status
-        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+        ('Important dates', {'fields': ('last_login',)}), # REMOVED 'date_joined' from here
     )
     # Define add_fieldsets for creating a new user (if different from fieldsets)
     add_fieldsets = (
@@ -65,15 +65,15 @@ class TherapistApplicationAdmin(admin.ModelAdmin):
         if change: # Only on change/update, not initial creation via admin
             # Call super to save the application object first
             super().save_model(request, obj, form, change)
-            
+
             # Re-fetch user to ensure we have the latest state
             user_applicant = User.objects.get(pk=obj.applicant.pk)
-            
+
             if obj.status == 'approved' and not user_applicant.is_verified:
                 user_applicant.is_verified = True
                 user_applicant.is_available = True
                 user_applicant.bio = obj.motivation_statement
-                
+
                 # Copy specializations from the application to the user profile
                 user_applicant.specializations = obj.specializations
 
@@ -91,7 +91,7 @@ class TherapistApplicationAdmin(admin.ModelAdmin):
                 # Set the professional photo as the profile picture
                 if obj.professional_photo:
                     user_applicant.profile_picture = obj.professional_photo
-                
+
                 user_applicant.save()
             elif obj.status != 'approved' and user_applicant.is_verified:
                 # If status changes from approved to rejected/pending, unverify the user

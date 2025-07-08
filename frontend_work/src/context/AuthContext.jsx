@@ -45,11 +45,11 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.get('http://localhost:8000/api/user/', {
         headers: { Authorization: `Bearer ${currentToken}` },
       });
-      
+
       // Merge with existing user data if any
       const existingUser = JSON.parse(localStorage.getItem("user")) || {};
       const mergedUser = { ...existingUser, ...response.data };
-      
+
       setUser(mergedUser);
       localStorage.setItem("user", JSON.stringify(mergedUser));
       console.log("AuthContext - User details fetched:", mergedUser);
@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
     const validateAndRefresh = async () => {
       setLoading(true);
       console.log("AuthContext - Initializing AuthContext: validateAndRefresh called.");
-      
+
       if (token) {
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`; // Set default header immediately
         localStorage.setItem("access_token", token);
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
           // Validate token expiration
           const decoded = jwtDecode(token);
           const currentTime = Date.now() / 1000;
-          
+
           if (decoded.exp > currentTime) {
             console.log("AuthContext - Token is valid, fetching user details...");
             await fetchUserDetails(token);
@@ -138,64 +138,138 @@ export const AuthProvider = ({ children }) => {
       });
 
       const { access, refresh, user: userData } = res.data;
-      
+
       setToken(access);
       setRefreshToken(refresh);
       setUser(userData);
       localStorage.setItem("access_token", access);
       localStorage.setItem("refresh_token", refresh);
       localStorage.setItem("user", JSON.stringify(userData));
-      
+
       console.log("AuthContext - Login successful. User set:", userData);
       return { success: true, user: userData };
     } catch (err) {
       console.error("AuthContext - Login error:", err);
-      const errorMessage = err.response?.data?.error || "Invalid credentials. Please try again.";
+      // Log the full response data as a stringified JSON for better visibility
+      // This is the key change to ensure all nested error details are visible
+      console.error("AuthContext - Login error response data (full):", JSON.stringify(err.response?.data, null, 2));
+
+      let errorMessage = "Invalid credentials. Please try again.";
+      if (err.response && err.response.data) {
+        if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data.error && typeof err.response.data.error === 'string') {
+          // Handle cases where 'error' key is a string
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.error && typeof err.response.data.error === 'object') {
+          // Handle cases where 'error' key is an object (e.g., {detail: "..."} or field errors)
+          const nestedErrors = err.response.data.error;
+          if (nestedErrors.detail) {
+            errorMessage = nestedErrors.detail;
+          } else {
+            // Fallback for other structured errors within the 'error' object
+            errorMessage = Object.keys(nestedErrors).map(key => {
+              const fieldError = nestedErrors[key];
+              const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `${fieldName}: ${Array.isArray(fieldError) ? fieldError.join(', ') : fieldError}`;
+            }).join('; ');
+          }
+        } else if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else {
+          // General fallback for other structured errors at the root level
+          const errors = err.response.data;
+          const errorKeys = Object.keys(errors);
+          if (errorKeys.length > 0) {
+            errorMessage = errorKeys.map(key => {
+              const fieldError = errors[key];
+              const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `${fieldName}: ${Array.isArray(fieldError) ? fieldError.join(', ') : fieldError}`;
+            }).join('; ');
+          }
+        }
+      }
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }
   };
 
-  // Register function with improved error handling
+  // Register function with improved error handling and therapist fields
   const register = async (userData) => {
     setLoading(true);
     try {
       console.log("AuthContext - Calling register API...");
-      const response = await axios.post('http://localhost:8000/api/register/', {
+      const payload = {
         email: userData.email,
         password: userData.password,
-        password2: userData.password,
+        password2: userData.password, // Assuming password and password2 are the same for registration
         first_name: userData.first_name,
         last_name: userData.last_name,
         phone: userData.phone || '',
-        is_therapist: userData.isTherapist || false
-      });
+        is_therapist: userData.isTherapist || false,
+      };
+
+      // Add therapist-specific fields only if registering as a therapist
+      if (payload.is_therapist) {
+        payload.is_available = userData.is_available;
+        payload.is_free_consultation = userData.is_free_consultation;
+        payload.hourly_rate = userData.hourly_rate; // Can be null if free consultation
+        payload.session_modes = userData.session_modes;
+        payload.physical_address = userData.physical_address;
+        // Add other therapist fields if they are part of the registration flow
+        payload.years_of_experience = userData.years_of_experience || null;
+        payload.specializations = userData.specializations ? userData.specializations.join(',') : null;
+        payload.license_credentials = userData.license_credentials || null;
+        payload.approach_modalities = userData.approach_modalities || null;
+        payload.languages_spoken = userData.languages_spoken || null;
+        payload.client_focus = userData.client_focus || null;
+        payload.insurance_accepted = userData.insurance_accepted;
+        payload.video_introduction_url = userData.video_introduction_url || null;
+        // profile_picture is typically updated after registration, not during initial registration
+        // payload.profile_picture = userData.profile_picture || null;
+      }
+
+      const response = await axios.post('http://localhost:8000/api/register/', payload);
 
       const { access, refresh, user: newUser } = response.data;
-      
+
       setToken(access);
       setRefreshToken(refresh);
       setUser(newUser);
       localStorage.setItem("access_token", access);
       localStorage.setItem("refresh_token", refresh);
       localStorage.setItem("user", JSON.stringify(newUser));
-      
+
       console.log("AuthContext - Registration successful. User set:", newUser);
       return { success: true, user: newUser };
     } catch (err) {
-      console.error("AuthContext - Registration error:", err);
-      
+      console.error("AuthContext - Registration error:", err.response?.data || err);
+
       let errorMessage = "Registration failed. Please check your input and try again.";
       if (err.response && err.response.data) {
         const errors = err.response.data;
-        const errorKey = Object.keys(errors)[0];
-        if (errorKey && Array.isArray(errors[errorKey])) {
+        const errorKey = Object.keys(errors)[0]; // Get the first error key
+        if (errorKey) {
+          const fieldError = errors[errorKey];
           const fieldName = errorKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          errorMessage = `${fieldName}: ${errors[errorKey][0]}`;
+          if (Array.isArray(fieldError)) {
+            errorMessage = `${fieldName}: ${fieldError.join(', ')}`;
+          } else if (typeof fieldError === 'string') {
+            errorMessage = `${fieldName}: ${fieldError}`;
+          } else if (errors.detail) { // For generic detail errors
+            errorMessage = errors.detail;
+          } else {
+            // Fallback for other structured errors
+            errorMessage = Object.keys(errors).map(key => {
+              const errValue = errors[key];
+              const name = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `${name}: ${Array.isArray(errValue) ? errValue.join(', ') : errValue}`;
+            }).join('; ');
+          }
         }
       }
-      
+
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);

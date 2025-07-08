@@ -1265,7 +1265,12 @@ export default function AdminDashboard() {
         {currentTab === 4 && (
           <Paper
             elevation={3} // Added Paper for consistent styling with other tabs
-            sx={{ p: 3, backgroundColor: "white", borderRadius: 2, minHeight: '600px' }} // Added minHeight for sufficient graph space
+            sx={{
+              p: 3,
+              backgroundColor: "white",
+              borderRadius: 2,
+              minHeight: "600px",
+            }} // Added minHeight for sufficient graph space
           >
             <Typography
               variant="h5"
@@ -1436,8 +1441,9 @@ export default function AdminDashboard() {
                           data={analyticsData.sessionTypeData}
                           cx="50%"
                           cy="50%"
-                          labelLine={false}
-                          outerRadius={120}
+                          // labelLine={false} // Removed to allow for default label lines if needed
+                          outerRadius={100} // Reduced outer radius
+                          innerRadius={60} // Added inner radius for a doughnut chart
                           fill="#8884d8"
                           dataKey="value"
                           label={({ name, percent }) =>
@@ -1467,7 +1473,9 @@ export default function AdminDashboard() {
                     )}
                   </Box>
                 </Grid>
-                <Grid item xs={12}> {/* This grid item now takes full width */}
+                <Grid item xs={12}>
+                  {" "}
+                  {/* This grid item now takes full width */}
                   <Box
                     sx={{
                       p: 2,
@@ -1491,8 +1499,9 @@ export default function AdminDashboard() {
                           data={analyticsData.moodData}
                           cx="50%"
                           cy="50%"
-                          labelLine={false}
-                          outerRadius={150}
+                          // labelLine={false} // Removed for better default label placement, can be re-added with custom labels
+                          outerRadius={130} // Reduced outer radius slightly
+                          innerRadius={80} // Added inner radius for doughnut
                           fill="#8884d8"
                           dataKey="count"
                           label={({ name, percent }) =>

@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { Box, Button, TextField, Typography, Alert } from "@mui/material"; // Removed Paper import
+import { Box, Button, TextField, Typography, Alert } from "@mui/material";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,22 +15,29 @@ export default function Login() {
     e.preventDefault();
     setError("");
     try {
-      const response = await login(email, password); //
+      const response = await login(email, password);
 
-      if (response && response.user) { //
-        if (response.user.is_staff && response.user.is_superuser) { //
-          navigate("/admin/applications"); //
-        } else if (response.user.is_therapist) { //
-          navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply"); //
+      if (response && response.user) {
+        if (response.user.is_staff && response.user.is_superuser) {
+          navigate("/admin/applications");
+        } else if (response.user.is_therapist) {
+          navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply");
         } else {
           navigate("/dashboard");
         }
       } else {
-        setError("Login successful, but user data not fully retrieved. Redirecting to homepage.");
+        // This block might be hit if login is successful but user data isn't fully returned,
+        // or if the `login` function returns success: false with a custom error message.
+        setError(response.error || "Login successful, but user data not fully retrieved. Redirecting to homepage.");
+        // Consider if you always want to navigate to dashboard here, or if it should be more conditional.
+        // For now, keeping original logic.
         navigate("/dashboard");
       }
     } catch (err) {
-      setError(err.error || err.message || "Invalid credentials. Please try again.");
+      // The useAuth login function now returns an object with `success` and `error` properties.
+      // The outer catch block might only be hit for network errors or unhandled exceptions.
+      // The `login` function itself handles the API error and returns `success: false` with `error`.
+      setError(err.error || err.message || "An unexpected error occurred during login.");
     }
   };
 
@@ -51,7 +58,6 @@ export default function Login() {
           flexDirection: { xs: "column", md: "row" },
           width: "100%",
           maxWidth: 900,
-          // No border radius or shadow directly on this box, content will define its own shape
           overflow: "hidden", // Ensures content respects boundaries
           backgroundColor: "#fefae0", // Ensure consistent background within the content area
         }}

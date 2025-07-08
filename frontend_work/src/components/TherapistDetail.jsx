@@ -284,6 +284,7 @@ export default function TherapistDetail() {
   }
 
   const isButtonDisabled = (user && user.is_therapist) || !therapist.is_available;
+  const showChatButton = user && user.id !== therapist.user; // Only show if logged in and not viewing self
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: lightCream }}> {/* Main page background */}
@@ -465,7 +466,7 @@ export default function TherapistDetail() {
           </Box>
         )}
 
-        {/* Call to Action for Booking */}
+        {/* Call to Action for Booking and Chat */}
         <Box sx={{ textAlign: 'center', my: { xs: 4, md: 6 } }}>
           <Typography variant="h5" sx={{ color: themePrimaryColor, mb: 3, fontWeight: 'bold' }}>
             Ready to start your healing journey?
@@ -495,6 +496,33 @@ export default function TherapistDetail() {
               (user && user.is_therapist ? "Therapists Cannot Book Sessions" : "Therapist Not Available for Booking")
               : (showBookingForm ? "Hide Booking Options" : "Connect With Me")}
           </Button>
+
+          {showChatButton && ( // Only show if logged in and not viewing self (the therapist)
+            <Button
+              variant="contained"
+              sx={{
+                backgroundColor: '#00796B', // A distinct color for chat (Teal)
+                color: 'white',
+                py: 2,
+                px: 6,
+                borderRadius: 3,
+                fontSize: '1.2rem',
+                fontWeight: 'bold',
+                boxShadow: '0 6px 15px rgba(0,121,107,0.2)',
+                transition: 'all 0.3s ease-in-out',
+                '&:hover': {
+                  backgroundColor: '#004D40', // Darker teal on hover
+                  transform: 'translateY(-3px)',
+                  boxShadow: '0 8px 20px rgba(0,121,107,0.3)',
+                },
+                mt: { xs: 2, md: 0 }, // Add top margin on small screens, no margin on larger
+                ml: { xs: 0, md: 2 } // Add left margin on medium/large screens
+              }}
+              onClick={handleStartChat}
+            >
+              Chat With Me
+            </Button>
+          )}
         </Box>
 
         {/* Booking Section */}
