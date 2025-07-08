@@ -30,6 +30,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Stack, // Added Stack import here
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
@@ -76,7 +77,8 @@ export default function AdminDashboard() {
     totalTherapists: 0,
     sessionData: [],
     moodData: [],
-    totalRevenue: 0,
+    totalRevenue: 0, // Merged back to single totalRevenue
+    totalAllPayments: 0,
     revenueTrendData: [],
     sessionTypeData: [],
   });
@@ -208,13 +210,11 @@ export default function AdminDashboard() {
       const allUsers = usersRes.data;
       const allSessions = sessionsRes.data;
       const allJournalEntries = journalsRes.data;
-      const allPayments = paymentsRes.data; // Use the fetched payments
+      const allPayments = paymentsRes.data;
 
-      // Calculate total users and therapists
       const totalUsers = allUsers.length;
       const totalTherapists = allUsers.filter((u) => u.is_therapist).length;
 
-      // Calculate session status distribution
       const sessionStatusCounts = allSessions.reduce((acc, session) => {
         acc[session.status] = (acc[session.status] || 0) + 1;
         return acc;
@@ -225,7 +225,6 @@ export default function AdminDashboard() {
         count: sessionStatusCounts[status],
       }));
 
-      // Calculate mood distribution from journal entries
       const moodCounts = allJournalEntries.reduce((acc, entry) => {
         if (entry.mood) {
           acc[entry.mood] = (acc[entry.mood] || 0) + 1;
@@ -238,11 +237,10 @@ export default function AdminDashboard() {
         count: moodCounts[mood],
       }));
 
-      // Calculate Financial Data
       let totalRevenue = 0;
       let paidSessionsCount = 0;
       let freeSessionsCount = 0;
-      const monthlyRevenue = {}; // { 'YYYY-MM': amount }
+      const monthlyRevenue = {};
 
       allSessions.forEach((session) => {
         if (session.session_request_is_paid) {
@@ -252,8 +250,9 @@ export default function AdminDashboard() {
         }
       });
 
+      // Reverted to sum both completed and pending for Total Revenue, as per request
       allPayments
-        .filter((p) => p.status === "completed")
+        .filter((p) => p.status === "completed" || p.status === "pending")
         .forEach((payment) => {
           totalRevenue += parseFloat(payment.amount);
           const monthYear = format(new Date(payment.payment_date), "yyyy-MM");
@@ -261,10 +260,12 @@ export default function AdminDashboard() {
             (monthlyRevenue[monthYear] || 0) + parseFloat(payment.amount);
         });
 
+      const totalAllPayments = allPayments.length;
+
       const revenueTrendData = Object.keys(monthlyRevenue)
         .sort()
         .map((month) => ({
-          name: format(new Date(month + "-01"), "MMM 'McFarland'"), // Corrected format string
+          name: format(new Date(month + "-01"), "MMM 'McFarland'"),
           Revenue: monthlyRevenue[month],
         }));
 
@@ -286,7 +287,8 @@ export default function AdminDashboard() {
         totalTherapists,
         sessionData,
         moodData,
-        totalRevenue,
+        totalRevenue, // Single totalRevenue field
+        totalAllPayments,
         revenueTrendData,
         sessionTypeData,
       });
@@ -296,13 +298,13 @@ export default function AdminDashboard() {
         err.response?.data || err
       );
       setError("Failed to load analytics data.");
-      // Set to default empty state on error, rather than null, to prevent style errors
       setAnalyticsData({
         totalUsers: 0,
         totalTherapists: 0,
         sessionData: [],
         moodData: [],
         totalRevenue: 0,
+        totalAllPayments: 0,
         revenueTrendData: [],
         sessionTypeData: [],
       });
@@ -330,7 +332,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!authLoading && user && user.is_staff && user.is_superuser) {
-      // Fetch data based on the current tab
       if (currentTab === 0) {
         fetchTherapistApplications();
       } else if (currentTab === 1) {
@@ -363,11 +364,8 @@ export default function AdminDashboard() {
     fetchAnalyticsData,
   ]);
 
-  // Handle tab change (will need to be triggered by side navbar or other UI elements)
   const handleTabChange = (event, newValue) => {
-    // This function will no longer be called by Tabs component
     setCurrentTab(newValue);
-    // Optionally, update the URL to match the tab change for direct linking
     const tabToPathMap = {
       0: "/admin/applications",
       1: "/admin/users",
@@ -379,7 +377,6 @@ export default function AdminDashboard() {
     setError(null);
   };
 
-  // Snackbar and Modal Handlers
   const handleSnackbarClose = (event, reason) => {
     if (reason === "clickaway") return;
     setSnackbarOpen(false);
@@ -412,7 +409,7 @@ export default function AdminDashboard() {
       setSnackbarSeverity("success");
       setSnackbarOpen(true);
       handleCloseReviewModal();
-      fetchTherapistApplications(); // Refresh the list
+      fetchTherapistApplications();
     } catch (err) {
       console.error("Error updating application:", err.response?.data || err);
       setSnackbarMessage(
@@ -425,7 +422,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // New: Handle User Details Modals
   const handleOpenUserDetailsModal = (userData) => {
     setSelectedUser(userData);
     setOpenUserDetailsModal(true);
@@ -434,7 +430,6 @@ export default function AdminDashboard() {
     setOpenUserDetailsModal(false);
   };
 
-  // Conditional rendering for loading and access denied
   if (authLoading || loading) {
     return (
       <Box
@@ -1184,16 +1179,85 @@ export default function AdminDashboard() {
           </Paper>
         )}
 
+        {/* Tab Panel for Journal Entries */}
+        {currentTab === 3 && (
+          <Paper
+            elevation={3}
+            sx={{ p: 3, backgroundColor: "white", borderRadius: 2 }}
+          >
+            <Typography
+              variant="h5"
+              sx={{ color: primaryColor, mb: 3, fontWeight: "bold" }}
+            >
+              All Journal Entries
+            </Typography>
+            {/* Removed console.log for cleaner output */}
+            {error ? (
+              <Typography color="error" sx={{ textAlign: "center", mt: 2 }}>
+                {error}
+              </Typography>
+            ) : journalEntries.length === 0 ? (
+              <Typography
+                variant="h6"
+                sx={{ textAlign: "center", color: primaryColor, mt: 2 }}
+              >
+                No journal entries found.
+              </Typography>
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>User Email</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Mood</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Entry Snippet</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Tags</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Attachment</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {journalEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>{entry.user_email}</TableCell>
+                        <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
+                        <TableCell>{entry.mood}</TableCell>
+                        <TableCell>{entry.entry.substring(0, 100)}...</TableCell>
+                        <TableCell>
+                          {entry.tags && entry.tags.length > 0 ? (
+                            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                              {entry.tags.map((tag, tagIndex) => (
+                                <Chip key={tagIndex} label={tag} size="small" />
+                              ))}
+                            </Stack>
+                          ) : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          {entry.attachment_name ? (
+                            <MuiLink href={entry.attachment_file} target="_blank" rel="noopener">
+                              View
+                            </MuiLink>
+                          ) : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
+        )}
+
         {/* Tab Panel for Analytics */}
         {currentTab === 4 && (
           <Paper
-            elevation={3} // Added Paper for consistent styling with other tabs
+            elevation={3}
             sx={{
               p: 3,
               backgroundColor: "white",
               borderRadius: 2,
               minHeight: "600px",
-            }} // Added minHeight for sufficient graph space
+            }}
           >
             <Typography
               variant="h5"
@@ -1251,18 +1315,27 @@ export default function AdminDashboard() {
                       }}
                     />
                   </Typography>
+                  <Typography variant="body1" sx={{ mt: 1 }}>
+                    Total Payments:{" "}
+                    <Chip
+                      label={analyticsData.totalAllPayments}
+                      sx={{
+                        bgcolor: tertiaryColor,
+                        color: "white",
+                        fontWeight: "bold",
+                      }}
+                    />
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <Box
                     sx={{
                       p: 2,
-                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
-                      // Added explicit minHeight for chart container to ensure it has space
                       minHeight: 350,
                     }}
                   >
@@ -1303,13 +1376,11 @@ export default function AdminDashboard() {
                   <Box
                     sx={{
                       p: 2,
-                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
-                      // Added explicit minHeight for chart container to ensure it has space
                       minHeight: 350,
                     }}
                   >
@@ -1348,13 +1419,11 @@ export default function AdminDashboard() {
                   <Box
                     sx={{
                       p: 2,
-                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
-                      // Added explicit minHeight for chart container to ensure it has space
                       minHeight: 350,
                     }}
                   >
@@ -1365,20 +1434,19 @@ export default function AdminDashboard() {
                       Free vs. Paid Sessions
                     </Typography>
                     <ResponsiveContainer width="100%" height={300}>
-                      <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 5 }}> {/* Added margin to PieChart */}
+                      <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <Pie
                           data={analyticsData.sessionTypeData}
                           cx="50%"
                           cy="50%"
-                          labelLine={false} // Hide label lines for cleaner look if space is tight
-                          outerRadius={80} // Reduced outerRadius further to give more space for labels
-                          innerRadius={0} // Changed to 0 for full pie chart
+                          labelLine={false}
+                          outerRadius={80}
+                          innerRadius={0}
                           fill="#8884d8"
                           dataKey="value"
                           label={({ name, percent, x, y, outerRadius, midAngle }) => {
-                            // Custom label positioning to prevent cutoff
                             const RADIAN = Math.PI / 180;
-                            const radius = outerRadius + 25; // Distance from center
+                            const radius = outerRadius + 25;
                             const sx = x + radius * Math.cos(-midAngle * RADIAN);
                             const sy = y + radius * Math.sin(-midAngle * RADIAN);
                             const mx = x + radius * Math.cos(-midAngle * RADIAN);
@@ -1404,7 +1472,7 @@ export default function AdminDashboard() {
                             name,
                           ]}
                         />
-                        <Legend wrapperStyle={{ paddingTop: '10px' }} /> {/* Added padding to legend */}
+                        <Legend wrapperStyle={{ paddingTop: '10px' }} />
                       </PieChart>
                     </ResponsiveContainer>
                     {analyticsData.sessionTypeData.length === 0 && (
@@ -1418,18 +1486,14 @@ export default function AdminDashboard() {
                   </Box>
                 </Grid>
                 <Grid item xs={12}>
-                  {" "}
-                  {/* This grid item now takes full width */}
                   <Box
                     sx={{
                       p: 2,
-                      // Removed height: "100%", to fix resizing issues
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
                       border: "1px solid #ccc",
                       borderRadius: 2,
-                      // Added explicit minHeight for chart container to ensure it has space
                       minHeight: 500,
                     }}
                   >
@@ -1440,20 +1504,19 @@ export default function AdminDashboard() {
                       Journal Entry Mood Distribution
                     </Typography>
                     <ResponsiveContainer width="100%" height={450}>
-                      <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 5 }}> {/* Added margin to PieChart */}
+                      <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <Pie
                           data={analyticsData.moodData}
                           cx="50%"
                           cy="50%"
-                          labelLine={false} // Hide label lines for cleaner look
-                          outerRadius={110} // Reduced outerRadius slightly more
-                          innerRadius={0} // Changed to 0 for full pie chart
+                          labelLine={false}
+                          outerRadius={110}
+                          innerRadius={0}
                           fill="#8884d8"
                           dataKey="count"
                           label={({ name, percent, x, y, outerRadius, midAngle }) => {
-                            // Custom label positioning to prevent cutoff
                             const RADIAN = Math.PI / 180;
-                            const radius = outerRadius + 25; // Distance from center
+                            const radius = outerRadius + 25;
                             const sx = x + radius * Math.cos(-midAngle * RADIAN);
                             const sy = y + radius * Math.sin(-midAngle * RADIAN);
                             const mx = x + radius * Math.cos(-midAngle * RADIAN);
@@ -1477,7 +1540,7 @@ export default function AdminDashboard() {
                           ))}
                         </Pie>
                         <Tooltip />
-                        <Legend wrapperStyle={{ paddingTop: '10px' }} /> {/* Added padding to legend */}
+                        <Legend wrapperStyle={{ paddingTop: '10px' }} />
                       </PieChart>
                     </ResponsiveContainer>
                     {analyticsData.moodData.length === 0 && (
