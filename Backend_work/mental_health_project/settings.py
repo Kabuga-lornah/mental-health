@@ -1,5 +1,3 @@
-# Backend_work/mental_health_project/settings.py
-
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
