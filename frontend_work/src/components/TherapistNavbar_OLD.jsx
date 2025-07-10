@@ -1,7 +1,7 @@
 // Overwriting file: TherapistNavbar_OLD.jsx
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useSessionFilter } from "../context/SessionFilterContext"; // Import useSessionFilter
+// Removed: import { useSessionFilter } from "../context/SessionFilterContext";
 import {
   AppBar,
   Toolbar,
@@ -12,14 +12,14 @@ import {
   Menu,
   MenuItem,
   IconButton,
-  TextField, // Added TextField
-  InputAdornment // Added InputAdornment
+  // Removed: TextField,
+  // Removed: InputAdornment
 } from "@mui/material";
 import { useState, useEffect } from "react";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker"; // Added DatePicker
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"; // Added LocalizationProvider
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"; // Added AdapterDateFns
-import { Search as SearchIcon, Clear as ClearIcon } from "@mui/icons-material"; // Added Icons
+// Removed: import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+// Removed: import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+// Removed: import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+// Removed: import { Search as SearchIcon, Clear as ClearIcon } from "@mui/icons-material";
 
 const loadCinzelFont = () => {
   const link = document.createElement("link");
@@ -30,7 +30,7 @@ const loadCinzelFont = () => {
 
 export default function TherapistNavbar() {
   const { user, logout } = useAuth();
-  const { clientSearchTerm, setClientSearchTerm, sessionDateFilter, setSessionDateFilter } = useSessionFilter(); // Use session filter context
+  // Removed: const { clientSearchTerm, setClientSearchTerm, sessionDateFilter, setSessionDateFilter } = useSessionFilter();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -47,10 +47,10 @@ export default function TherapistNavbar() {
     navigate("/");
   };
 
-  const handleClearFilters = () => {
-    setClientSearchTerm('');
-    setSessionDateFilter(null);
-  };
+  // Removed: const handleClearFilters = () => {
+  // Removed:   setClientSearchTerm('');
+  // Removed:   setSessionDateFilter(null);
+  // Removed: };
 
   if (!user || !user.is_therapist) return null;
 
@@ -78,14 +78,14 @@ export default function TherapistNavbar() {
             letterSpacing: "1px",
             textTransform: "uppercase",
             "&:hover": { color: "white" },
-            minWidth: 'fit-content' // Prevent text from shrinking too much
+            minWidth: 'fit-content'
           }}
         >
           {/* MindWell */}
         </Typography>
 
-        {/* Search and Filter Bar in Navbar */}
-        <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, alignItems: 'center', mx: 2, my: { xs: 1, sm: 0 }, maxWidth: 600 }}>
+        {/* Removed Search and Filter Bar */}
+        {/* <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, alignItems: 'center', mx: 2, my: { xs: 1, sm: 0 }, maxWidth: 600 }}>
           <TextField
             label="Search Client"
             variant="outlined"
@@ -158,7 +158,7 @@ export default function TherapistNavbar() {
               Clear
             </Button>
           )}
-        </Box>
+        </Box> */}
 
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           {user && user.is_therapist ? (

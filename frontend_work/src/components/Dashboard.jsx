@@ -670,7 +670,7 @@ export default function Dashboard() {
 
     if (exerciseTimerRef.current) clearInterval(exerciseTimerRef.current);
     if (phaseTimerRef.current) clearTimeout(phaseTimerRef.current);
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); // Clear any existing countdown interval
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); 
 
     const newExerciseTimer = setInterval(() => {
       totalTimeElapsedRef.current += 1;

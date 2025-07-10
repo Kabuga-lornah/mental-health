@@ -125,6 +125,9 @@ else:
         }
     }
 
+# DATABASES = {
+#     'default': dj_database_url.parse("postgresql://mental_health_xxgs_user:GuNNLiYC3XiqybXTc94NzVDdbdIxd9UZ@dpg-d1mqfgje5dus73804u0g-a.oregon-postgres.render.com/mental_health_xxgs")}
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
