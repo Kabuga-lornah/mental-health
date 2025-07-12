@@ -13,30 +13,24 @@ import {
   FormControlLabel,
   Radio,
   Alert,
-  Checkbox,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
-  Stack,
-  ListItemText,
   Snackbar
 } from "@mui/material";
 
-const specializationsList = [
-  'Anxiety and Stress Management',
-  'Depression and Mood Disorders',
-  'Relationship and Marital Issues',
-  'Family Counseling',
-  'Trauma and PTSD',
-  'Grief and Loss',
-  'Addiction and Substance Abuse',
-  'Child and Adolescent Therapy',
-  'Anger Management',
-  'Self-Esteem and Personal Growth',
-  'Career and Work-related Stress',
-  'LGBTQ+ Counseling',
-];
+// specializationsList is no longer needed in AuthPage.jsx once therapist fields are removed from here
+// const specializationsList = [
+//   'Anxiety and Stress Management',
+//   'Depression and Mood Disorders',
+//   'Relationship and Marital Issues',
+//   'Family Counseling',
+//   'Trauma and PTSD',
+//   'Grief and Loss',
+//   'Addiction and Substance Abuse',
+//   'Child and Adolescent Therapy',
+//   'Anger Management',
+//   'Self-Esteem and Personal Growth',
+//   'Career and Work-related Stress',
+//   'LGBTQ+ Counseling',
+// ];
 
 export default function AuthPage() {
   const location = useLocation();
@@ -49,24 +43,13 @@ export default function AuthPage() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    password2: "", // ADDED: Field for password confirmation
     first_name: "",
     last_name: "",
     phone: "",
     registerAsTherapist: false,
-    // Restored therapist-specific fields to formData state
-    is_available: false,
-    is_free_consultation: false,
-    hourly_rate: '', // Kept as string for TextField
-    session_modes: 'online',
-    physical_address: '',
-    years_of_experience: '', // Kept as string for TextField
-    specializations: [],
-    license_credentials: '',
-    approach_modalities: '',
-    languages_spoken: '',
-    client_focus: '',
-    insurance_accepted: false,
-    video_introduction_url: '',
+    // REMOVED: All therapist-specific fields from formData state
+    // They will be handled on the TherapistApplicationForm page.
   });
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -98,72 +81,47 @@ export default function AuthPage() {
     setFormData((prev) => ({
       ...prev,
       registerAsTherapist: e.target.value === "therapist",
-      // Reset therapist-specific fields if switching back to user (as in original Register.jsx)
-      ...(e.target.value === "user" && {
-        is_available: false,
-        is_free_consultation: false,
-        hourly_rate: '',
-        session_modes: 'online',
-        physical_address: '',
-        years_of_experience: '',
-        specializations: [],
-        license_credentials: '',
-        approach_modalities: '',
-        languages_spoken: '',
-        client_focus: '',
-        insurance_accepted: false,
-        video_introduction_url: '',
-      })
+      // No need to reset therapist-specific fields here as they are no longer in formData.
     }));
   };
 
-  const handleSpecializationChange = (event) => {
-    const { value } = event.target;
-    setFormData(prev => ({
-      ...prev,
-      specializations: typeof value === 'string' ? value.split(',') : value,
-    }));
-  };
+  // REMOVED: handleSpecializationChange as specializations are not collected on registration
+  // const handleSpecializationChange = (event) => {
+  //   const { value } = event.target;
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     specializations: typeof value === 'string' ? value.split(',') : value,
+  //   }));
+  // };
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
+    // Frontend validation for password match
+    if (formData.password !== formData.password2) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     try {
       const payload = {
         email: formData.email,
         password: formData.password,
+        password2: formData.password2, // ADDED: Include password2 in the payload
         first_name: formData.first_name,
         last_name: formData.last_name,
         phone: formData.phone,
         isTherapist: formData.registerAsTherapist,
       };
 
-      // Restored original logic for therapist-specific fields inclusion in payload
-      if (formData.registerAsTherapist) {
-        payload.is_available = formData.is_available;
-        payload.is_free_consultation = formData.is_free_consultation;
-        // Parse hourly_rate correctly: null if free consultation, otherwise parse float or null if empty
-        payload.hourly_rate = formData.is_free_consultation ? null : (formData.hourly_rate === '' ? null : parseFloat(formData.hourly_rate));
-        payload.session_modes = formData.session_modes;
-        payload.physical_address = formData.physical_address;
-        // Parse years_of_experience: null if empty string, otherwise parse int
-        payload.years_of_experience = formData.years_of_experience === '' ? null : parseInt(formData.years_of_experience);
-        payload.specializations = formData.specializations; // Array will be joined in AuthContext/Serializer if needed
-        payload.license_credentials = formData.license_credentials;
-        payload.approach_modalities = formData.approach_modalities;
-        payload.languages_spoken = formData.languages_spoken;
-        payload.client_focus = formData.client_focus;
-        payload.insurance_accepted = formData.insurance_accepted;
-        payload.video_introduction_url = formData.video_introduction_url;
-      }
+      // REMOVED: All therapist-specific fields from payload construction
+      // They are not sent during initial user registration.
 
       const response = await register(payload);
 
       if (response.success) {
         let message = "Registration successful! Please log in.";
-        // This condition implies a new therapist who needs to fill the form later
-        // The previous redirection logic from login handler will take care of this.
         if (formData.registerAsTherapist) {
             message = "Therapist account created! Please log in to complete your application.";
         }
@@ -192,13 +150,13 @@ export default function AuthPage() {
         if (response.user.is_staff && response.user.is_superuser) {
           navigate("/admin/applications");
         } else if (response.user.is_therapist) {
+          // Redirect to therapist application form if therapist and not verified
           navigate(response.user.is_verified ? "/therapist/dashboard" : "/therapist-apply");
         } else {
           navigate("/homepage");
         }
       } else {
         setError(response.error || "Login failed. Please try again.");
-        navigate("/homepage");
       }
     } catch (err) {
       setError(err.error || err.message || "An unexpected error occurred during login.");
@@ -340,6 +298,17 @@ export default function AuthPage() {
                 fullWidth
                 required
                 variant="standard"
+                sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }}
+              />
+              <TextField
+                label="Confirm Password" // ADDED: Confirm Password field
+                name="password2"
+                type="password"
+                value={formData.password2}
+                onChange={handleChange}
+                fullWidth
+                required
+                variant="standard"
                 sx={{ mb: 3, '& .MuiInput-underline:after': { borderColor: '#780000' } }}
               />
 
@@ -366,171 +335,8 @@ export default function AuthPage() {
                 </RadioGroup>
               </FormControl>
 
-              {/* Restored Therapist-specific fields section */}
-              {formData.registerAsTherapist && (
-                <Box sx={{ width: '100%', mt: 2 }}>
-                  <Typography variant="h6" sx={{ color: '#780000', mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>
-                    Therapist Details
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    label="Years of Experience"
-                    name="years_of_experience"
-                    type="number"
-                    value={formData.years_of_experience}
-                    onChange={handleChange}
-                    sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                  />
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Specializations</InputLabel>
-                    <Select
-                      multiple
-                      name="specializations"
-                      value={formData.specializations}
-                      onChange={handleSpecializationChange}
-                      renderValue={(selected) => (
-                        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                          {selected.map((value) => (
-                            <Chip key={value} label={value} size="small" />
-                          ))}
-                        </Stack>
-                      )}
-                      variant="standard" // Apply standard variant
-                      sx={{ '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                    >
-                      {specializationsList.map((name) => (
-                        <MenuItem key={name} value={name}>
-                          <Checkbox checked={formData.specializations.indexOf(name) > -1} sx={{ color: '#780000' }} />
-                          <ListItemText primary={name} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <TextField
-                    fullWidth
-                    label="License & Credentials"
-                    name="license_credentials"
-                    value={formData.license_credentials}
-                    onChange={handleChange}
-                    helperText="e.g., LMFT, LCSW, PhD"
-                    variant="standard" // Apply standard variant
-                    sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                  />
-                  <TextField
-                    fullWidth
-                    label="Approach/Therapeutic Modalities"
-                    name="approach_modalities"
-                    value={formData.approach_modalities}
-                    onChange={handleChange}
-                    multiline
-                    rows={2}
-                    helperText="e.g., CBT, EMDR, Psychodynamic"
-                    variant="standard" // Apply standard variant
-                    sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                  />
-                  <TextField
-                    fullWidth
-                    label="Languages Spoken"
-                    name="languages_spoken"
-                    value={formData.languages_spoken}
-                    onChange={handleChange}
-                    helperText="Comma-separated, e.g., English, Swahili"
-                    variant="standard" // Apply standard variant
-                    sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                  />
-                  <TextField
-                    fullWidth
-                    label="Client Focus"
-                    name="client_focus"
-                    value={formData.client_focus}
-                    onChange={handleChange}
-                    helperText="e.g., Adults, Teens, LGBTQ+, Couples"
-                    variant="standard" // Apply standard variant
-                    sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                  />
-                  <TextField
-                    fullWidth
-                    label="Video Introduction URL"
-                    name="video_introduction_url"
-                    value={formData.video_introduction_url}
-                    onChange={handleChange}
-                    helperText="Link to a brief video introduction (e.g., YouTube)"
-                    variant="standard" // Apply standard variant
-                    sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.insurance_accepted}
-                        onChange={handleChange}
-                        name="insurance_accepted"
-                        sx={{ color: '#780000' }} // Apply theme color
-                      />
-                    }
-                    label="Accept insurance?"
-                    sx={{ mb: 1 }}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.is_free_consultation}
-                        onChange={handleChange}
-                        name="is_free_consultation"
-                        sx={{ color: '#780000' }} // Apply theme color
-                      />
-                    }
-                    label="Offer a free initial consultation?"
-                    sx={{ mb: 1 }}
-                  />
-                  {!formData.is_free_consultation && (
-                    <TextField
-                      fullWidth
-                      label="Hourly Rate (Ksh)"
-                      name="hourly_rate"
-                      type="number"
-                      value={formData.hourly_rate}
-                      onChange={handleChange}
-                      inputProps={{ min: 0 }}
-                      variant="standard" // Apply standard variant
-                      sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                    />
-                  )}
-                  <FormControl component="fieldset" fullWidth sx={{ mb: 2 }}>
-                    <FormLabel component="legend">Session Modes</FormLabel>
-                    <RadioGroup row name="session_modes" value={formData.session_modes} onChange={handleChange}>
-                      <FormControlLabel value="online" control={<Radio sx={{ color: '#780000' }} />} label="Online" />
-                      <FormControlLabel value="physical" control={<Radio sx={{ color: '#780000' }} />} label="Physical (In-Person)" />
-                      <FormControlLabel value="both" control={<Radio sx={{ color: '#780000' }} />} label="Both" />
-                    </RadioGroup>
-                  </FormControl>
-                  {(formData.session_modes === 'physical' || formData.session_modes === 'both') && (
-                    <TextField
-                      fullWidth
-                      label="Physical Address"
-                      name="physical_address"
-                      value={formData.physical_address}
-                      onChange={handleChange}
-                      multiline
-                      rows={2}
-                      variant="standard" // Apply standard variant
-                      sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }} // Apply theme color
-                    />
-                  )}
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.is_available}
-                        onChange={handleChange}
-                        name="is_available"
-                        sx={{ color: '#780000' }} // Apply theme color
-                      />
-                    }
-                    label="Available for new sessions?"
-                    sx={{ mb: 2 }}
-                  />
-                </Box>
-              )}
-              {/* End of Restored Therapist-specific fields section */}
+              {/* REMOVED: The therapist-specific fields section. */}
+              {/* This content will now be handled on TherapistApplicationForm.jsx */}
 
               <Button
                 type="submit"
@@ -616,24 +422,12 @@ export default function AuthPage() {
                 setFormData({
                     email: "",
                     password: "",
+                    password2: "", // Clear password2 as well when toggling modes
                     first_name: "",
                     last_name: "",
                     phone: "",
                     registerAsTherapist: false,
-                    // Reset therapist fields if toggling to user mode
-                    is_available: false,
-                    is_free_consultation: false,
-                    hourly_rate: '',
-                    session_modes: 'online',
-                    physical_address: '',
-                    years_of_experience: '',
-                    specializations: [],
-                    license_credentials: '',
-                    approach_modalities: '',
-                    languages_spoken: '',
-                    client_focus: '',
-                    insurance_accepted: false,
-                    video_introduction_url: '',
+                    // No need to clear therapist-specific fields here as they are no longer in formData.
                 });
                 navigate(isRegisterMode ? "/login" : "/register", { replace: true });
               }}
