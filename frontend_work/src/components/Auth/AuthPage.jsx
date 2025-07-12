@@ -16,22 +16,6 @@ import {
   Snackbar
 } from "@mui/material";
 
-// specializationsList is no longer needed in AuthPage.jsx once therapist fields are removed from here
-// const specializationsList = [
-//   'Anxiety and Stress Management',
-//   'Depression and Mood Disorders',
-//   'Relationship and Marital Issues',
-//   'Family Counseling',
-//   'Trauma and PTSD',
-//   'Grief and Loss',
-//   'Addiction and Substance Abuse',
-//   'Child and Adolescent Therapy',
-//   'Anger Management',
-//   'Self-Esteem and Personal Growth',
-//   'Career and Work-related Stress',
-//   'LGBTQ+ Counseling',
-// ];
-
 export default function AuthPage() {
   const location = useLocation();
   const [isRegisterMode, setIsRegisterMode] = useState(location.pathname === "/register");
@@ -43,13 +27,11 @@ export default function AuthPage() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    password2: "", // ADDED: Field for password confirmation
+    password2: "",
     first_name: "",
     last_name: "",
     phone: "",
     registerAsTherapist: false,
-    // REMOVED: All therapist-specific fields from formData state
-    // They will be handled on the TherapistApplicationForm page.
   });
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -81,18 +63,8 @@ export default function AuthPage() {
     setFormData((prev) => ({
       ...prev,
       registerAsTherapist: e.target.value === "therapist",
-      // No need to reset therapist-specific fields here as they are no longer in formData.
     }));
   };
-
-  // REMOVED: handleSpecializationChange as specializations are not collected on registration
-  // const handleSpecializationChange = (event) => {
-  //   const { value } = event.target;
-  //   setFormData(prev => ({
-  //     ...prev,
-  //     specializations: typeof value === 'string' ? value.split(',') : value,
-  //   }));
-  // };
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
@@ -104,45 +76,109 @@ export default function AuthPage() {
       return;
     }
 
+    // Basic validation
+    if (!formData.email || !formData.password || !formData.first_name || !formData.last_name) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
     try {
+      // Try different payload structures to match backend expectations
       const payload = {
         email: formData.email,
         password: formData.password,
-        password2: formData.password2, // ADDED: Include password2 in the payload
+        password2: formData.password2,
         first_name: formData.first_name,
         last_name: formData.last_name,
-        phone: formData.phone,
+        phone: formData.phone || "", // Ensure phone is never undefined
+        // Try both field names in case backend expects different naming
         isTherapist: formData.registerAsTherapist,
+        is_therapist: formData.registerAsTherapist,
       };
 
-      // REMOVED: All therapist-specific fields from payload construction
-      // They are not sent during initial user registration.
+      console.log("Sending registration payload:", payload); // Debug log
 
       const response = await register(payload);
 
       if (response.success) {
         let message = "Registration successful! Please log in.";
         if (formData.registerAsTherapist) {
-            message = "Therapist account created! Please log in to complete your application.";
+          message = "Therapist account created! Please log in to complete your application.";
         }
         setSnackbarMessage(message);
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
-        setIsRegisterMode(false); // Switch to login form
+        
+        // Clear form data
+        setFormData({
+          email: "",
+          password: "",
+          password2: "",
+          first_name: "",
+          last_name: "",
+          phone: "",
+          registerAsTherapist: false,
+        });
+        
+        // Switch to login mode and set email
+        setIsRegisterMode(false);
         setLoginEmail(formData.email);
         setLoginPassword('');
         navigate("/login", { replace: true });
       } else {
-        setError(response.error || "Registration failed. Please try again.");
+        // Better error handling
+        if (response.error) {
+          if (typeof response.error === 'object') {
+            // Handle field-specific errors
+            const errorMessages = [];
+            Object.keys(response.error).forEach(field => {
+              if (Array.isArray(response.error[field])) {
+                errorMessages.push(`${field}: ${response.error[field].join(', ')}`);
+              } else {
+                errorMessages.push(`${field}: ${response.error[field]}`);
+              }
+            });
+            setError(errorMessages.join('\n'));
+          } else {
+            setError(response.error);
+          }
+        } else {
+          setError("Registration failed. Please try again.");
+        }
       }
     } catch (err) {
-      setError(err.error || err.message || "An unexpected error occurred during registration.");
+      console.error("Registration error:", err); // Debug log
+      
+      // Better error handling for network/server errors
+      if (err.response && err.response.data) {
+        if (typeof err.response.data === 'object') {
+          const errorMessages = [];
+          Object.keys(err.response.data).forEach(field => {
+            if (Array.isArray(err.response.data[field])) {
+              errorMessages.push(`${field}: ${err.response.data[field].join(', ')}`);
+            } else {
+              errorMessages.push(`${field}: ${err.response.data[field]}`);
+            }
+          });
+          setError(errorMessages.join('\n'));
+        } else {
+          setError(err.response.data);
+        }
+      } else {
+        setError(err.error || err.message || "An unexpected error occurred during registration.");
+      }
     }
   };
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    
+    if (!loginEmail || !loginPassword) {
+      setError("Please enter both email and password.");
+      return;
+    }
+
     try {
       const response = await login(loginEmail, loginPassword);
 
@@ -156,9 +192,10 @@ export default function AuthPage() {
           navigate("/homepage");
         }
       } else {
-        setError(response.error || "Login failed. Please try again.");
+        setError(response.error || "Login failed. Please check your credentials.");
       }
     } catch (err) {
+      console.error("Login error:", err); // Debug log
       setError(err.error || err.message || "An unexpected error occurred during login.");
     }
   };
@@ -301,7 +338,7 @@ export default function AuthPage() {
                 sx={{ mb: 2, '& .MuiInput-underline:after': { borderColor: '#780000' } }}
               />
               <TextField
-                label="Confirm Password" // ADDED: Confirm Password field
+                label="Confirm Password"
                 name="password2"
                 type="password"
                 value={formData.password2}
@@ -334,9 +371,6 @@ export default function AuthPage() {
                   />
                 </RadioGroup>
               </FormControl>
-
-              {/* REMOVED: The therapist-specific fields section. */}
-              {/* This content will now be handled on TherapistApplicationForm.jsx */}
 
               <Button
                 type="submit"
@@ -422,12 +456,11 @@ export default function AuthPage() {
                 setFormData({
                     email: "",
                     password: "",
-                    password2: "", // Clear password2 as well when toggling modes
+                    password2: "",
                     first_name: "",
                     last_name: "",
                     phone: "",
                     registerAsTherapist: false,
-                    // No need to clear therapist-specific fields here as they are no longer in formData.
                 });
                 navigate(isRegisterMode ? "/login" : "/register", { replace: true });
               }}
@@ -439,11 +472,11 @@ export default function AuthPage() {
         </Box>
       </Box>
 
-        <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
-            <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%', whiteSpace: 'pre-line' }}>
-                {snackbarMessage}
-            </Alert>
-        </Snackbar>
+      <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
+        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%', whiteSpace: 'pre-line' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

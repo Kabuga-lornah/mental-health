@@ -31,6 +31,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   Stack, // Added Stack import here
+  // Removed Tabs and Tab imports as they are no longer needed
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
@@ -49,7 +50,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { format } from "date-fns";
+import { format }  from "date-fns";
 
 export default function AdminDashboard() {
   const { user, token, loading: authLoading } = useAuth();
@@ -68,7 +69,7 @@ export default function AdminDashboard() {
   const [therapistApplications, setTherapistApplications] = useState([]);
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [journalEntries, setJournalEntries] = useState([]);
+  const [journalEntries, setJournalEntries] = useState([]); // Keep for analytics count
   const [payments, setPayments] = useState([]); // New state for payments
 
   // Initialize analyticsData with default empty arrays to prevent undefined errors
@@ -153,22 +154,23 @@ export default function AdminDashboard() {
     }
   }, [token]);
 
+  // Keep fetchJournalEntries for analytics data, but it won't be displayed in a separate tab
   const fetchJournalEntries = useCallback(async () => {
     try {
-      setLoading(true);
+      // No setLoading(true) here as it's part of fetchAnalyticsData
       const response = await axios.get(
         "http://localhost:8000/api/admin/journal-entries/",
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setJournalEntries(response.data);
+      return response.data; // Return data for use in fetchAnalyticsData
     } catch (err) {
       console.error(
-        "Error fetching journal entries:",
+        "Error fetching journal entries for analytics:",
         err.response?.data || err
       );
-      setError("Failed to load journal entries.");
-    } finally {
-      setLoading(false);
+      // Don't set global error here, as analytics might still load other data
+      return []; // Return empty array on error
     }
   }, [token]);
 
@@ -191,7 +193,7 @@ export default function AdminDashboard() {
   const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
-      const [usersRes, sessionsRes, journalsRes, paymentsRes] =
+      const [usersRes, sessionsRes, journalsData, paymentsRes] = // Changed journalsRes to journalsData
         await Promise.all([
           axios.get("http://localhost:8000/api/admin/users/", {
             headers: { Authorization: `Bearer ${token}` },
@@ -199,9 +201,8 @@ export default function AdminDashboard() {
           axios.get("http://localhost:8000/api/admin/sessions/", {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get("http://localhost:8000/api/admin/journal-entries/", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
+          // Call fetchJournalEntries directly here to ensure data is fetched
+          fetchJournalEntries(), // This calls the function, which returns a Promise
           axios.get("http://localhost:8000/api/admin/payments/", {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -209,7 +210,7 @@ export default function AdminDashboard() {
 
       const allUsers = usersRes.data;
       const allSessions = sessionsRes.data;
-      const allJournalEntries = journalsRes.data;
+      const allJournalEntries = journalsData; // Removed .data here
       const allPayments = paymentsRes.data;
 
       const totalUsers = allUsers.length;
@@ -311,15 +312,15 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, fetchJournalEntries]); // Added fetchJournalEntries to dependencies
 
   useEffect(() => {
+    // Updated pathToTabMap to remove /admin/journals (index 3)
     const pathToTabMap = {
       "/admin/applications": 0,
       "/admin/users": 1,
       "/admin/sessions": 2,
-      "/admin/journals": 3,
-      "/admin/analytics": 4,
+      "/admin/analytics": 3, // Analytics is now tab 3
       "/admin": 0,
     };
 
@@ -338,11 +339,10 @@ export default function AdminDashboard() {
         fetchUsers();
       } else if (currentTab === 2) {
         fetchSessions();
-      } else if (currentTab === 3) {
-        fetchJournalEntries();
-      } else if (currentTab === 4) {
+      } else if (currentTab === 3) { // Analytics is now tab 3
         fetchAnalyticsData();
       }
+      // No explicit fetch for journal entries tab anymore
     } else if (
       !authLoading &&
       (!user || !user.is_staff || !user.is_superuser)
@@ -360,18 +360,17 @@ export default function AdminDashboard() {
     fetchTherapistApplications,
     fetchUsers,
     fetchSessions,
-    fetchJournalEntries,
     fetchAnalyticsData,
   ]);
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
+    // Updated tabToPathMap to remove /admin/journals (index 3)
     const tabToPathMap = {
       0: "/admin/applications",
       1: "/admin/users",
       2: "/admin/sessions",
-      3: "/admin/journals",
-      4: "/admin/analytics",
+      3: "/admin/analytics", // Analytics is now tab 3
     };
     navigate(tabToPathMap[newValue]);
     setError(null);
@@ -510,7 +509,38 @@ export default function AdminDashboard() {
           MindWell Admin Dashboard
         </Typography>
 
-        {/* The Tabs component was here */}
+        {/* Removed Tabs for navigation as it's now handled by the side drawer */}
+        {/* <Paper
+          elevation={2}
+          sx={{ mb: 4, borderRadius: 2, overflow: "hidden" }}
+        >
+          <Tabs
+            value={currentTab}
+            onChange={handleTabChange}
+            indicatorColor="primary"
+            textColor="primary"
+            variant="fullWidth"
+            aria-label="admin dashboard tabs"
+            sx={{
+              "& .MuiTab-root": {
+                color: primaryColor,
+                fontWeight: "bold",
+                "&.Mui-selected": {
+                  color: primaryColor,
+                  backgroundColor: `${primaryColor}10`,
+                },
+              },
+              "& .MuiTabs-indicator": {
+                backgroundColor: primaryColor,
+              },
+            }}
+          >
+            <Tab label="Therapist Applications" />
+            <Tab label="User Management" />
+            <Tab label="Sessions" />
+            <Tab label="Analytics" />
+          </Tabs>
+        </Paper> */}
 
         {/* Tab Panel for Therapist Applications */}
         {currentTab === 0 && (
@@ -1179,77 +1209,10 @@ export default function AdminDashboard() {
           </Paper>
         )}
 
-        {/* Tab Panel for Journal Entries */}
-        {currentTab === 3 && (
-          <Paper
-            elevation={3}
-            sx={{ p: 3, backgroundColor: "white", borderRadius: 2 }}
-          >
-            <Typography
-              variant="h5"
-              sx={{ color: primaryColor, mb: 3, fontWeight: "bold" }}
-            >
-              All Journal Entries
-            </Typography>
-            {/* Removed console.log for cleaner output */}
-            {error ? (
-              <Typography color="error" sx={{ textAlign: "center", mt: 2 }}>
-                {error}
-              </Typography>
-            ) : journalEntries.length === 0 ? (
-              <Typography
-                variant="h6"
-                sx={{ textAlign: "center", color: primaryColor, mt: 2 }}
-              >
-                No journal entries found.
-              </Typography>
-            ) : (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>User Email</TableCell>
-                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Date</TableCell>
-                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Mood</TableCell>
-                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Entry Snippet</TableCell>
-                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Tags</TableCell>
-                      <TableCell sx={{ fontWeight: "bold", color: primaryColor }}>Attachment</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {journalEntries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{entry.user_email}</TableCell>
-                        <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
-                        <TableCell>{entry.mood}</TableCell>
-                        <TableCell>{entry.entry.substring(0, 100)}...</TableCell>
-                        <TableCell>
-                          {entry.tags && entry.tags.length > 0 ? (
-                            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                              {entry.tags.map((tag, tagIndex) => (
-                                <Chip key={tagIndex} label={tag} size="small" />
-                              ))}
-                            </Stack>
-                          ) : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          {entry.attachment_name ? (
-                            <MuiLink href={entry.attachment_file} target="_blank" rel="noopener">
-                              View
-                            </MuiLink>
-                          ) : 'N/A'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
-        )}
+        {/* Removed Tab Panel for Journal Entries (currentTab === 3) */}
 
-        {/* Tab Panel for Analytics */}
-        {currentTab === 4 && (
+        {/* Tab Panel for Analytics (now currentTab === 3) */}
+        {currentTab === 3 && (
           <Paper
             elevation={3}
             sx={{
@@ -1302,7 +1265,8 @@ export default function AdminDashboard() {
                   </Typography>
                   <Typography variant="body1" sx={{ mt: 1 }}>
                     Total Journal Entries:{" "}
-                    <Chip label={journalEntries.length} color="success" />
+                    <Chip label={journalEntries.length} color="success" />{" "}
+                    {/* Still shows count */}
                   </Typography>
                   <Typography variant="body1" sx={{ mt: 1 }}>
                     Total Revenue:{" "}

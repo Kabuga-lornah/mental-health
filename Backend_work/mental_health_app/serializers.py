@@ -1,4 +1,5 @@
 # File: Backend_work/mental_health_app/serializers.py
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import ChatMessage, ChatRoom, JournalEntry, TherapistApplication, SessionRequest, Session, Payment, TherapistAvailability
@@ -155,55 +156,11 @@ class UserSerializer(serializers.ModelSerializer):
             if User.objects.filter(email=email).exists():
                 raise serializers.ValidationError({"email": "This email is already in use."})
 
-        # Apply therapist-specific validations only if 'is_therapist' is True or was True
-        # and relevant fields are being updated.
-        is_therapist_current = self.instance.is_therapist if self.instance else False
-        is_therapist_in_attrs = attrs.get('is_therapist', is_therapist_current)
+        # Removed the therapist-specific validation block from here.
+        # These validations are now handled by the TherapistApplicationSerializer
+        # or implicitly by the required=False and allow_null=True settings
+        # on the fields themselves for profile updates.
 
-        if is_therapist_in_attrs:
-            # Check 'is_available' if it's explicitly provided or if it's required for therapists
-            if 'is_available' in attrs and attrs.get('is_available') is None:
-                raise serializers.ValidationError(
-                    {"is_available": "Therapists must specify availability."}
-                )
-
-            # Re-enabled: Check 'hourly_rate' based on 'is_free_consultation'
-            is_free_consultation_current = self.instance.is_free_consultation if self.instance else False
-            is_free_consultation_in_attrs = attrs.get('is_free_consultation', is_free_consultation_current)
-
-            if not is_free_consultation_in_attrs: # If free consultation is NOT offered
-                # hourly_rate is required and must be a number
-                hourly_rate_in_attrs = attrs.get('hourly_rate')
-                if hourly_rate_in_attrs is None: # If not provided OR explicitly null
-                    raise serializers.ValidationError(
-                        {"hourly_rate": "Hourly rate is required if not offering free consultation."}
-                    )
-                # After to_internal_value, it should already be float or None.
-                # So this check might be redundant if to_internal_value is perfect, but good for safety.
-                if not isinstance(hourly_rate_in_attrs, (int, float)):
-                    try:
-                        float(hourly_rate_in_attrs)
-                    except (TypeError, ValueError):
-                        raise serializers.ValidationError(
-                            {"hourly_rate": "Hourly rate must be a valid number."}
-                        )
-            elif is_free_consultation_in_attrs: # If free consultation IS offered
-                # hourly_rate must be null if provided
-                if 'hourly_rate' in attrs and attrs['hourly_rate'] is not None:
-                    raise serializers.ValidationError(
-                        {"hourly_rate": "Hourly rate must be null if offering free consultation."}
-                    )
-
-
-            # Check 'physical_address' based on 'session_modes'
-            session_modes_current = self.instance.session_modes if self.instance else 'online'
-            session_modes_in_attrs = attrs.get('session_modes', session_modes_current)
-            physical_address_in_attrs = attrs.get('physical_address', self.instance.physical_address if self.instance else None)
-
-            if session_modes_in_attrs in ['physical', 'both'] and not physical_address_in_attrs:
-                raise serializers.ValidationError(
-                    {"physical_address": "Physical address is required for in-person sessions."}
-                )
         return attrs
 
     def create(self, validated_data):

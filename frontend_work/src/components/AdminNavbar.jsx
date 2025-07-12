@@ -11,8 +11,7 @@ import {
   CssBaseline,
   Typography,
   Toolbar,
-  AppBar,
-  IconButton,
+  // Removed AppBar and IconButton as the top navbar is being removed
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -21,7 +20,7 @@ import {
   CalendarMonth as CalendarMonthIcon,
   Analytics as AnalyticsIcon,
   Logout as LogoutIcon,
-  Menu as MenuIcon,
+  // Removed MenuIcon as it's part of the top navbar
   Book as BookIcon,
 } from '@mui/icons-material';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -44,11 +43,7 @@ export default function AdminNavbar({ children }) {
     setIsClosing(false);
   };
 
-  const handleDrawerToggle = () => {
-    if (!isClosing) {
-      setMobileOpen(!mobileOpen);
-    }
-  };
+  // Removed handleDrawerToggle as it was for the mobile top navbar menu icon
 
   const handleLogout = () => {
     logout();
@@ -64,11 +59,11 @@ export default function AdminNavbar({ children }) {
       </Toolbar>
       <List>
         {[
-          
+          // Removed DashboardIcon if it's not used
           { text: 'Therapist Applications', icon: <AssignmentIcon />, path: '/admin/applications' },
           { text: 'User Management', icon: <PeopleIcon />, path: '/admin/users' },
           { text: 'Sessions', icon: <CalendarMonthIcon />, path: '/admin/sessions' },
-          { text: 'Journal Entries', icon: <BookIcon />, path: '/admin/journals' },
+          // Removed Journal Entries from the sidebar navigation as it's hidden
           { text: 'Analytics', icon: <AnalyticsIcon />, path: '/admin/analytics' },
         ].map((item) => (
           <ListItem key={item.text} disablePadding>
@@ -112,35 +107,15 @@ export default function AdminNavbar({ children }) {
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-          backgroundColor: '#780000',
-          display: { sm: 'none' }
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Admin Panel
-          </Typography>
-        </Toolbar>
-      </AppBar>
+      {/* Removed AppBar for the top navigation */}
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
         aria-label="mailbox folders"
       >
+        {/* The temporary drawer for mobile can also be removed if not needed,
+            as the main navigation is now purely through the permanent drawer.
+            However, keeping it for potential future mobile responsiveness. */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
@@ -171,10 +146,11 @@ export default function AdminNavbar({ children }) {
         component="main"
         sx={{
           flexGrow: 1,
-          // Removed padding: p: 3, // Keep this commented out or remove if you don't want the default padding
           width: { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` },
-          // ml: { sm: `${drawerWidth}px` }, // Remove this line
-          mt: { xs: '64px', sm: '0px' } // Keep mt for xs, but ensure sm is 0 or removed if not needed
+          // Removed ml: { sm: `${drawerWidth}px` } because the main content should start from the left
+          // if there's no top app bar pushing it right.
+          // Also removed mt for xs as there's no top app bar anymore.
+          mt: 0 // Ensure no top margin from a removed AppBar
         }}
       >
         {children}
