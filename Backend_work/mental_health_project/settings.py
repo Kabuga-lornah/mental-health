@@ -49,7 +49,10 @@ REST_FRAMEWORK = {
     )
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    "https://mentalhealth10.vercel.app",
+]
 
 CORS_ALLOW_ALL_HEADERS = True
 #  [
@@ -138,7 +141,7 @@ USE_I18N = True
 USE_TZ = True
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
@@ -158,6 +161,8 @@ SIMPLE_JWT = {
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://mentalhealth10.vercel.app",
+    "https://mental-health-knp6.onrender.com",
 ]
 
 AUTH_USER_MODEL = 'mental_health_app.User' 
