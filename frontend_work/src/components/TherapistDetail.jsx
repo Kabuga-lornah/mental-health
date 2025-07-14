@@ -162,7 +162,7 @@ export default function TherapistDetail() {
         setSnackbarMessage("Session request submitted for free consultation. Therapist will review.");
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
-        
+
       } else {
         setSnackbarMessage("Session request created. Proceeding to payment.");
         setSnackbarSeverity('success');
@@ -326,7 +326,7 @@ export default function TherapistDetail() {
             <Typography variant="h4" sx={{ color: themePrimaryColor, fontWeight: 'bold', mb: 2 }}>
               {therapist.license_credentials || 'Therapist'} {therapist.full_name}
             </Typography>
-            
+
             <Box sx={{ mb: 3 }}>
               <Typography variant="body1" sx={{ color: themeTextColor, mb: 1 }}>
                 <strong>Session Modes:</strong> {therapist.session_modes ? therapist.session_modes.replace('both', 'Online & Physical') : 'N/A'}
@@ -352,7 +352,7 @@ export default function TherapistDetail() {
                 </Typography>
               )}
             </Box>
-           
+
           </Grid>
         </Grid>
 
@@ -371,13 +371,13 @@ export default function TherapistDetail() {
             </Box>
 
             {/* My Philosophy Section */}
-            
+
           </Grid>
 
           <Grid item xs={false} md={0.4} sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', justifyContent: 'center' }}>
             <Divider orientation="vertical" flexItem sx={{ borderColor: themeBorderColor, height: '80%' }} /> {/* Vertical Divider */}
           </Grid>
-          
+
           {/* My Approach (right column) */}
           <Grid item xs={12} md={5.8}> {/* Adjusted width slightly */}
             <Box sx={{ p: { xs: 3, md: 4 }, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: themeSectionBackground, borderRadius: 3, boxShadow: '0 5px 15px rgba(0,0,0,0.08)' }}> {/* Added section background/shadow */}
@@ -488,6 +488,7 @@ export default function TherapistDetail() {
                 transform: 'translateY(-3px)',
                 boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
               },
+              mb: 2, // Add margin-bottom to separate buttons
             }}
             onClick={() => setShowBookingForm(!showBookingForm)}
             disabled={isButtonDisabled}
@@ -497,13 +498,38 @@ export default function TherapistDetail() {
               : (showBookingForm ? "Hide Booking Options" : "Connect With Me")}
           </Button>
 
-          
+          {showChatButton && (
+            <Button
+              variant="outlined"
+              sx={{
+                borderColor: mainMaroon,
+                color: mainMaroon,
+                py: 2,
+                px: 6,
+                borderRadius: 3,
+                fontSize: '1.2rem',
+                fontWeight: 'bold',
+                boxShadow: '0 6px 15px rgba(0,0,0,0.1)',
+                transition: 'all 0.3s ease-in-out',
+                '&:hover': {
+                  backgroundColor: themeAccentColor,
+                  borderColor: themeButtonHoverColor,
+                  color: themeButtonHoverColor,
+                  transform: 'translateY(-3px)',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+                },
+              }}
+              onClick={handleStartChat}
+            >
+              Chat with me
+            </Button>
+          )}
         </Box>
 
         {/* Booking Section */}
         {showBookingForm && (
           <Box sx={{ p: { xs: 3, sm: 5 }, mt: { xs: 4, md: 6 }, pb: { xs: 3, sm: 5 }, borderRadius: 4, backgroundColor: themeSectionBackground, boxShadow: '0 8px 20px rgba(0,0,0,0.15)' }}>
-          
+
 
             {therapist.is_free_consultation ? (
               <Typography variant="h6" sx={{ mb: 3, color: mainMaroon, fontWeight: 'bold', textAlign: 'center' }}>

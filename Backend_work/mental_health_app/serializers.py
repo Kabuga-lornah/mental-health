@@ -7,6 +7,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 import json
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
 
 
 User = get_user_model()
@@ -596,3 +598,27 @@ class TherapistAvailabilitySerializer(serializers.ModelSerializer):
                 )
 
         return data
+    
+class UserChatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name']
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    user1 = UserChatSerializer(read_only=True)
+    user2 = UserChatSerializer(read_only=True)
+    last_message = serializers.SerializerMethodField()
+    last_message_timestamp = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'name', 'user1', 'user2', 'last_message', 'last_message_timestamp']
+
+    def get_last_message(self, obj):
+        last_msg = obj.chatmessage_set.order_by('-timestamp').first()
+        return last_msg.message_content if last_msg else None
+
+    def get_last_message_timestamp(self, obj):
+        last_msg = obj.chatmessage_set.order_by('-timestamp').first()
+        return last_msg.timestamp if last_msg else None
+

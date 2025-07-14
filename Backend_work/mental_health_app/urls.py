@@ -26,6 +26,7 @@ from .views import (
     AdminSessionListView,
     AdminJournalEntryListView,
     AdminPaymentListView,
+     TherapistChatRoomListView,
 )
 
 urlpatterns = [
@@ -94,6 +95,8 @@ urlpatterns = [
     path('ai/recommendations/', AiRecommendationView.as_view(), name='ai-recommendations'),
     path('ai/chat/', ChatWithGeminiView.as_view(), name='ai-chat'),
     path('chat/messages/<str:room_name>/', ChatMessageListView.as_view(), name='chat-message-list'),
+
+    path('therapist/chat_rooms/', TherapistChatRoomListView.as_view(), name='therapist-chat-rooms'),
 
     
 ]

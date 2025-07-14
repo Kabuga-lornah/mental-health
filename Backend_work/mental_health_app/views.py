@@ -16,6 +16,8 @@ from datetime import time, timedelta
 from collections import defaultdict
 import time as raw_time
 from django.db import transaction
+from rest_framework.permissions import IsAuthenticated
+
 
 # NEW: Imports for Gemini API
 import google.generativeai as genai
@@ -36,7 +38,7 @@ from .serializers import (
     JournalEntrySerializer, JournalListSerializer, SessionRequestSerializer,
     SessionRequestUpdateSerializer, SessionSerializer, TherapistApplicationSerializer,
     TherapistApplicationAdminSerializer, PaymentSerializer,
-    TherapistAvailabilitySerializer, ChatMessageSerializer
+    TherapistAvailabilitySerializer, ChatMessageSerializer, ChatRoomSerializer 
 )
 
 # --- Initialize Gemini API (NEW) ---
@@ -1485,3 +1487,17 @@ class ChatMessageListView(generics.ListAPIView):
 
         # <--- CORRECTED: Filter by the 'name' field of the related 'chat_room'
         return ChatMessage.objects.filter(chat_room__name=room_name).order_by('timestamp')
+    
+class TherapistChatRoomListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_therapist:
+            return Response({"detail": "Access denied. Only therapists can view chat rooms."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get chat rooms where the current therapist is either user1 or user2
+        chat_rooms = ChatRoom.objects.filter(Q(user1=user) | Q(user2=user)).distinct()
+        
+        serializer = ChatRoomSerializer(chat_rooms, many=True)
+        return Response(serializer.data)

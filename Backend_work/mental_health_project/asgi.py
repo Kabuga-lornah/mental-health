@@ -1,3 +1,4 @@
+# Backend_work/mental_health_project/asgi.py
 """
 ASGI config for mental_health_project project.
 
@@ -17,15 +18,16 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mental_health_project.settings'
 django.setup()
 
 from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
-from mental_health_app import routing 
+# from channels.auth import AuthMiddlewareStack # <--- You can remove or comment this line
+from mental_health_app import routing
+from mental_health_app.middleware import TokenAuthMiddleware # <--- NEW: Import your custom middleware
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
-    "websocket": AuthMiddlewareStack(
+    # Changed AuthMiddlewareStack to TokenAuthMiddleware
+    "websocket": TokenAuthMiddleware( # <--- NEW: Use your custom middleware here
         URLRouter(
-           
-            routing.websocket_urlpatterns 
+            routing.websocket_urlpatterns
         )
     ),
 })

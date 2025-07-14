@@ -6,21 +6,21 @@ import {
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   Select, MenuItem, FormControl, InputLabel, TextField, Chip,
   RadioGroup, FormControlLabel, Radio, FormLabel, Divider,
-  IconButton, Collapse, Grid, Checkbox, // Added Checkbox import
+  IconButton, Collapse, Grid, Checkbox,
   List, ListItem, ListItemText, ListItemSecondaryAction, Slide,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import {
   VideoCall, LocationOn, ExpandMore, ExpandLess,
-  CheckCircle, Cancel, Notes,
+  CheckCircle, Cancel, Notes, Message, // Added Message icon
   InfoOutlined, AttachMoney, Category, Psychology, Edit as EditIcon, Close as CloseIcon,
   PeopleAltOutlined, AssignmentOutlined, CalendarTodayOutlined, NotificationsOutlined, TrendingUpOutlined,
-  LightbulbOutlined // New icon for reminders
+  LightbulbOutlined
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { useSessionFilter } from '../context/SessionFilterContext';
 import axios from 'axios';
-import { format, isBefore, isAfter, addMinutes, subMinutes, parseISO, addDays, startOfDay, isWithinInterval, parse, isToday, isTomorrow } from 'date-fns';
+import { format, isBefore, isAfter, addMinutes, subMinutes, parseISO, addDays, startOfDay, isWithinInterval, parse, isToday, isTomorrow, formatDistanceToNowStrict } from 'date-fns';
 
 // Define theme colors
 const themePrimaryColor = '#780000'; // Dark red/maroon
@@ -32,24 +32,28 @@ const themeBorderColor = '#e0e0e0'; // Neutral gray for borders
 
 const TherapistDashboard = () => {
   const { user, token, authLoading } = useAuth();
-  const { clientSearchTerm, sessionDateFilter } = useSessionFilter(); // Consume from context
+  const { clientSearchTerm, sessionDateFilter } = useSessionFilter();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [therapistProfile, setTherapistProfile] = useState(null);
   const [sessionRequests, setSessionRequests] = useState([]);
-  const [expandedSessions, setExpandedSessions] = useState({}); // Corrected: Initialized with useState({})
-  const [scheduledSessions, setScheduledSessions] = useState([]); // Renamed to Upcoming Appointments in UI
+  const [expandedSessions, setExpandedSessions] = useState({});
+  const [scheduledSessions, setScheduledSessions] = useState([]);
   const [completedSessions, setCompletedSessions] = useState([]);
+
+  // NEW: State for active chat rooms
+  const [activeChatRooms, setActiveChatRooms] = useState([]);
 
   // Availability states (keeping states if backend still uses, UI is removed)
   const [availabilities, setAvailabilities] = useState([]);
-  const [openAvailabilityModal, setOpenAvailabilityModal] = useState(false); // Unused, but kept
-  const [editingAvailability, setEditingAvailability] = useState(null); // Unused, but kept
-  const [dayOfWeek, setDayOfWeek] = useState(''); // Unused, but kept
-  const [startTime, setStartTime] = useState(''); // Unused, but kept
-  const [endTime, setEndTime] = useState(''); // Unused, but kept
-  const [slotDuration, setSlotDuration] = useState(''); // Unused, but kept
+  const [openAvailabilityModal, setOpenAvailabilityModal] = useState(false);
+  const [editingAvailability, setEditingAvailability] = useState(null);
+  const [dayOfWeek, setDayOfWeek] = useState('');
+  // FIX: Corrected useState initializations
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [slotDuration, setSlotDuration] = useState('');
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -63,7 +67,8 @@ const TherapistDashboard = () => {
   const [recommendations, setRecommendations] = useState('');
   // New states for follow-up recommendation
   const [followUpRecommended, setFollowUpRecommended] = useState(false);
-  const [recommendedFollowUpDate, setRecommendedFollowUpDate] = useState(null); // Stored as Date object
+  const [recommendedFollowUpDate, setRecommendedFollowUpDate] = useState(null);
+
 
   // Dialog states for "View All" buttons
   const [showAllCompletedModal, setShowAllCompletedModal] = useState(false);
@@ -72,13 +77,8 @@ const TherapistDashboard = () => {
   // Dynamic Therapist Schedule based on availabilities and scheduled sessions
   const [dynamicTherapistSchedule, setDynamicTherapistSchedule] = useState([]);
 
-  // State for the floating reminder panel visibility
-  const [showReminderPanel, setShowReminderPanel] = useState(true);
 
-
-  // Function to generate schedule blocks from availabilities and sessions
   const generateScheduleBlocks = useCallback(() => {
-    // const today = startOfDay(new Date()); // Not directly used in filtering here
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const daysOfWeekFull = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -87,10 +87,10 @@ const TherapistDashboard = () => {
       const availabilityForDay = availabilities.find(avail => avail.day_of_week === fullDayName);
 
       const dayEntries = [];
-      
+
       const sessionsForDay = scheduledSessions.filter(session => {
         const sessionDate = parseISO(session.session_date);
-        return format(sessionDate, 'iii') === day; // Filter by short day name (e.g., 'Mon')
+        return format(sessionDate, 'iii') === day;
       });
 
       if (availabilityForDay) {
@@ -100,10 +100,9 @@ const TherapistDashboard = () => {
 
         while (isBefore(currentSlotTime, endTime)) {
           const slotEnd = addMinutes(currentSlotTime, slotDuration);
-          if (isAfter(slotEnd, endTime)) break; // Prevent overshooting end time
+          if (isAfter(slotEnd, endTime)) break;
 
           const currentSlotStartFormatted = format(currentSlotTime, 'HH:mm');
-          // const currentSlotEndFormatted = format(slotEnd, 'HH:mm'); // Not used
 
           let isBooked = false;
           let bookedClientName = '';
@@ -112,7 +111,6 @@ const TherapistDashboard = () => {
             const sessionStart = parse(session.session_time, 'HH:mm', new Date());
             const sessionEnd = addMinutes(sessionStart, session.duration_minutes || 60);
 
-            // Check if the current slot overlaps with an existing session
             if (
               (isWithinInterval(currentSlotTime, { start: sessionStart, end: sessionEnd }) ||
               isWithinInterval(slotEnd, { start: sessionStart, end: sessionEnd }) ||
@@ -134,7 +132,6 @@ const TherapistDashboard = () => {
           currentSlotTime = slotEnd;
         }
       } else if (sessionsForDay.length > 0) {
-         // If no availability, but sessions exist for the day, list them
          sessionsForDay.forEach(session => {
            dayEntries.push({
              id: `${day}-${session.session_time}-${session.id}`,
@@ -150,12 +147,32 @@ const TherapistDashboard = () => {
       return { day, entries: dayEntries };
     });
 
+    // FIX: Removed generateScheduleBlocks from its own dependency array
     setDynamicTherapistSchedule(schedule);
   }, [availabilities, scheduledSessions]);
 
   useEffect(() => {
     generateScheduleBlocks();
-  }, [availabilities, scheduledSessions, generateScheduleBlocks]);
+    // generateScheduleBlocks is already memoized by useCallback, no need to include it here
+  }, [availabilities, scheduledSessions]); // Only external dependencies
+
+
+  const fetchActiveChatRooms = useCallback(async () => {
+    try {
+      if (!user || !token || !user.is_therapist) return;
+      const response = await axios.get('http://localhost:8000/api/therapist/chat_rooms/', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const sortedChatRooms = response.data.sort((a, b) => {
+        const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(0);
+        const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(0);
+        return timeB.getTime() - timeA.getTime();
+      });
+      setActiveChatRooms(sortedChatRooms);
+    } catch (err) {
+      console.error("Error fetching active chat rooms:", err.response?.data || err);
+    }
+  }, [user, token]);
 
 
   const fetchData = useCallback(async () => {
@@ -222,11 +239,14 @@ const TherapistDashboard = () => {
     if (!authLoading && user && user.is_therapist && user.is_verified) {
       fetchData();
       fetchAvailability();
+      fetchActiveChatRooms(); // Fetch active chat rooms on load
+      const chatRefreshInterval = setInterval(fetchActiveChatRooms, 15000); // Refresh chats every 15 seconds
+      return () => clearInterval(chatRefreshInterval);
     } else if (!authLoading && (!user || !user.is_therapist || !user.is_verified)) {
       setError("Access Denied. You must be a verified therapist to view this page.");
       setLoading(false);
     }
-  }, [user, token, authLoading, fetchData, fetchAvailability]);
+  }, [user, token, authLoading, fetchData, fetchAvailability, fetchActiveChatRooms]);
 
   useEffect(() => {
     if (!authLoading && user && user.is_therapist && user.is_verified) {
@@ -260,16 +280,14 @@ const TherapistDashboard = () => {
         return;
       }
 
-      // Ensure session_duration is converted to minutes if it's in hours or another unit
-      const sessionDurationMinutes = request.session_duration_minutes || request.session_duration * 60 || 60; // Default to 60 if not specified
+      const sessionDurationMinutes = request.session_duration_minutes || request.session_duration * 60 || 60;
 
       const response = await axios.post('http://localhost:8000/api/therapist/sessions/create/',
         {
           session_request: request.id,
           session_type: request.session_type || 'online',
           location: request.location || null,
-          duration_minutes: sessionDurationMinutes, // Pass duration in minutes
-          // The backend should handle setting session_date and session_time based on the request
+          duration_minutes: sessionDurationMinutes,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -277,7 +295,7 @@ const TherapistDashboard = () => {
       setSnackbarMessage("Session created and request confirmed successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchData(); // Re-fetch data to update UI
+      fetchData();
     } catch (err) {
       console.error("Error creating session:", err.response?.data || err);
       const errorMessage = err.response?.data?.detail || "Failed to create session.";
@@ -307,13 +325,11 @@ const TherapistDashboard = () => {
     }
   };
 
-  // Session expansion is not directly used for details anymore with the modal approach, but can be kept for other purposes
   const toggleSessionExpand = (sessionId) => {
     setExpandedSessions(prev => ({ ...prev, [sessionId]: !prev[sessionId] }));
   };
 
   const handleClearFilters = () => {
-    // These setters are now from context, so no local action needed here
   };
 
   // Notepad Handlers
@@ -322,8 +338,8 @@ const TherapistDashboard = () => {
     setSessionNotes(session.notes || '');
     setKeyTakeaways(session.key_takeaways || '');
     setRecommendations(session.recommendations || '');
-    setFollowUpRecommended(session.follow_up_required || false); // Populate new state
-    setRecommendedFollowUpDate(session.next_session_date ? parseISO(session.next_session_date) : null); // Populate new state as Date object
+    setFollowUpRecommended(session.follow_up_required || false);
+    setRecommendedFollowUpDate(session.next_session_date ? parseISO(session.next_session_date) : null);
     setShowNotepad(true);
   };
 
@@ -333,8 +349,9 @@ const TherapistDashboard = () => {
     setSessionNotes('');
     setKeyTakeaways('');
     setRecommendations('');
-    setFollowUpRecommended(false); // Reset on close
-    setRecommendedFollowUpDate(null); // Reset on close
+    setFollowUpRecommended(false);
+    // FIX: Set to null as it's a date object
+    setRecommendedFollowUpDate(null);
   };
 
   const handleSaveNotes = async () => {
@@ -345,9 +362,8 @@ const TherapistDashboard = () => {
         notes: sessionNotes,
         key_takeaways: keyTakeaways,
         recommendations: recommendations,
-        // Include new fields for saving
         follow_up_required: followUpRecommended,
-        next_session_date: recommendedFollowUpDate ? format(recommendedFollowUpDate, 'yyyy-MM-dd') : null, // Format Date object to string
+        next_session_date: recommendedFollowUpDate ? format(recommendedFollowUpDate, 'yyyy-MM-dd') : null,
       };
 
       await axios.patch(`http://localhost:8000/api/therapist/sessions/${currentSessionToEdit.id}/`, updateData, {
@@ -357,7 +373,7 @@ const TherapistDashboard = () => {
       setSnackbarMessage("Session notes and follow-up recommendation updated successfully!");
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      fetchData(); // Refresh data to reflect updated notes
+      fetchData();
       handleCloseNotepad();
     } catch (err) {
       console.error("Error saving notes:", err.response?.data || err);
@@ -367,7 +383,6 @@ const TherapistDashboard = () => {
     }
   };
 
-  // New handler for marking session as complete
   const handleMarkComplete = async (sessionId) => {
       try {
           await axios.patch(`http://localhost:8000/api/therapist/sessions/${sessionId}/`, {
@@ -376,13 +391,12 @@ const TherapistDashboard = () => {
               headers: { Authorization: `Bearer ${token}` }
           });
 
-          // Immediately remove the session from the upcoming list for instant UI feedback
           setScheduledSessions(prevSessions => prevSessions.filter(session => session.id !== sessionId));
 
           setSnackbarMessage('Session marked as completed!');
           setSnackbarSeverity('success');
           setSnackbarOpen(true);
-          fetchData(); // Still call fetchData to ensure full data consistency from backend
+          fetchData();
       } catch (err) {
           console.error("Error marking session complete:", err.response?.data || err);
           setSnackbarMessage(err.response?.data?.detail || "Failed to mark session as complete.");
@@ -396,6 +410,11 @@ const TherapistDashboard = () => {
     setSnackbarMessage(`Initiating follow-up session for ${clientName}.`);
     setSnackbarSeverity('info');
     setSnackbarOpen(true);
+  };
+
+  // NEW: Handle navigating to a chat room
+  const handleOpenChat = (roomName) => {
+    navigate(`/chat/${roomName}`);
   };
 
 
@@ -456,9 +475,9 @@ const TherapistDashboard = () => {
   const upcomingReminders = scheduledSessions.filter(session => {
     const sessionDate = parseISO(session.session_date);
     return isToday(sessionDate) || isTomorrow(sessionDate);
-  }).slice(0, 3); // Still showing 3 for the reminder panel
+  }).slice(0, 3);
 
-  const newRequestRemindersSummary = sessionRequests.slice(0, 2); // Show only 2 requests in summary box
+  const newRequestRemindersSummary = sessionRequests.slice(0, 2);
 
 
   return (
@@ -544,11 +563,10 @@ const TherapistDashboard = () => {
           </Grid>
         </Grid>
 
-        {/* New Row for Important Schedule, New Sessions, Completed Sessions (as requested in previous turns) */}
-        {/* This grid container ensures these 3 items are in a single row taking full width */}
+        {/* New Row for Important Schedule, New Sessions, Completed Sessions, and Your Chats */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
             {/* Important Schedule / Latest Notifications - No card styling */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}> {/* Adjusted to md=3 to fit 4 columns */}
                 <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
                 <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
                     Important Schedule / Notifications
@@ -595,7 +613,7 @@ const TherapistDashboard = () => {
             </Grid>
 
             {/* New Session Requests (Summary) - No card styling */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}> {/* Adjusted to md=3 */}
                 <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
                 <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
                     New Session Requests ({sessionRequests.length})
@@ -622,17 +640,17 @@ const TherapistDashboard = () => {
                             </>
                             }
                         />
-                        <ListItemSecondaryAction sx={{ alignSelf: 'center' }}> {/* Center vertically */}
+                        <ListItemSecondaryAction sx={{ alignSelf: 'center' }}>
                             <Button
                             variant="contained"
                             size="small"
                             sx={{
                                 backgroundColor: themePrimaryColor,
                                 '&:hover': { backgroundColor: themeButtonHoverColor },
-                                py: 0.5, // Reduced vertical padding
-                                px: 1, // Reduced horizontal padding
-                                fontSize: '0.75rem', // Smaller font size
-                                minWidth: 'auto', // Allow button to shrink
+                                py: 0.5,
+                                px: 1,
+                                fontSize: '0.75rem',
+                                minWidth: 'auto',
                             }}
                             onClick={() => handleCreateSession(request.id)}
                             disabled={!request.is_paid}
@@ -642,12 +660,12 @@ const TherapistDashboard = () => {
                         </ListItemSecondaryAction>
                         </ListItem>
                     ))}
-                    {sessionRequests.length > 2 && ( // Changed from 3 to 2 for the "View All" threshold
+                    {sessionRequests.length > 2 && (
                         <Box sx={{ textAlign: 'center', mt: 2 }}>
                         <Button
                             variant="outlined"
                             sx={{ borderColor: themePrimaryColor, color: themePrimaryColor }}
-                            onClick={() => setShowAllRequestsModal(true)} // Open modal
+                            onClick={() => setShowAllRequestsModal(true)}
                         >
                             View All Requests
                         </Button>
@@ -659,7 +677,7 @@ const TherapistDashboard = () => {
             </Grid>
 
             {/* Completed Sessions (Summary) - No card styling */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}> {/* Adjusted to md=3 */}
                 <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
                 <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
                     Completed Sessions ({completedSessions.length})
@@ -679,7 +697,7 @@ const TherapistDashboard = () => {
                                 </Typography>
                                 {session.notes && (
                                 <Typography variant="caption" color="text.secondary" noWrap>
-                                    {session.notes.substring(0, 50)}...
+                                    {session.notes.substring(0, 50)}{session.notes.length > 50 ? '...' : ''}
                                 </Typography>
                                 )}
                             </>
@@ -701,7 +719,7 @@ const TherapistDashboard = () => {
                         <Button
                             variant="outlined"
                             sx={{ borderColor: themePrimaryColor, color: themePrimaryColor }}
-                            onClick={() => setShowAllCompletedModal(true)} // Open modal
+                            onClick={() => setShowAllCompletedModal(true)}
                         >
                             View All Completed
                         </Button>
@@ -711,12 +729,74 @@ const TherapistDashboard = () => {
                 )}
                 </Box>
             </Grid>
+
+            {/* NEW: Your Chats Section */}
+            <Grid item xs={12} md={3}> {/* Adjusted to md=3 */}
+                <Box sx={{ p: 4, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
+                <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
+                    Your Chats ({activeChatRooms.length})
+                </Typography>
+                {activeChatRooms.length === 0 ? (
+                    <Typography sx={{ color: themeTextColor }}>No active chats yet.</Typography>
+                ) : (
+                    <List dense>
+                    {activeChatRooms.slice(0, 5).map((room) => { // Display up to 5 recent chats
+                        // Determine the other participant's name
+                        const otherUser = room.user1.id === user.id ? room.user2 : room.user1;
+                        const otherUserName = `${otherUser.first_name} ${otherUser.last_name}`;
+                        const lastMessageTime = room.last_message_timestamp ? new Date(room.last_message_timestamp) : null;
+
+                        return (
+                            <ListItem
+                                key={room.id}
+                                sx={{ borderBottom: `1px dashed ${themeBorderColor}`, '&:last-child': { borderBottom: 'none' }, cursor: 'pointer', '&:hover': { backgroundColor: themeLightBackground } }}
+                                onClick={() => handleOpenChat(room.name)}
+                            >
+                                <ListItemText
+                                    primary={<Typography variant="body1" sx={{ fontWeight: 'bold', color: themePrimaryColor }}>{otherUserName}</Typography>}
+                                    secondary={
+                                        <>
+                                            {room.last_message && (
+                                                <Typography variant="body2" color="text.secondary" noWrap>
+                                                    {room.last_message.substring(0, 40)}{room.last_message.length > 40 ? '...' : ''}
+                                                </Typography>
+                                            )}
+                                            {lastMessageTime && (
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {formatDistanceToNowStrict(lastMessageTime, { addSuffix: true })}
+                                                </Typography>
+                                            )}
+                                        </>
+                                    }
+                                />
+                                <ListItemSecondaryAction>
+                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleOpenChat(room.name); }}>
+                                        <Message sx={{ color: themePrimaryColor }} />
+                                    </IconButton>
+                                </ListItemSecondaryAction>
+                            </ListItem>
+                        );
+                    })}
+                    {activeChatRooms.length > 5 && (
+                        <Box sx={{ textAlign: 'center', mt: 2 }}>
+                            <Button
+                                variant="outlined"
+                                sx={{ borderColor: themePrimaryColor, color: themePrimaryColor }}
+                                onClick={() => navigate('/all-therapist-chats')}
+                            >
+                                View All Chats
+                            </Button>
+                        </Box>
+                    )}
+                    </List>
+                )}
+                </Box>
+            </Grid>
         </Grid>
 
-        {/* Main Content Grid - Now only contains Upcoming Appointments & Your Schedule */}
+
         <Grid container spacing={3}>
-          {/* Upcoming Appointments & Your Schedule will now take full width of this grid */}
-          <Grid item xs={12} md={12}> {/* Changed from md={8} to md={12} */}
+          <Grid item xs={12} md={12}>
             {/* Upcoming Appointments - No card styling */}
             <Box sx={{ p: 4, mb: 3, backgroundColor: 'transparent', borderRadius: 0, border: 'none' }}>
               <Typography variant="h6" sx={{ color: themePrimaryColor, mb: 2, fontWeight: 'bold' }}>
@@ -734,7 +814,7 @@ const TherapistDashboard = () => {
                         <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Time</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Duration</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Type</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Actions</TableCell> {/* New column */}
+                        <TableCell sx={{ fontWeight: 'bold', color: themePrimaryColor }}>Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -772,7 +852,6 @@ const TherapistDashboard = () => {
                             >
                               Takeaways
                             </Button>
-                            {/* New Mark Complete Button */}
                             <Button
                               variant="contained"
                               size="small"
@@ -813,12 +892,11 @@ const TherapistDashboard = () => {
                               backgroundColor: item.type === 'Session' ? '#DCC8C8' : (item.type === 'Available' ? '#F0F8FF' : '#e0e0e0'),
                               color: themeTextColor,
                               fontWeight: 'medium',
-                              // New styles for truncation
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
-                              maxWidth: '120px', // Set a max-width for consistent chip size
-                              justifyContent: 'flex-start' // Align text to start
+                              maxWidth: '120px',
+                              justifyContent: 'flex-start'
                             }}
                           />
                         ))
@@ -838,12 +916,13 @@ const TherapistDashboard = () => {
         {(upcomingReminders.length > 0 || newRequestRemindersSummary.length > 0) && showReminderPanel && (
           <Slide direction="up" in={showReminderPanel} mountOnEnter unmountOnExit>
             <Box
+              elevation={6}
               sx={{
                 position: 'fixed',
                 bottom: 20,
                 right: 20,
                 width: { xs: '90%', sm: 350 },
-                backgroundColor: themeUserMessageColor, // Lighter background for pop-up
+                backgroundColor: themeUserMessageColor,
                 color: themeTextColor,
                 borderRadius: 2,
                 boxShadow: '0px 4px 20px rgba(0,0,0,0.15)',
@@ -904,7 +983,7 @@ const TherapistDashboard = () => {
         {/* Notepad Panel */}
         <Slide direction="left" in={showNotepad} mountOnEnter unmountOnExit>
             <Box
-                elevation={6} // Still keeping elevation, but on the Box itself
+                elevation={6}
                 sx={{
                     position: 'fixed',
                     top: 0,
@@ -1117,7 +1196,7 @@ const TherapistDashboard = () => {
           <Alert
             onClose={handleSnackbarClose}
             severity={snackbarSeverity}
-            sx={{ ...getAlertStyles(snackbarSeverity), width: '100%' }}
+            sx={{ ...getAlertStyles(severity), width: '100%' }}
           >
             {snackbarMessage}
           </Alert>

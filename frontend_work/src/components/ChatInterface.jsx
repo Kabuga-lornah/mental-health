@@ -94,8 +94,9 @@ export default function ChatInterface() {
 
     fetchMessages();
 
-    // Establish WebSocket connection
-    const ws = new WebSocket(`ws://localhost:8000/ws/chat/${roomName}/`);
+    // Establish WebSocket connection with the token as a query parameter
+    // The token needs to be URL-encoded.
+    const ws = new WebSocket(`ws://localhost:8000/ws/chat/${roomName}/?token=${encodeURIComponent(token)}`);
 
     ws.onopen = () => {
       console.log("WebSocket connected!");
