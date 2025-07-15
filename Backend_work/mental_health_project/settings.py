@@ -54,7 +54,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://mentalhealth10.vercel.app",
 ]
 
-CORS_ALLOW_ALL_HEADERS = True
+# CORS_ALLOW_ALL_HEADERS = True
 #  [
 #     'accept',
 #     'accept-encoding',
@@ -100,7 +100,7 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_redis.pubsub.RedisPubSubChannelLayer',
         'CONFIG': {
           
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [('https://mental-health-knp6.onrender.com', 6379)],
         },
     },
 }
