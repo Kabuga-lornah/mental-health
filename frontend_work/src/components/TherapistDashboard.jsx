@@ -1,6 +1,6 @@
 // Overwriting file: frontend_work/src/components/TherapistDashboard.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Container, Typography, Box, Button, CircularProgress,
   Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -17,8 +17,9 @@ import {
   PeopleAltOutlined, AssignmentOutlined, CalendarTodayOutlined, NotificationsOutlined, TrendingUpOutlined,
   LightbulbOutlined
 } from '@mui/icons-material';
-import { useAuth } from '../context/AuthContext';
-import { useSessionFilter } from '../context/SessionFilterContext';
+// FIX: Corrected import paths by ADDING .jsx extension
+import { useAuth } from '../context/AuthContext.jsx';
+import { useSessionFilter } from '../context/SessionFilterContext.jsx';
 import axios from 'axios';
 import { format, isBefore, isAfter, addMinutes, subMinutes, parseISO, addDays, startOfDay, isWithinInterval, parse, isToday, isTomorrow, formatDistanceToNowStrict } from 'date-fns';
 
@@ -76,6 +77,12 @@ const TherapistDashboard = () => {
 
   // Dynamic Therapist Schedule based on availabilities and scheduled sessions
   const [dynamicTherapistSchedule, setDynamicTherapistSchedule] = useState([]);
+
+  // FIX 1: Define the state variable that was causing the ReferenceError
+  const [showReminderPanel, setShowReminderPanel] = useState(false);
+  // This state is for the *other* notification popup, which seems redundant but is in the code.
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const [notificationMessages, setNotificationMessages] = useState([]);
 
 
   const generateScheduleBlocks = useCallback(() => {
@@ -147,14 +154,12 @@ const TherapistDashboard = () => {
       return { day, entries: dayEntries };
     });
 
-    // FIX: Removed generateScheduleBlocks from its own dependency array
     setDynamicTherapistSchedule(schedule);
   }, [availabilities, scheduledSessions]);
 
   useEffect(() => {
     generateScheduleBlocks();
-    // generateScheduleBlocks is already memoized by useCallback, no need to include it here
-  }, [availabilities, scheduledSessions]); // Only external dependencies
+  }, [availabilities, scheduledSessions, generateScheduleBlocks]); // generateScheduleBlocks is memoized, so this is safe
 
 
   const fetchActiveChatRooms = useCallback(async () => {
@@ -256,6 +261,72 @@ const TherapistDashboard = () => {
       return () => clearTimeout(handler);
     }
   }, [clientSearchTerm, sessionDateFilter, authLoading, user, fetchData]);
+
+  // FIX 2: This useEffect now controls the reminder panel's visibility
+  // FIX: Added guard clause to prevent running before data is loaded
+  // FIX: Changed `pendingRequests` to `sessionRequests`
+  useEffect(() => {
+    // Guard clause to prevent running before data is fetched
+    if (loading || !sessionRequests || !scheduledSessions) { // <-- FIX
+      return;
+    }
+
+    const newNotifications = [];
+
+    sessionRequests.forEach((request) => { // <-- FIX
+      newNotifications.push({
+        id: `pending-${request.id}`,
+        message: `Your request to Dr. ${request.therapist_name} for ${format(
+          parseISO(request.requested_date),
+          "PPP"
+        )} at ${request.requested_time} is pending.`,
+        severity: "warning",
+      });
+    });
+
+    scheduledSessions.forEach((session) => {
+      const sessionDateTime = parseISO(
+        `${session.session_date}T${session.session_time}`
+      );
+      const now = new Date();
+      const oneHourBefore = subMinutes(sessionDateTime, 60);
+
+      if (
+        isWithinInterval(now, { start: oneHourBefore, end: sessionDateTime })
+      ) {
+        newNotifications.push({
+          id: `upcoming-urgent-${session.id}`,
+          message: `Your session with Dr. ${session.therapist_name} is in less than an hour!`,
+          severity: "info",
+        });
+      } else if (isToday(sessionDateTime) && isAfter(sessionDateTime, now)) {
+        newNotifications.push({
+          id: `today-${session.id}`,
+          message: `You have a session today with Dr. ${
+            session.therapist_name
+          } at ${format(sessionDateTime, "p")}.`,
+          severity: "info",
+        });
+      } else if (isTomorrow(sessionDateTime)) {
+        newNotifications.push({
+          id: `tomorrow-${session.id}`,
+          message: `You have a session tomorrow with Dr. ${
+            session.therapist_name
+          } at ${format(sessionDateTime, "p")}.`,
+          severity: "info",
+        });
+      }
+    });
+
+    if (newNotifications.length > 0) {
+      setNotificationMessages(newNotifications);
+      setShowReminderPanel(true); // Show the panel
+      // setShowNotificationPopup(true); // This would show the *other* popup
+    } else {
+      setShowReminderPanel(false); // Hide the panel
+      // setShowNotificationPopup(false);
+    }
+  }, [sessionRequests, scheduledSessions, loading]); // <-- FIX: Dependency array updated
 
 
   const handleSnackbarClose = (event, reason) => {
@@ -1196,7 +1267,7 @@ const TherapistDashboard = () => {
           <Alert
             onClose={handleSnackbarClose}
             severity={snackbarSeverity}
-            sx={{ ...getAlertStyles(severity), width: '100%' }}
+            sx={{ ...getAlertStyles(snackbarSeverity), width: '100%' }} // FIX 3: Corrected variable name
           >
             {snackbarMessage}
           </Alert>
@@ -1204,6 +1275,10 @@ const TherapistDashboard = () => {
       </Container>
     </Box>
   );
+  
+  // FIX 4: Add a fallback return null
+  return null;
 };
 
 export default TherapistDashboard;
+

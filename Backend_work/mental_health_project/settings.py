@@ -106,27 +106,27 @@ CHANNEL_LAYERS = {
 }
 
 
-# if 'DATABASE_URL' in os.environ:
-#     DATABASES = {
-#         'default': dj_database_url.config(conn_max_age=600)
-#     }
-# else:
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.postgresql',
-#             'NAME': 'mental_health',
-#             'USER': 'mental_health_user',
-#             'PASSWORD': '123456',
-#             'HOST': 'localhost',
-#             'PORT': '5432',
-#             'OPTIONS': {
-#                 'client_encoding': 'UTF8',
-#             },
-#         }
-#     }
+if 'DATABASE_URL' in os.environ:
+    DATABASES = {
+        'default': dj_database_url.config(conn_max_age=600)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'mental_health',
+            'USER': 'mental_health_user',
+            'PASSWORD': '123456',
+            'HOST': 'localhost',
+            'PORT': '5432',
+            'OPTIONS': {
+                'client_encoding': 'UTF8',
+            },
+        }
+    }
 
-DATABASES = {
-    'default': dj_database_url.parse("postgresql://mental_health_xxgs_user:GuNNLiYC3XiqybXTc94NzVDdbdIxd9UZ@dpg-d1mqfgje5dus73804u0g-a.oregon-postgres.render.com/mental_health_xxgs")}
+# DATABASES = {
+#     'default': dj_database_url.parse("postgresql://mental_health_xxgs_user:GuNNLiYC3XiqybXTc94NzVDdbdIxd9UZ@dpg-d1mqfgje5dus73804u0g-a.oregon-postgres.render.com/mental_health_xxgs")}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
