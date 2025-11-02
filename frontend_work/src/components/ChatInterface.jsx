@@ -38,6 +38,7 @@ const MessageInputArea = styled(Box)({
 });
 
 const UserMessage = styled(ListItemText)({
+  flex: 'none', // <-- ADD THIS LINE
   '& .MuiTypography-root': {
     backgroundColor: '#DCC8C8',
     color: '#333',
@@ -50,6 +51,7 @@ const UserMessage = styled(ListItemText)({
 });
 
 const OtherMessage = styled(ListItemText)({
+  flex: 'none', // <-- ADD THIS LINE
   '& .MuiTypography-root': {
     backgroundColor: '#E0F2F7',
     color: '#333',
