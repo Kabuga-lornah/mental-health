@@ -95,12 +95,13 @@ WSGI_APPLICATION = 'mental_health_project.wsgi.application'
 ASGI_APPLICATION = 'mental_health_project.asgi.application' 
 
 # Channel Layer Configuration
+# Channel Layer Configuration
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.pubsub.RedisPubSubChannelLayer',
         'CONFIG': {
-          
-            "hosts": [('https://mental-health-knp6.onrender.com', 6379)],
+            # Point to your local Redis server
+            "hosts": [('127.0.0.1', 6379)],
         },
     },
 }

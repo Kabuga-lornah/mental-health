@@ -1,60 +1,70 @@
-# Backend_work/mental_health_app/middleware.py
-import jwt
-from django.conf import settings
+#
+# FILENAME: kabuga-lornah/mental-health/mental-health-5adb6da1f187483339d21664b8dc58ed73a5aa9b/Backend_work/mental_health_app/middleware.py
+#
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from channels.db import database_sync_to_async
+from channels.middleware import BaseMiddleware
 from urllib.parse import parse_qs
+from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
 User = get_user_model()
 
-class TokenAuthMiddleware:
+@database_sync_to_async
+def get_user_from_token(token_key):
     """
-    Custom middleware that authenticates users based on a JWT token
-    provided as a query parameter in the WebSocket URL.
+    Decodes the JWT token using simple-jwt's AccessToken object
+    and retrieves the user.
     """
-    def __init__(self, app):
-        # Store the ASGI application we were passed
-        self.app = app
+    try:
+        # Use simple-jwt's AccessToken class to validate and decode the token
+        token = AccessToken(token_key)
+        
+        # Get the user ID from the token payload (this is the standard key)
+        user_id = token.get('user_id')
+        
+        if user_id:
+            return User.objects.get(id=user_id)
+
+        # Fallback: if user_id is not present, try 'email' as your token had it
+        user_email = token.get('email')
+        if user_email:
+            return User.objects.get(email=user_email)
+            
+        # If neither key is found, return AnonymousUser
+        print("Token payload contains no 'user_id' or 'email'")
+        return AnonymousUser()
+
+    except (InvalidToken, TokenError, User.DoesNotExist, Exception) as e:
+        # Catch all errors (e.g., token expired, invalid, user not found)
+        print(f"WebSocket auth error: {e}")
+        return AnonymousUser()
+
+
+class TokenAuthMiddleware(BaseMiddleware):
+    """
+    Custom middleware to authenticate WebSockets using a JWT token in the query string.
+    """
+    def __init__(self, inner):
+        super().__init__(inner)
 
     async def __call__(self, scope, receive, send):
-        # Look up connection parameters in query string
-        query_string = scope['query_string'].decode()
+        # Get the token from the query string
+        query_string = scope.get('query_string', b'').decode('utf-8')
         query_params = parse_qs(query_string)
-        token = query_params.get('token')
+        token = query_params.get('token', [None])[0]
 
         if token:
-            token = token[0]  # Get the actual token string from the list
-            try:
-                # Decode and validate the token using Django's JWT settings
-                decoded_data = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"]) # Ensure HS256 matches your JWT config
-
-                # Get the user based on the decoded token (e.g., user ID or email)
-                user = await self.get_user_from_token(decoded_data)
-                if user:
-                    scope['user'] = user
-                else:
-                    scope['user'] = None # No user found for the token
-            except jwt.ExpiredSignatureError:
-                print("DEBUG: JWT token has expired.")
-                scope['user'] = None
-            except jwt.InvalidTokenError:
-                print("DEBUG: Invalid JWT token.")
-                scope['user'] = None
-            except Exception as e:
-                print(f"DEBUG: Error during JWT authentication: {e}")
-                scope['user'] = None
+            # If token is provided, try to authenticate
+            scope['user'] = await get_user_from_token(token)
         else:
-            scope['user'] = None # No token provided
+            # If no token, set user to AnonymousUser
+            scope['user'] = AnonymousUser()
+            
+        if scope['user'] == AnonymousUser():
+             print("WebSocket connection proceeding as AnonymousUser.")
+        else:
+            print(f"WebSocket connected for user: {scope['user']}")
 
-        return await self.app(scope, receive, send)
-
-    @database_sync_to_async
-    def get_user_from_token(self, decoded_data):
-        try:
-            # Assuming 'email' is the USERNAME_FIELD in your JWT payload
-            user = User.objects.get(email=decoded_data['email'])
-            return user
-        except User.DoesNotExist:
-            return None
-        except KeyError: # If 'email' key is missing from token payload
-            return None
+        return await super().__call__(scope, receive, send)

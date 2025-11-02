@@ -615,10 +615,10 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'user1', 'user2', 'last_message', 'last_message_timestamp']
 
     def get_last_message(self, obj):
-        last_msg = obj.chatmessage_set.order_by('-timestamp').first()
+        last_msg = obj.messages.order_by('-timestamp').first()
         return last_msg.message_content if last_msg else None
 
     def get_last_message_timestamp(self, obj):
-        last_msg = obj.chatmessage_set.order_by('-timestamp').first()
+        last_msg = obj.messages.order_by('-timestamp').first()
         return last_msg.timestamp if last_msg else None
 

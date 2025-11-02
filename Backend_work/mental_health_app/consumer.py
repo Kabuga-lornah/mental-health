@@ -1,3 +1,6 @@
+#
+# FILENAME: kabuga-lornah/mental-health/mental-health-5adb6da1f187483339d21664b8dc58ed73a5aa9b/Backend_work/mental_health_app/consumer.py
+#
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
@@ -10,7 +13,9 @@ User = get_user_model()
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.room_name = self.scope['url_route']['kwargs']['room_name']
-        self.room_group_name = f"chat_{self.room_name}"
+        # FIX: The room_name from the URL (e.g., "chat_1_2") *is* the group name.
+        # Do not prefix it again.
+        self.room_group_name = self.room_name
 
         # Join room group
         await self.channel_layer.group_add(
@@ -39,8 +44,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             user1_id = int(parts[1])
             user2_id = int(parts[2])
         else: # Fallback if room_name is just "ID1_ID2" (less likely given frontend)
-            user1_id = int(parts[0])
-            user2_id = int(parts[1])
+            # This path might fail if room_name is not as expected.
+            # Sticking to the "chat_ID1_ID2" format is safer.
+            try:
+                user1_id = int(parts[0])
+                user2_id = int(parts[1])
+            except (ValueError, IndexError):
+                print(f"ERROR: Invalid room_name format: {self.room_name}")
+                return
 
         # Ensure sender is one of the users in the room
         if sender_id not in [user1_id, user2_id]:
@@ -72,6 +83,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'chat_message',
                 'message': message,
+                'sender_id': sender_id, # <-- FIX: Send sender_id for consistency
                 'sender_email': sender_user.email,
                 'timestamp': str(timezone.now())
             }
@@ -80,13 +92,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
     # Receive message from room group
     async def chat_message(self, event):
         message = event['message']
-        sender_email = event['sender_email']
+        sender_email = event.get('sender_email') # Use .get for safety
+        sender_id = event.get('sender_id')       # <-- FIX: Get sender_id
         timestamp = event['timestamp']
 
         # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'message': message,
             'sender_email': sender_email,
+            'sender_id': sender_id,          # <-- FIX: Pass sender_id to client
             'timestamp': timestamp
         }))
 

@@ -1,3 +1,6 @@
+//
+// FILENAME: kabuga-lornah/mental-health/mental-health-5adb6da1f187483339d21664b8dc58ed73a5aa9b/frontend_work/src/components/ChatInterface.jsx
+//
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -102,14 +105,16 @@ export default function ChatInterface() {
       console.log("WebSocket connected!");
     };
 
-    ws.onmessage = (event) => {
+   ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log("Received message:", data);
       setMessages((prevMessages) => [
         ...prevMessages,
         {
           text: data.message,
-          sender: data.sender_email === user.email ? 'user' : 'other', // Use email for sender
+          // *** THIS IS THE FIX ***
+          // Use sender_id and user.id to check for 'user' vs 'other'
+          sender: data.sender_id === user.id ? 'user' : 'other', 
           timestamp: data.timestamp
         },
       ]);
