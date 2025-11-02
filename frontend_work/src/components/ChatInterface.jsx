@@ -9,58 +9,93 @@ import { Send as SendIcon, Close as CloseIcon, ArrowBack as ArrowBackIcon } from
 import { styled } from '@mui/system';
 import axios from 'axios'; // For fetching historical messages
 
+// --- STYLE UPDATE ---
+// Switched to a more flexible vh-based height with a max-height.
+// Changed background to a cleaner, neutral color.
 const ChatWindow = styled(Paper)({
-  width: '100%', // Maximize width within its container
-  height: 'calc(100vh - 64px)', // Adjust based on your header/footer
+  width: '100%',
+  height: '80vh', // Use viewport height
+  maxHeight: '800px', // But set a reasonable max
   display: 'flex',
   flexDirection: 'column',
-  borderRadius: '8px',
-  boxShadow: '0px 4px 15px rgba(0, 0, 0, 0.1)',
+  borderRadius: '12px', // Slightly larger radius
+  boxShadow: '0px 5px 20px rgba(0, 0, 0, 0.1)', // Softer, more prominent shadow
   overflow: 'hidden',
-  maxWidth: '900px', // Example max width
-  margin: '20px auto', // Center it
-  backgroundColor: '#fefae0',
+  maxWidth: '900px',
+  margin: '20px auto',
+  backgroundColor: '#f9f9f9', // Cleaner background
 });
 
+// --- STYLE UPDATE ---
+// Changed background to white so bubbles pop
 const MessageList = styled(List)({
   flexGrow: 1,
   overflowY: 'auto',
-  padding: '15px',
-  backgroundColor: '#fefae0',
+  padding: '20px',
+  backgroundColor: '#ffffff',
 });
 
+// --- STYLE UPDATE ---
+// Added more padding and matched background to ChatWindow
 const MessageInputArea = styled(Box)({
-  padding: '10px',
-  backgroundColor: 'white',
-  borderTop: '1px solid #e0e0e0',
+  padding: '15px 20px',
+  backgroundColor: '#f9f9f9', // Match window chrome
+  borderTop: '1px solid #eeeeee',
   display: 'flex',
   alignItems: 'center',
 });
 
+// --- STYLE UPDATE ---
+// Using a primary color (blue) for the user's messages.
+// Kept text-align left for readability, as the parent ListItem handles alignment.
+// Added a subtle shadow and tweaked border-radius for a "bubble" feel.
 const UserMessage = styled(ListItemText)({
-  flex: 'none', // <-- ADD THIS LINE
+  flex: 'none',
   '& .MuiTypography-root': {
-    backgroundColor: '#DCC8C8',
-    color: '#333',
-    borderRadius: '10px',
-    padding: '8px 12px',
+    backgroundColor: '#1976d2', // MUI primary blue
+    color: 'white',
+    borderRadius: '15px',
+    borderBottomRightRadius: '4px', // Bubble tail effect
+    padding: '10px 15px',
     display: 'inline-block',
     maxWidth: '80%',
-    textAlign: 'right',
+    textAlign: 'left', // Better for readability
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
   },
+  // --- STYLE UPDATE ---
+  // Style for the timestamp
+  '& .MuiListItemText-secondary': {
+    textAlign: 'right',
+    fontSize: '0.75rem',
+    marginTop: '4px',
+    color: '#999',
+  }
 });
 
+// --- STYLE UPDATE ---
+// Using a neutral gray for other messages.
+// Added shadow and tweaked border-radius.
 const OtherMessage = styled(ListItemText)({
-  flex: 'none', // <-- ADD THIS LINE
+  flex: 'none',
   '& .MuiTypography-root': {
-    backgroundColor: '#E0F2F7',
-    color: '#333',
-    borderRadius: '10px',
-    padding: '8px 12px',
+    backgroundColor: '#e0e0e0', // Neutral gray
+    color: '#222',
+    borderRadius: '15px',
+    borderBottomLeftRadius: '4px', // Bubble tail effect
+    padding: '10px 15px',
     display: 'inline-block',
     maxWidth: '80%',
     textAlign: 'left',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
   },
+  // --- STYLE UPDATE ---
+  // Style for the timestamp
+  '& .MuiListItemText-secondary': {
+    textAlign: 'left',
+    fontSize: '0.75rem',
+    marginTop: '4px',
+    color: '#999',
+  }
 });
 
 export default function ChatInterface() {
@@ -74,6 +109,18 @@ export default function ChatInterface() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // --- STYLE UPDATE ---
+  // Helper function to format timestamp
+  const formatTimestamp = (isoString) => {
+    if (!isoString) return '';
+    try {
+      return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return '';
+    }
   };
 
   useEffect(() => {
@@ -163,7 +210,10 @@ export default function ChatInterface() {
 
   return (
     <ChatWindow>
-      <AppBar position="static" sx={{ backgroundColor: '#780000' }}>
+      {/* --- STYLE UPDATE ---
+          Changed AppBar color to match the user's message bubble for theme cohesion.
+      */}
+      <AppBar position="static" sx={{ backgroundColor: '#1976d2' }}>
         <Toolbar>
           <IconButton edge="start" color="inherit" aria-label="back" onClick={() => window.history.back()}>
             <ArrowBackIcon />
@@ -177,9 +227,19 @@ export default function ChatInterface() {
         {messages.map((msg, index) => (
           <ListItem key={index} sx={{ justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start', paddingY: '4px' }}>
             {msg.sender === 'user' ? (
-              <UserMessage primary={msg.text} />
+              // --- STYLE UPDATE ---
+              // Added secondary prop to display the formatted timestamp
+              <UserMessage
+                primary={msg.text}
+                secondary={formatTimestamp(msg.timestamp)}
+              />
             ) : (
-              <OtherMessage primary={msg.text} />
+              // --- STYLE UPDATE ---
+              // Added secondary prop to display the formatted timestamp
+              <OtherMessage
+                primary={msg.text}
+                secondary={formatTimestamp(msg.timestamp)}
+              />
             )}
           </ListItem>
         ))}
@@ -198,12 +258,15 @@ export default function ChatInterface() {
               handleSendMessage();
             }
           }}
-          sx={{ mr: 1, '& fieldset': { borderRadius: '20px' } }}
+          sx={{ mr: 1, '& fieldset': { borderRadius: '20px' }, backgroundColor: 'white' }}
         />
+        {/* --- STYLE UPDATE ---
+            Changed send button color to match the new primary theme color.
+        */}
         <IconButton
           color="primary"
           onClick={handleSendMessage}
-          sx={{ backgroundColor: '#780000', color: 'white', '&:hover': { backgroundColor: '#5a0000' } }}
+          sx={{ backgroundColor: '#1976d2', color: 'white', '&:hover': { backgroundColor: '#115293' } }}
         >
           <SendIcon />
         </IconButton>
