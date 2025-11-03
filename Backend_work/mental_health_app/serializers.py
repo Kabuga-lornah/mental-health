@@ -13,14 +13,31 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
+class UserChatDetailSerializer(serializers.ModelSerializer):
+    """
+    Serializer for sending minimal user details for the chat header.
+    """
+    full_name = serializers.CharField(source='get_full_name')
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 
+            'full_name', 
+            'profile_picture', 
+            'is_therapist', 
+            'is_online', 
+            'last_seen'
+        ]
+
 class ChatMessageSerializer(serializers.ModelSerializer):
     sender_email = serializers.ReadOnlyField(source='sender.email')
     receiver_email = serializers.ReadOnlyField(source='receiver.email')
 
     class Meta:
         model = ChatMessage
-        fields = ['id', 'sender', 'sender_email', 'receiver', 'receiver_email', 'chat_room', 'message_content', 'timestamp'] # Changed 'room_name' to 'chat_room'
-        read_only_fields = ['sender', 'timestamp']
+        fields = ['id', 'sender', 'sender_email', 'receiver', 'receiver_email', 'chat_room', 'message_content', 'timestamp', 'is_read'] 
+        read_only_fields = ['sender', 'timestamp', 'is_read']
 
 class UserSerializer(serializers.ModelSerializer):
     """

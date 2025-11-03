@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx'; 
-import { Box, Paper, IconButton, TextField, Typography, List, ListItem, ListItemText, CircularProgress, AppBar, Toolbar, Avatar } from '@mui/material';
-import { Send as SendIcon, Close as CloseIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import { Box, Paper, IconButton, TextField, Typography, List, ListItem, ListItemText, CircularProgress, AppBar, Toolbar, Avatar, Popover } from '@mui/material'; // Added Popover
+import { Send as SendIcon, ArrowBack as ArrowBackIcon, InsertEmoticon as InsertEmoticonIcon, DoneAll as DoneAllIcon } from '@mui/icons-material'; // Added InsertEmoticonIcon, DoneAllIcon
 import { styled } from '@mui/system';
 import axios from 'axios';
+import EmojiPicker from 'emoji-picker-react'; // <-- IMPORT EMOJI PICKER
+import { formatDistanceToNow } from 'date-fns'; // <-- For "last seen"
 
 // --- THEME COLORS ---
 const theme = {
@@ -174,6 +176,33 @@ const SendButton = styled(IconButton)({
   }
 });
 
+// --- NEW STYLED COMPONENT for Online/Offline Dot ---
+const StatusDot = styled(Box)(({ isOnline }) => ({
+  width: 10,
+  height: 10,
+  borderRadius: '50%',
+  backgroundColor: isOnline ? '#4caf50' : '#9e9e9e', // Green for online, gray for offline
+  boxShadow: isOnline ? '0 0 8px #4caf50' : 'none',
+  marginLeft: '12px',
+  transition: 'all 0.3s ease',
+  ...(isOnline && {
+    animation: 'pulse 2s infinite',
+    '@keyframes pulse': {
+      '0%, 100%': { opacity: 1 },
+      '50%': { opacity: 0.5 }
+    }
+  })
+}));
+
+// --- NEW COMPONENT for Read Receipt ---
+const ReadReceipt = styled(DoneAllIcon)(({ isRead }) => ({
+  fontSize: '1rem',
+  marginLeft: '8px',
+  color: isRead ? '#4fc3f7' : '#9e9e9e', // Blue for read, gray for sent
+  verticalAlign: 'middle',
+}));
+
+
 export default function ChatInterface() {
   const { roomName } = useParams();
   const { user, token } = useAuth();
@@ -182,6 +211,13 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(true);
   const [socket, setSocket] = useState(null);
   const messagesEndRef = useRef(null);
+  
+  // --- NEW STATES ---
+  const [chatPartner, setChatPartner] = useState(null);
+  const [partnerStatus, setPartnerStatus] = useState({ is_online: false, last_seen: null });
+  const [emojiPickerAnchor, setEmojiPickerAnchor] = useState(null);
+  // --- END NEW STATES ---
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -197,56 +233,146 @@ export default function ChatInterface() {
     }
   };
 
+  // --- NEW: Format "last seen" time ---
+  const formatLastSeen = (isoString) => {
+    if (!isoString) return 'Offline';
+    try {
+      return `Last seen ${formatDistanceToNow(new Date(isoString), { addSuffix: true })}`;
+    } catch (e) {
+      return 'Offline';
+    }
+  };
+
   useEffect(() => {
     if (!user || !token) return;
 
-    const fetchMessages = async () => {
+    const fetchChatData = async () => {
       try {
-        const response = await axios.get(`http://localhost:8000/api/chat/messages/${roomName}/`, {
+        // --- MODIFIED: Fetch messages and partner details in parallel ---
+        const api = axios.create({
           headers: { Authorization: `Bearer ${token}` }
         });
-        setMessages(response.data.map(msg => ({
+
+        const [messagesResponse, partnerResponse] = await Promise.all([
+          api.get(`http://localhost:8000/api/chat/messages/${roomName}/`),
+          api.get(`http://localhost:8000/api/chat/partner-details/${roomName}/`)
+        ]);
+
+        // Set Partner Details
+        setChatPartner(partnerResponse.data);
+        setPartnerStatus({
+          is_online: partnerResponse.data.is_online,
+          last_seen: partnerResponse.data.last_seen
+        });
+
+        // Set Messages
+        const loadedMessages = messagesResponse.data.map(msg => ({
+          id: msg.id, // <-- STORE MESSAGE ID
           text: msg.message_content,
           sender: msg.sender === user.id ? 'user' : 'other',
-          timestamp: msg.timestamp
-        })));
+          timestamp: msg.timestamp,
+          is_read: msg.is_read // <-- STORE READ STATUS
+        }));
+        setMessages(loadedMessages);
+
+        // --- NEW: Mark fetched messages as read ---
+        const unreadMessageIds = loadedMessages
+          .filter(msg => msg.sender === 'other' && !msg.is_read)
+          .map(msg => msg.id);
+
+        // We will send the read receipt *after* the socket connects
+        return unreadMessageIds; 
+
       } catch (error) {
-        console.error("Error fetching historical messages:", error);
+        console.error("Error fetching chat data:", error);
+        return [];
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchMessages();
+    let unreadIdsToMark = [];
+    fetchChatData().then(unreadIds => {
+      unreadIdsToMark = unreadIds;
+    });
 
     const ws = new WebSocket(`ws://localhost:8000/ws/chat/${roomName}/?token=${encodeURIComponent(token)}`);
 
     ws.onopen = () => {
       console.log("WebSocket connected!");
+      setSocket(ws); // <-- Set socket here
+
+      // --- NEW: Send read receipts for historical messages ---
+      if (unreadIdsToMark.length > 0) {
+        ws.send(JSON.stringify({
+          type: 'mark_as_read',
+          message_ids: unreadIdsToMark
+        }));
+      }
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log("Received message:", data);
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        {
-          text: data.message,
-          sender: data.sender_id === user.id ? 'user' : 'other',
-          timestamp: data.timestamp
-        },
-      ]);
+      console.log("Received WebSocket data:", data);
+
+      switch (data.type) {
+        case 'chat_message':
+          const newMessage = {
+            id: data.message_id, // <-- Get ID
+            text: data.message,
+            sender: data.sender_id === user.id ? 'user' : 'other',
+            timestamp: data.timestamp,
+            is_read: data.is_read // <-- Get read status
+          };
+          
+          setMessages((prevMessages) => [...prevMessages, newMessage]);
+          
+          // --- NEW: If we receive a message, mark it as read immediately ---
+          // (A more advanced implementation would wait for it to be in view)
+          if (newMessage.sender === 'other' && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'mark_as_read',
+              message_ids: [newMessage.id]
+            }));
+          }
+          break;
+
+        case 'presence_update':
+          // Update partner status if the update is about them
+          if (data.user_id !== user.id) {
+            setPartnerStatus({
+              is_online: data.is_online,
+              last_seen: data.last_seen
+            });
+          }
+          break;
+
+        case 'messages_read':
+          // Update the 'is_read' status of our sent messages
+          if (data.reader_id !== user.id) {
+            setMessages((prevMessages) =>
+              prevMessages.map((msg) =>
+                data.message_ids.includes(msg.id)
+                  ? { ...msg, is_read: true }
+                  : msg
+              )
+            );
+          }
+          break;
+        
+        default:
+          console.warn("Unknown WebSocket message type:", data.type);
+      }
     };
 
     ws.onclose = () => {
       console.log("WebSocket disconnected.");
+      setSocket(null);
     };
 
     ws.onerror = (error) => {
       console.error("WebSocket error:", error);
     };
-
-    setSocket(ws);
 
     return () => {
       ws.close();
@@ -261,12 +387,30 @@ export default function ChatInterface() {
     if (inputMessage.trim() === '' || !socket) return;
 
     const messagePayload = {
+      type: 'chat_message', // <-- Specify type
       message: inputMessage,
       sender_id: user.id,
     };
     socket.send(JSON.stringify(messagePayload));
     setInputMessage('');
+    if (emojiPickerAnchor) {
+      setEmojiPickerAnchor(null); // Close emoji picker on send
+    }
   };
+
+  // --- NEW: Emoji Picker Handlers ---
+  const handleEmojiClick = (emojiObject) => {
+    setInputMessage((prevInput) => prevInput + emojiObject.emoji);
+  };
+
+  const handleEmojiPickerToggle = (event) => {
+    setEmojiPickerAnchor(emojiPickerAnchor ? null : event.currentTarget);
+  };
+
+  const closeEmojiPicker = () => {
+    setEmojiPickerAnchor(null);
+  };
+  // --- END Emoji Picker Handlers ---
 
   if (isLoading) {
     return (
@@ -296,32 +440,39 @@ export default function ChatInterface() {
           >
             <ArrowBackIcon />
           </IconButton>
-          <Typography variant="h6" component="div" sx={{ 
-            flexGrow: 1, 
-            ml: 2,
-            fontWeight: 600,
-            letterSpacing: '0.5px'
-          }}>
-            {roomName}
-          </Typography>
-          <Box sx={{ 
-            width: 10, 
-            height: 10, 
-            borderRadius: '50%', 
-            backgroundColor: '#4caf50',
-            boxShadow: '0 0 8px #4caf50',
-            animation: 'pulse 2s infinite',
-            '@keyframes pulse': {
-              '0%, 100%': { opacity: 1 },
-              '50%': { opacity: 0.5 }
-            }
-          }} />
+          
+          {/* --- NEW: Avatar --- */}
+          {chatPartner && (
+            <Avatar 
+              src={chatPartner.profile_picture} 
+              alt={chatPartner.full_name}
+              sx={{ ml: 1 }}
+            />
+          )}
+
+          {/* --- MODIFIED: Name and Status --- */}
+          <Box sx={{ flexGrow: 1, ml: 2 }}>
+            <Typography variant="h6" component="div" sx={{ 
+              fontWeight: 600,
+              letterSpacing: '0.5px',
+              lineHeight: 1.2
+            }}>
+              {chatPartner ? chatPartner.full_name : 'Chat'}
+            </Typography>
+            <Typography variant="caption" sx={{ color: theme.white, opacity: 0.8 }}>
+              {partnerStatus.is_online ? 'Online' : formatLastSeen(partnerStatus.last_seen)}
+            </Typography>
+          </Box>
+          
+          {/* --- MODIFIED: Status Dot --- */}
+          <StatusDot isOnline={partnerStatus.is_online} />
+
         </Toolbar>
       </AppBar>
       <MessageList>
-        {messages.map((msg, index) => (
+        {messages.map((msg) => (
           <ListItem 
-            key={index} 
+            key={msg.id} // <-- Use message ID as key
             sx={{ 
               justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start', 
               paddingY: '8px',
@@ -332,7 +483,13 @@ export default function ChatInterface() {
             {msg.sender === 'user' ? (
               <UserMessage
                 primary={msg.text}
-                secondary={formatTimestamp(msg.timestamp)}
+                secondary={
+                  <>
+                    {formatTimestamp(msg.timestamp)}
+                    {/* --- NEW: Read Receipt Icon --- */}
+                    <ReadReceipt isRead={msg.is_read} />
+                  </>
+                }
               />
             ) : (
               <OtherMessage
@@ -345,6 +502,27 @@ export default function ChatInterface() {
         <div ref={messagesEndRef} />
       </MessageList>
       <MessageInputArea>
+        {/* --- NEW: Emoji Button --- */}
+        <IconButton onClick={handleEmojiPickerToggle} sx={{ color: theme.primary }}>
+          <InsertEmoticonIcon />
+        </IconButton>
+        <Popover
+          open={Boolean(emojiPickerAnchor)}
+          anchorEl={emojiPickerAnchor}
+          onClose={closeEmojiPicker}
+          anchorOrigin={{
+            vertical: 'top',
+            horizontal: 'center',
+          }}
+          transformOrigin={{
+            vertical: 'bottom',
+            horizontal: 'center',
+          }}
+        >
+          <EmojiPicker onEmojiClick={handleEmojiClick} />
+        </Popover>
+        {/* --- END Emoji Button --- */}
+
         <TextField
           fullWidth
           variant="outlined"

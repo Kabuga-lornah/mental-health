@@ -66,6 +66,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         null=True
     )
     physical_address = models.TextField(blank=True, null=True, help_text="Physical address for in-person sessions")
+    is_online = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(null=True, blank=True, help_text="Timestamp of user's last activity")
 
 
     # Required fields
@@ -345,6 +347,8 @@ class ChatMessage(models.Model):
     chat_room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages', null=True, blank=True)
     message_content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
+
+    is_read = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['timestamp'] # Order messages by time

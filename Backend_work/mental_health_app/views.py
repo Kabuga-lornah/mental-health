@@ -38,7 +38,7 @@ from .serializers import (
     JournalEntrySerializer, JournalListSerializer, SessionRequestSerializer,
     SessionRequestUpdateSerializer, SessionSerializer, TherapistApplicationSerializer,
     TherapistApplicationAdminSerializer, PaymentSerializer,
-    TherapistAvailabilitySerializer, ChatMessageSerializer, ChatRoomSerializer 
+    TherapistAvailabilitySerializer, ChatMessageSerializer, ChatRoomSerializer, UserChatDetailSerializer
 )
 
 # --- Initialize Gemini API (NEW) ---
@@ -1501,3 +1501,44 @@ class TherapistChatRoomListView(APIView):
         
         serializer = ChatRoomSerializer(chat_rooms, many=True)
         return Response(serializer.data)
+    
+class GetChatPartnerDetailView(APIView):
+    """
+    Given a room_name (e.g., chat_1_2), returns the details
+    of the *other* user in the chat room.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, room_name, *args, **kwargs):
+        try:
+            # Parse room_name, e.g., "chat_1_2"
+            parts = room_name.split('_')
+            if len(parts) != 3 or parts[0] != 'chat':
+                raise ValueError("Invalid room name format")
+
+            user1_id = int(parts[1])
+            user2_id = int(parts[2])
+
+            current_user_id = request.user.id
+            partner_id = None
+
+            if current_user_id == user1_id:
+                partner_id = user2_id
+            elif current_user_id == user2_id:
+                partner_id = user1_id
+            else:
+                # If the requesting user is not part of this room
+                raise PermissionDenied("You are not authorized to view this chat.")
+
+            partner = User.objects.get(id=partner_id)
+
+            # We use a simple serializer to send only what's needed
+            serializer = UserChatDetailSerializer(partner)
+            return Response(serializer.data)
+
+        except (ValueError, User.DoesNotExist):
+            return Response({"error": "Invalid room or user not found."}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionDenied as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
