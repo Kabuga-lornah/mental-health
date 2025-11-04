@@ -177,29 +177,33 @@ const SendButton = styled(IconButton)({
 });
 
 // --- NEW STYLED COMPONENT for Online/Offline Dot ---
-const StatusDot = styled(Box)(({ isOnline }) => ({
-  width: 10,
-  height: 10,
-  borderRadius: '50%',
-  backgroundColor: isOnline ? '#4caf50' : '#9e9e9e', // Green for online, gray for offline
-  boxShadow: isOnline ? '0 0 8px #4caf50' : 'none',
-  marginLeft: '12px',
-  transition: 'all 0.3s ease',
-  ...(isOnline && {
-    animation: 'pulse 2s infinite',
-    '@keyframes pulse': {
-      '0%, 100%': { opacity: 1 },
-      '50%': { opacity: 0.5 }
-    }
-  })
+const StatusDot = styled(Box, { 
+  shouldForwardProp: (prop) => prop !== 'isOnline',
+})(({ isOnline }) => ({
+  width: 10,
+  height: 10,
+  borderRadius: '50%',
+  backgroundColor: isOnline ? '#4caf50' : '#9e9e9e', // Green for online, gray for offline
+  boxShadow: isOnline ? '0 0 8px #4caf50' : 'none',
+  marginLeft: '12px',
+  transition: 'all 0.3s ease',
+  ...(isOnline && {
+    animation: 'pulse 2s infinite',
+    '@keyframes pulse': {
+      '0%, 100%': { opacity: 1 },
+      '50%': { opacity: 0.5 }
+    }
+  })
 }));
 
 // --- NEW COMPONENT for Read Receipt ---
-const ReadReceipt = styled(DoneAllIcon)(({ isRead }) => ({
-  fontSize: '1rem',
-  marginLeft: '8px',
-  color: isRead ? '#4fc3f7' : '#9e9e9e', // Blue for read, gray for sent
-  verticalAlign: 'middle',
+const ReadReceipt = styled(DoneAllIcon, {
+  shouldForwardProp: (prop) => prop !== 'isRead',
+})(({ isRead }) => ({
+  fontSize: '1rem',
+  marginLeft: '8px',
+  color: isRead ? '#4fc3f7' : '#9e9e9e', // Blue for read, gray for sent
+  verticalAlign: 'middle',
 }));
 
 
