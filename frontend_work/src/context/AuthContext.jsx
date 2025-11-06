@@ -30,6 +30,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("access_token", newAccessToken);
       localStorage.setItem("refresh_token", newRefreshToken); // Update refresh token in localStorage
 
+      // FIX: Also update the user details when refreshing the token to get fresh data
+      await fetchUserDetails(newAccessToken); 
+
       console.log("AuthContext - Access token refreshed successfully.");
       return newAccessToken;
     } catch (err) {
@@ -48,6 +51,7 @@ export const AuthProvider = ({ children }) => {
 
       // Merge with existing user data if any
       const existingUser = JSON.parse(localStorage.getItem("user")) || {};
+      // Preserve existing unread_message_count when fetching standard user details
       const mergedUser = { ...existingUser, ...response.data };
 
       setUser(mergedUser);
@@ -59,6 +63,33 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
   };
+
+  // NEW: Function to manually fetch the unread count via the new endpoint
+  const fetchUnreadMessageCount = async () => {
+    if (!token) return 0;
+    try {
+        const response = await axios.get('http://localhost:8000/api/unread-messages/', {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const unreadCount = response.data.unread_message_count;
+        
+        // Update user state and localStorage with the new count
+        setUser(prevUser => {
+            if (prevUser) {
+                const updatedUser = { ...prevUser, unread_message_count: unreadCount };
+                localStorage.setItem("user", JSON.stringify(updatedUser));
+                return updatedUser;
+            }
+            return null;
+        });
+        console.log(`AuthContext - Fetched new unread message count: ${unreadCount}`);
+        return unreadCount;
+    } catch (error) {
+        console.error("AuthContext - Failed to fetch unread message count:", error.response?.data || error.message);
+        return 0;
+    }
+  };
+
 
   // Set axios default headers when token changes and validate token
   useEffect(() => {
@@ -79,10 +110,7 @@ export const AuthProvider = ({ children }) => {
             await fetchUserDetails(token);
           } else {
             console.log("AuthContext - Token expired, attempting to refresh...");
-            const newAccessToken = await refreshAccessToken();
-            if (newAccessToken) {
-              await fetchUserDetails(newAccessToken);
-            }
+            await refreshAccessToken(); // refreshAccessToken now handles token update and user detail fetch
           }
         } catch (err) {
           console.error("AuthContext - Token validation failed:", err);
@@ -124,28 +152,27 @@ export const AuthProvider = ({ children }) => {
     };
   }, [token, refreshToken, refreshAccessToken]);
 
-  // Login function (MERGED LOGIC)
+  // Login function (MODIFIED TO USE USER DATA FROM LOGIN RESPONSE)
   const login = async (email, password) => {
     setLoading(true);
     try {
-      console.log("AuthContext - Calling token API (merged logic)...");
-      // 1. Get tokens (from Block 2's logic, using /api/token/ endpoint)
+      console.log("AuthContext - Calling login API...");
       const res = await axios.post("http://localhost:8000/api/login/", {
         email,
         password,
       });
 
-      // Assuming endpoint returns only tokens
-      const { access, refresh } = res.data;
+      // MODIFICATION: Extract access, refresh, and the full user object (with unread_message_count)
+      const { access, refresh, user: userData } = res.data;
 
       setToken(access);
       setRefreshToken(refresh);
       localStorage.setItem("access_token", access);
       localStorage.setItem("refresh_token", refresh);
-
-      // 2. Fetch user details separately (the "FIX" from Block 2)
-      console.log("AuthContext - Tokens received, fetching user details...");
-      const userData = await fetchUserDetails(access);
+      
+      // Set user immediately with data from login payload
+      setUser(userData); 
+      localStorage.setItem("user", JSON.stringify(userData));
 
       console.log("AuthContext - Login successful. User set:", userData);
       return { success: true, user: userData };
@@ -192,11 +219,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Register function (APPLYING MERGED LOGIC FOR CONSISTENCY)
+  // Register function (MODIFIED TO USE USER DATA FROM REGISTER RESPONSE)
   const register = async (userData) => {
     setLoading(true);
     try {
-      console.log("AuthContext - Calling register API (merged logic)...");
+      console.log("AuthContext - Calling register API...");
       const payload = {
         email: userData.email,
         password: userData.password,
@@ -226,19 +253,20 @@ export const AuthProvider = ({ children }) => {
 
       const response = await axios.post('http://localhost:8000/api/register/', payload);
 
-      // Assuming registration also *only* returns tokens, consistent with login
-      const { access, refresh } = response.data;
+      // MODIFICATION: Extract access, refresh, and the full user object (with unread_message_count)
+      const { access, refresh, user: newUser } = response.data;
 
       setToken(access);
       setRefreshToken(refresh);
       localStorage.setItem("access_token", access);
       localStorage.setItem("refresh_token", refresh);
 
-      // Fetch the new user's details after successful registration
-      console.log("AuthContext - Registration successful, fetching user details...");
-      const newUser = await fetchUserDetails(access);
+      // Set user immediately with data from register payload
+      setUser(newUser);
+      localStorage.setItem("user", JSON.stringify(newUser));
 
-      console.log("AuthContext - User details fetched. User set:", newUser);
+
+      console.log("AuthContext - Registration successful. User set:", newUser);
       return { success: true, user: newUser };
 
     } catch (err) {
@@ -291,7 +319,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    refreshAccessToken
+    refreshAccessToken,
+    fetchUnreadMessageCount // NEW: Expose the unread count fetcher
   };
 
   return (

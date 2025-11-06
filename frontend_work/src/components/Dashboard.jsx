@@ -1,5 +1,6 @@
-// File: frontend_work/src/components/Dashboard.jsx
+// Overwriting file: frontend_work/src/components/Dashboard.jsx
 import React, { useState, useEffect, useRef } from "react";
+// MODIFIED: Import fetchUnreadMessageCount
 import { useAuth } from "../context/AuthContext";
 import {
   Button,
@@ -57,6 +58,7 @@ import {
   ChatBubbleOutline,
   Send,
   MusicNote,
+  Message
 } from "@mui/icons-material";
 import { keyframes } from "@emotion/react";
 import { styled } from "@mui/system";
@@ -288,7 +290,8 @@ const breathingTechniques = {
 };
 
 export default function Dashboard() {
-  const { user, token } = useAuth();
+  // MODIFIED: Import fetchUnreadMessageCount
+  const { user, token, fetchUnreadMessageCount } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -312,9 +315,14 @@ export default function Dashboard() {
   const [selectedVideoForPlayback, setSelectedVideoForPlayback] = useState(null);
 
 
-  // State for the floating notification pop-up
+  // State for the floating session notification pop-up
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
   const [notificationMessages, setNotificationMessages] = useState([]);
+
+  // NEW CHAT NOTIFICATION STATES
+  const [unreadChatCount, setUnreadChatCount] = useState(0); 
+  const [showChatNotificationPopup, setShowChatNotificationPopup] = useState(false); // New state for chat specific popup
+
 
   // Breathing Exercise States
   const [selectedBreathingCategory, setSelectedBreathingCategory] =
@@ -439,6 +447,34 @@ export default function Dashboard() {
     }
   }, [chatHistory]);
 
+
+  // NEW: Initial load and Polling for Unread Messages (Client)
+  useEffect(() => {
+    if (user && user.unread_message_count !== undefined) {
+      setUnreadChatCount(user.unread_message_count);
+      // Show pop-up immediately after login if count is > 0
+      if (user.unread_message_count > 0) {
+        setShowChatNotificationPopup(true);
+      }
+    }
+
+    const pollingInterval = setInterval(async () => {
+      if (token && fetchUnreadMessageCount) {
+        const latestCount = await fetchUnreadMessageCount();
+        setUnreadChatCount(latestCount);
+        if (latestCount > 0) {
+          setShowChatNotificationPopup(true); 
+        } else {
+          // Only automatically hide if the count drops to zero
+          setShowChatNotificationPopup(false);
+        }
+      }
+    }, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(pollingInterval);
+  }, [user?.unread_message_count, token, fetchUnreadMessageCount]); // Dependency on user.unread_message_count is important for initial load
+
+
   // Initialize Gemini chat session when chatbot dialog opens
   useEffect(() => {
     if (openChatbotDialog && !chatSessionRef.current) {
@@ -449,7 +485,7 @@ export default function Dashboard() {
         Guidelines:
         1.  **Emotional Support & Validation:** Acknowledge and validate the user's feelings. Express care and understanding.
         2.  **General Self-Care Ideas (NOT medical advice):** If appropriate and without giving specific "remedies" or "techniques" that sound like medical advice, you can suggest general self-soothing practices (e.g., "Sometimes focusing on your breath can be helpful," "Journaling can be a great way to process thoughts," "Connecting with loved ones can bring comfort"). You can also mention that the platform has tools like breathing exercises for them to explore.
-        3.  **Professional Referral (Gentle, for persistent or serious issues):** If the user expresses persistent distress, feeling overwhelmed, or mentions symptoms that sound like they might benefit from professional help (e.g., prolonged sadness, difficulty coping), gently encourage them to consider talking to a mental health professional (like a therapist or counselor). Frame it as an option for deeper, personalized support.
+        3.  **Professional Referral (Gentle, for persistent or serious issues):** If the user expresses persistent distress, feeling overwhelmed, or mentions symptoms that sound like they might benefit from professional help(e.g., prolonged sadness, difficulty coping), gently encourage them to consider talking to a mental health professional (like a therapist or counselor). Frame it as an option for deeper, personalized support.
         4.  **CRISIS REDIRECTION (Immediate & Unconditional):** If the user expresses any direct intent of self-harm, suicide, or an immediate life-threatening emergency, you MUST immediately and unconditionally provide the following crisis contacts for Kenya and then gently encourage them to reach out to these professionals. Cease further conversational responses related to the crisis.
             * Kenya Red Cross Mental Health Hotline: 1190
             * Befrienders Kenya: +254 722 178177
@@ -839,7 +875,7 @@ export default function Dashboard() {
             Guidelines:
             1.  **Emotional Support & Validation:** Acknowledge and validate the user's feelings. Express care and understanding.
             2.  **General Self-Care Ideas (NOT medical advice):** If appropriate and without giving specific "remedies" or "techniques" that sound like medical advice, you can suggest general self-soothing practices (e.g., "Sometimes focusing on your breath can be helpful," "Journaling can be a great way to process thoughts," "Connecting with loved ones can bring comfort"). You can also mention that the platform has tools like breathing exercises for them to explore.
-            3.  **Professional Referral (Gentle, for persistent or serious issues):** If the user expresses persistent distress, feeling overwhelmed, or mentions symptoms that sound like they might benefit from professional help (e.g., prolonged sadness, difficulty coping), gently encourage them to consider talking to a mental health professional (like a therapist or counselor). Frame it as an option for deeper, personalized support.
+            3.  **Professional Referral (Gentle, for persistent or serious issues):** If the user expresses persistent distress, feeling overwhelmed, or mentions symptoms that sound like they might benefit from professional help(e.g., prolonged sadness, difficulty coping), gently encourage them to consider talking to a mental health professional (like a therapist or counselor). Frame it as an option for deeper, personalized support.
             4.  **CRISIS REDIRECTION (Immediate & Unconditional):** If the user expresses any direct intent of self-harm, suicide, or an immediate life-threatening emergency, you MUST immediately and unconditionally provide the following crisis contacts for Kenya and then gently encourage them to reach out to these professionals. Cease further conversational responses related to the crisis.
                 * Kenya Red Cross Mental Health Hotline: 1190
                 * Befrienders Kenya: +254 722 178177
@@ -1323,7 +1359,7 @@ export default function Dashboard() {
           </Grid>
         </Grid>
 
-        {/* Floating Notification Pop-up - MOVED TO BOTTOM RIGHT */}
+        {/* Floating Session Notification Pop-up - MOVED TO BOTTOM RIGHT */}
         <Slide
           direction="up" // Changed direction back to up for bottom-right
           in={showNotificationPopup}
@@ -1364,7 +1400,7 @@ export default function Dashboard() {
                   alignItems: "center",
                 }}
               >
-                <NotificationsActiveOutlined sx={{ mr: 1 }} /> Important Updates
+                <NotificationsActiveOutlined sx={{ mr: 1 }} /> Session Updates
               </Typography>
               <IconButton
                 size="small"
@@ -1420,6 +1456,82 @@ export default function Dashboard() {
             )}
           </Paper>
         </Slide>
+        
+        {/* NEW: Floating CHAT Notification Pop-up - Positioned slightly higher and to the left of the session popup */}
+        {unreadChatCount > 0 && (
+            <Slide
+                direction="up"
+                // Stack the chat popup above the session popup if both are visible
+                in={showChatNotificationPopup} 
+                mountOnEnter
+                unmountOnExit
+            >
+                <Paper
+                    elevation={10}
+                    sx={{
+                        position: "fixed",
+                        bottom: showNotificationPopup ? 250 : 20, // Move up if session popup is shown
+                        right: 20, 
+                        width: { xs: "90%", sm: 350 },
+                        backgroundColor: "#E6E6FA", // Light purple/lavender for chat focus
+                        borderRadius: 3,
+                        boxShadow: "0px 8px 25px rgba(0,0,0,0.25)",
+                        zIndex: 1201, // Higher z-index
+                        p: 2,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1.5,
+                        border: `2px solid ${themePrimaryColor}`,
+                    }}
+                >
+                    <Box
+                        sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}
+                    >
+                        <Typography
+                            variant="h6"
+                            sx={{
+                                fontWeight: "bold",
+                                color: themePrimaryColor,
+                                display: "flex",
+                                alignItems: "center",
+                            }}
+                        >
+                            <ChatBubbleOutline sx={{ mr: 1 }} /> New Messages
+                        </Typography>
+                        <IconButton
+                            size="small"
+                            onClick={() => setShowChatNotificationPopup(false)}
+                        >
+                            <Clear sx={{ color: themePrimaryColor }}/>
+                        </IconButton>
+                    </Box>
+                    <Divider />
+                    <Alert severity="info" sx={{ mb: 1 }}>
+                      You have **{unreadChatCount}** unread chat message{unreadChatCount > 1 ? 's' : ''}!
+                    </Alert>
+                    <Button
+                        variant="contained"
+                        size="medium"
+                        startIcon={<Message />}
+                        sx={{
+                            backgroundColor: themePrimaryColor,
+                            "&:hover": { backgroundColor: themeButtonHoverColor },
+                            fontWeight: 'bold'
+                        }}
+                        component={Link}
+                        to="/chat-inbox" // Assuming you have a route to a general chat inbox
+                        onClick={() => setShowChatNotificationPopup(false)}
+                    >
+                        Go to Chat Inbox
+                    </Button>
+                </Paper>
+            </Slide>
+        )}
+
 
         <Snackbar
           open={snackbarOpen}
@@ -2335,6 +2447,14 @@ export default function Dashboard() {
             </Button>
           </Box>
         </DialogContent>
+        <DialogActions>
+            <Button
+                onClick={() => setOpenChatbotDialog(false)}
+                sx={{ color: themePrimaryColor }}
+            >
+                Close Chat
+            </Button>
+        </DialogActions>
       </Dialog>
 
       {/* --- Self-Care Music Dialog (YouTube Integration) --- */}

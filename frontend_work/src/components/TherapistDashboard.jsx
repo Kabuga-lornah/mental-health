@@ -15,7 +15,7 @@ import {
   CheckCircle, Cancel, Notes, Message, // Added Message icon
   InfoOutlined, AttachMoney, Category, Psychology, Edit as EditIcon, Close as CloseIcon,
   PeopleAltOutlined, AssignmentOutlined, CalendarTodayOutlined, NotificationsOutlined, TrendingUpOutlined,
-  LightbulbOutlined
+  LightbulbOutlined, ChatBubbleOutline
 } from '@mui/icons-material';
 // FIX: Corrected import paths by ADDING .jsx extension
 import { useAuth } from '../context/AuthContext.jsx';
@@ -32,7 +32,8 @@ const themeTextColor = '#333'; // Standard dark text color
 const themeBorderColor = '#e0e0e0'; // Neutral gray for borders
 
 const TherapistDashboard = () => {
-  const { user, token, authLoading } = useAuth();
+  // MODIFIED: Destructure fetchUnreadMessageCount
+  const { user, token, authLoading, fetchUnreadMessageCount } = useAuth();
   const { clientSearchTerm, sessionDateFilter } = useSessionFilter();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,10 @@ const TherapistDashboard = () => {
 
   // NEW: State for active chat rooms
   const [activeChatRooms, setActiveChatRooms] = useState([]);
+
+  // NEW CHAT NOTIFICATION STATES
+  const [unreadChatCount, setUnreadChatCount] = useState(0); 
+  const [showChatNotificationPopup, setShowChatNotificationPopup] = useState(false); 
 
   // Availability states (keeping states if backend still uses, UI is removed)
   const [availabilities, setAvailabilities] = useState([]);
@@ -252,6 +257,33 @@ const TherapistDashboard = () => {
       setLoading(false);
     }
   }, [user, token, authLoading, fetchData, fetchAvailability, fetchActiveChatRooms]);
+
+  // NEW: Initial load and Polling for Unread Messages (Therapist)
+  useEffect(() => {
+    if (user && user.unread_message_count !== undefined) {
+      setUnreadChatCount(user.unread_message_count);
+      // Show pop-up immediately after login if count is > 0
+      if (user.unread_message_count > 0) {
+        setShowChatNotificationPopup(true);
+      }
+    }
+
+    const pollingInterval = setInterval(async () => {
+      if (token && fetchUnreadMessageCount) {
+        const latestCount = await fetchUnreadMessageCount();
+        setUnreadChatCount(latestCount);
+        if (latestCount > 0) {
+          setShowChatNotificationPopup(true); 
+        } else {
+          // Only automatically hide if the count drops to zero
+          setShowChatNotificationPopup(false);
+        }
+      }
+    }, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(pollingInterval);
+  }, [user?.unread_message_count, token, fetchUnreadMessageCount]);
+
 
   useEffect(() => {
     if (!authLoading && user && user.is_therapist && user.is_verified) {
@@ -1050,6 +1082,80 @@ const TherapistDashboard = () => {
             </Box>
           </Slide>
         )}
+        
+        {/* NEW: Floating CHAT Notification Pop-up for Therapists */}
+        {unreadChatCount > 0 && (
+            <Slide
+                direction="up"
+                in={showChatNotificationPopup} 
+                mountOnEnter
+                unmountOnExit
+            >
+                <Box
+                    elevation={10}
+                    sx={{
+                        position: "fixed",
+                        bottom: showReminderPanel ? 250 : 20, // Stack above the reminder panel if it's visible
+                        right: 20, 
+                        width: { xs: "90%", sm: 350 },
+                        backgroundColor: "#E6E6FA", // Light purple/lavender for chat focus
+                        borderRadius: 2,
+                        boxShadow: "0px 8px 25px rgba(0,0,0,0.25)",
+                        zIndex: 1401, // Higher z-index
+                        p: 2,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1.5,
+                        border: `2px solid ${themePrimaryColor}`,
+                    }}
+                >
+                    <Box
+                        sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}
+                    >
+                        <Typography
+                            variant="h6"
+                            sx={{
+                                fontWeight: "bold",
+                                color: themePrimaryColor,
+                                display: "flex",
+                                alignItems: "center",
+                            }}
+                        >
+                            <ChatBubbleOutline sx={{ mr: 1 }} /> New Client Messages
+                        </Typography>
+                        <IconButton
+                            size="small"
+                            onClick={() => setShowChatNotificationPopup(false)}
+                        >
+                            <CloseIcon sx={{ color: themePrimaryColor }}/>
+                        </IconButton>
+                    </Box>
+                    <Divider />
+                    <Alert severity="info" sx={{ mb: 1 }}>
+                      You have **{unreadChatCount}** unread chat message{unreadChatCount > 1 ? 's' : ''} from your clients!
+                    </Alert>
+                    <Button
+                        variant="contained"
+                        size="medium"
+                        startIcon={<Message />}
+                        sx={{
+                            backgroundColor: themePrimaryColor,
+                            "&:hover": { backgroundColor: themeButtonHoverColor },
+                            fontWeight: 'bold'
+                        }}
+                        component={Link}
+                        to="/therapist/chat_rooms" // Assuming this is the therapist chat inbox route
+                        onClick={() => setShowChatNotificationPopup(false)}
+                    >
+                        Go to Chat Inbox
+                    </Button>
+                </Box>
+            </Slide>
+        )}
 
         {/* Notepad Panel */}
         <Slide direction="left" in={showNotepad} mountOnEnter unmountOnExit>
@@ -1281,4 +1387,3 @@ const TherapistDashboard = () => {
 };
 
 export default TherapistDashboard;
-

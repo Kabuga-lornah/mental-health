@@ -167,6 +167,17 @@ class RegisterView(generics.CreateAPIView):
         try:
             serializer.is_valid(raise_exception=True)
             user = serializer.save()
+
+            # --- MODIFICATION: Calculate unread chat messages on registration (should be 0) ---
+            unread_message_count = ChatMessage.objects.filter(
+                Q(chat_room__user1=user) | Q(chat_room__user2=user)
+            ).exclude(
+                sender=user
+            ).filter(
+                is_read=False
+            ).count()
+            # -------------------------------------------------------------
+            
             refresh = RefreshToken.for_user(user)
             return Response({
                 'refresh': str(refresh),
@@ -197,6 +208,8 @@ class RegisterView(generics.CreateAPIView):
                     'is_free_consultation': user.is_free_consultation,
                     'session_modes': user.session_modes,
                     'physical_address': user.physical_address,
+                    # --- NEW FIELD ADDED ---
+                    'unread_message_count': unread_message_count,
                 }
             }, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -216,6 +229,18 @@ class LoginView(generics.GenericAPIView):
         try:
             serializer.is_valid(raise_exception=True)
             user = serializer.validated_data['user']
+            
+            # --- MODIFICATION: Calculate unread chat messages on login ---
+            # Count unread messages in any chat room the user belongs to, where the user is NOT the sender.
+            unread_message_count = ChatMessage.objects.filter(
+                Q(chat_room__user1=user) | Q(chat_room__user2=user)
+            ).exclude(
+                sender=user
+            ).filter(
+                is_read=False
+            ).count()
+            # -------------------------------------------------------------
+
             refresh = RefreshToken.for_user(user)
             return Response({
                 'refresh': str(refresh),
@@ -246,6 +271,8 @@ class LoginView(generics.GenericAPIView):
                     'is_free_consultation': user.is_free_consultation,
                     'session_modes': user.session_modes,
                     'physical_address': user.physical_address,
+                    # --- NEW FIELD ADDED ---
+                    'unread_message_count': unread_message_count,
                 }
             })
         except Exception as e:
@@ -257,6 +284,7 @@ class LoginView(generics.GenericAPIView):
             )
 
 class UserView(generics.RetrieveUpdateAPIView):
+# ... (rest of UserView) ...
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -274,6 +302,7 @@ class UserView(generics.RetrieveUpdateAPIView):
 
 # New Admin Views
 class AdminUserListView(generics.ListAPIView):
+# ... (rest of AdminUserListView) ...
     serializer_class = UserSerializer  # Using UserSerializer for full user details
     permission_classes = [IsAdminUser]
     queryset = User.objects.all().order_by('email') # Order for consistent display
@@ -281,21 +310,25 @@ class AdminUserListView(generics.ListAPIView):
         return {'request': self.request}
 
 class AdminSessionListView(generics.ListAPIView):
+# ... (rest of AdminSessionListView) ...
     serializer_class = SessionSerializer
     permission_classes = [IsAdminUser]
     queryset = Session.objects.all().order_by('-session_date', '-session_time')
 
 class AdminJournalEntryListView(generics.ListAPIView):
+# ... (rest of AdminJournalEntryListView) ...
     serializer_class = JournalEntrySerializer
     permission_classes = [IsAdminUser]
     queryset = JournalEntry.objects.all().order_by('-date')
 
 class AdminPaymentListView(generics.ListAPIView):
+# ... (rest of AdminPaymentListView) ...
     serializer_class = PaymentSerializer
     permission_classes = [IsAdminUser]
     queryset = Payment.objects.all().order_by('-payment_date')
 
 class JournalEntryView(generics.ListCreateAPIView):
+# ... (rest of JournalEntryView) ...
     serializer_class = JournalEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -325,6 +358,7 @@ class JournalEntryView(generics.ListCreateAPIView):
             serializer.save(user=self.request.user)
 
 class JournalEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
+# ... (rest of JournalEntryDetailView) ...
     serializer_class = JournalEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -342,6 +376,7 @@ class JournalEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
             serializer.save()
 
 class TherapistApplicationCreateView(generics.CreateAPIView):
+# ... (rest of TherapistApplicationCreateView) ...
     serializer_class = TherapistApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -356,6 +391,7 @@ class TherapistApplicationCreateView(generics.CreateAPIView):
         application = serializer.save(applicant=self.request.user)
 
 class MyTherapistApplicationView(generics.RetrieveAPIView):
+# ... (rest of MyTherapistApplicationView) ...
     serializer_class = TherapistApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -363,6 +399,7 @@ class MyTherapistApplicationView(generics.RetrieveAPIView):
         return get_object_or_404(TherapistApplication, applicant=self.request.user)
 
 class AdminTherapistApplicationListView(generics.ListAPIView):
+# ... (rest of AdminTherapistApplicationListView) ...
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
 
@@ -370,6 +407,7 @@ class AdminTherapistApplicationListView(generics.ListAPIView):
         return TherapistApplication.objects.all().order_by('-submitted_at')
 
 class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
+# ... (rest of AdminTherapistApplicationDetailView) ...
     serializer_class = TherapistApplicationAdminSerializer
     permission_classes = [IsAdminUser]
     queryset = TherapistApplication.objects.all()
@@ -412,6 +450,7 @@ class AdminTherapistApplicationDetailView(generics.RetrieveUpdateAPIView):
                 user_applicant.save()
 
 class TherapistListView(generics.ListAPIView):
+# ... (rest of TherapistListView) ...
     serializer_class = TherapistSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -457,6 +496,7 @@ class TherapistListView(generics.ListAPIView):
         return {'request': self.request}
 
 class TherapistDetailView(generics.RetrieveAPIView):
+# ... (rest of TherapistDetailView) ...
     serializer_class = TherapistSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = User.objects.filter(is_therapist=True, is_verified=True)
@@ -464,6 +504,7 @@ class TherapistDetailView(generics.RetrieveAPIView):
         return {'request': self.request}
 
 class SessionRequestCreateView(generics.CreateAPIView):
+# ... (rest of SessionRequestCreateView) ...
     serializer_class = SessionRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -654,6 +695,7 @@ class SessionRequestCreateView(generics.CreateAPIView):
 
 
 class TherapistSessionCreateView(generics.CreateAPIView):
+# ... (rest of TherapistSessionCreateView) ...
     serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -725,6 +767,7 @@ class TherapistSessionCreateView(generics.CreateAPIView):
 
 
 class TherapistSessionRequestListView(generics.ListAPIView):
+# ... (rest of TherapistSessionRequestListView) ...
     serializer_class = SessionRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -752,6 +795,7 @@ class TherapistSessionRequestListView(generics.ListAPIView):
         return queryset.order_by('-created_at')
 
 class ClientSessionRequestListView(generics.ListAPIView):
+# ... (rest of ClientSessionRequestListView) ...
     serializer_class = SessionRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -772,6 +816,7 @@ class ClientSessionRequestListView(generics.ListAPIView):
         return queryset.order_by('-created_at')
 
 class SessionRequestDetailView(generics.RetrieveAPIView):
+# ... (rest of SessionRequestDetailView) ...
     serializer_class = SessionRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -781,6 +826,7 @@ class SessionRequestDetailView(generics.RetrieveAPIView):
         )
 
 class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
+# ... (rest of SessionRequestUpdateView) ...
     serializer_class = SessionRequestUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -802,6 +848,7 @@ class SessionRequestUpdateView(generics.RetrieveUpdateDestroyAPIView):
             )
 
 class TherapistSessionListView(generics.ListAPIView):
+# ... (rest of TherapistSessionListView) ...
     serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -820,6 +867,7 @@ class TherapistSessionListView(generics.ListAPIView):
         return queryset.order_by('-session_date', '-session_time')
 
 class SessionDetailUpdateView(generics.UpdateAPIView):
+# ... (rest of SessionDetailUpdateView) ...
     serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = Session.objects.all()
@@ -859,6 +907,7 @@ class SessionDetailUpdateView(generics.UpdateAPIView):
         return Response(serializer.data)
 
 class ClientSessionListView(generics.ListAPIView):
+# ... (rest of ClientSessionListView) ...
     serializer_class = SessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -872,6 +921,7 @@ class ClientSessionListView(generics.ListAPIView):
         return queryset.order_by('-session_date', '-session_time')
 
 class PaymentCreateView(generics.CreateAPIView):
+# ... (rest of PaymentCreateView) ...
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -961,6 +1011,7 @@ class PaymentCreateView(generics.CreateAPIView):
             return Response({"error": stk_response["message"]}, status=status.HTTP_400_BAD_REQUEST)
 
 class ClientPaymentStatusView(generics.RetrieveAPIView):
+# ... (rest of ClientPaymentStatusView) ...
     permission_classes = [permissions.IsAuthenticated]
 
     def retrieve(self, request, *args, **kwargs):
@@ -995,6 +1046,7 @@ class ClientPaymentStatusView(generics.RetrieveAPIView):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def MpesaCallbackView(request):
+# ... (rest of MpesaCallbackView) ...
     """
     Handles M-Pesa STK Push callbacks.
     """
@@ -1091,6 +1143,7 @@ def MpesaCallbackView(request):
 
 
 class TherapistAvailabilityListCreateView(generics.ListCreateAPIView):
+# ... (rest of TherapistAvailabilityListCreateView) ...
     serializer_class = TherapistAvailabilitySerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -1110,6 +1163,7 @@ class TherapistAvailabilityListCreateView(generics.ListCreateAPIView):
         serializer.save(therapist=self.request.user)
 
 class TherapistAvailabilityDetailView(generics.RetrieveUpdateDestroyAPIView):
+# ... (rest of TherapistAvailabilityDetailView) ...
     serializer_class = TherapistAvailabilitySerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -1129,6 +1183,7 @@ class TherapistAvailabilityDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 class TherapistAvailableSlotsView(generics.GenericAPIView):
+# ... (rest of TherapistAvailableSlotsView) ...
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, therapist_id, *args, **kwargs):
@@ -1298,6 +1353,7 @@ class TherapistAvailableSlotsView(generics.GenericAPIView):
 
 # --- NEW: AI Recommendation View (for Meditation Hub) ---
 class AiRecommendationView(APIView):
+# ... (rest of AiRecommendationView) ...
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
@@ -1389,6 +1445,7 @@ class AiRecommendationView(APIView):
 
 # --- NEW: AI Chatbot Proxy View ---
 class ChatWithGeminiView(APIView):
+# ... (rest of ChatWithGeminiView) ...
     permission_classes = [permissions.IsAuthenticated] # Or adjust as needed for public access
 
     def post(self, request, *args, **kwargs):
@@ -1461,6 +1518,29 @@ class ChatWithGeminiView(APIView):
             print(f"ERROR: Error calling Gemini API for chat: {e}")
             return Response({"error": "Failed to get response from AI chat. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+
+# --- NEW: Unread Message Count View ---
+class UnreadMessageCountView(APIView):
+    """
+    Returns the count of unread messages for the logged-in user.
+    A message is unread if the user is in the chat room, is NOT the sender, and is_read=False.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        
+        # Count unread messages in any chat room the user belongs to, where the user is NOT the sender.
+        unread_message_count = ChatMessage.objects.filter(
+            Q(chat_room__user1=user) | Q(chat_room__user2=user) # User is in the room
+        ).exclude(
+            sender=user # User is not the sender
+        ).filter(
+            is_read=False # Message is unread
+        ).count()
+        
+        return Response({"unread_message_count": unread_message_count}, status=status.HTTP_200_OK)
+    
 # ... (rest of the file, including ChatMessageListView) ...
         
 class ChatMessageListView(generics.ListAPIView):

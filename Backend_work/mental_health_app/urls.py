@@ -27,7 +27,9 @@ from .views import (
     AdminJournalEntryListView,
     AdminPaymentListView,
     TherapistChatRoomListView,
-    GetChatPartnerDetailView
+    GetChatPartnerDetailView,
+    # --- NEW IMPORT ADDED HERE ---
+    UnreadMessageCountView 
 )
 
 urlpatterns = [
@@ -36,6 +38,9 @@ urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('user/', UserView.as_view(), name='user'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+    # --- NEW ENDPOINT FOR UNREAD MESSAGES ---
+    path('unread-messages/', UnreadMessageCountView.as_view(), name='unread-message-count'),
 
     # JOURNAL ENTRIES
     path('journal/', JournalEntryView.as_view(), name='journal-list'),
